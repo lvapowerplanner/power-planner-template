@@ -1,28 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import type { User } from "@supabase/supabase-js";
 
-type Project = {
-  id: string;
-  user_id: string;
-  name: string;
-  created_at: string;
-};
-
-type ProjectData = {
-  systemName: string;
-  notes: string;
-};
-
-const emptyProjectData: ProjectData = {
-  systemName: "",
-  notes: "",
-};
+import { LoginForm } from "@/components/LoginForm";
+import { ProjectDashboard } from "@/components/ProjectDashboard";
+import { ProjectWorkspace } from "@/components/ProjectWorkspace";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  emptyProjectData,
+  type Project,
+  type ProjectData,
+} from "@/types/project";
 
 export default function Home() {
   const [user, setUser] = useState<User | null>(null);
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
@@ -35,8 +28,13 @@ export default function Home() {
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({ email, password });
-    if (error) alert(error.message);
-    else alert("Account created. Please check your email.");
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Account created. Please check your email.");
   }
 
   async function signIn() {
@@ -44,7 +42,10 @@ export default function Home() {
       email,
       password,
     });
-    if (error) alert(error.message);
+
+    if (error) {
+      alert(error.message);
+    }
   }
 
   async function signOut() {
@@ -52,6 +53,7 @@ export default function Home() {
     setUser(null);
     setProjects([]);
     setActiveProject(null);
+    setProjectData(emptyProjectData);
   }
 
   async function loadProjects(currentUser: User) {
@@ -129,41 +131,45 @@ export default function Home() {
       setProjectData(emptyProjectData);
     }
 
-    if (user) await loadProjects(user);
+    if (user) {
+      await loadProjects(user);
+    }
   }
 
   async function openProject(project: Project) {
     setActiveProject(project);
 
     const { data, error } = await supabase
-  .from("project_data")
-  .select("*")
-  .eq("project_id", project.id)
-  .maybeSingle();
+      .from("project_data")
+      .select("*")
+      .eq("project_id", project.id)
+      .maybeSingle();
 
-if (error) {
-  alert(error.message);
-  return;
-}
+    if (error) {
+      alert(error.message);
+      return;
+    }
 
-if (!data) {
-  const { error: createDataError } = await supabase.from("project_data").insert([
-    {
-      project_id: project.id,
-      data: emptyProjectData,
-    },
-  ]);
+    if (!data) {
+      const { error: createDataError } = await supabase
+        .from("project_data")
+        .insert([
+          {
+            project_id: project.id,
+            data: emptyProjectData,
+          },
+        ]);
 
-  if (createDataError) {
-    alert(createDataError.message);
-    return;
-  }
+      if (createDataError) {
+        alert(createDataError.message);
+        return;
+      }
 
-  setProjectData(emptyProjectData);
-  return;
-}
+      setProjectData(emptyProjectData);
+      return;
+    }
 
-setProjectData((data.data as ProjectData) ?? emptyProjectData);
+    setProjectData((data.data as ProjectData) ?? emptyProjectData);
   }
 
   async function saveProject() {
@@ -188,14 +194,21 @@ setProjectData((data.data as ProjectData) ?? emptyProjectData);
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
       setUser(data.user);
-      if (data.user) loadProjects(data.user);
+
+      if (data.user) {
+        loadProjects(data.user);
+      }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUser(session?.user ?? null);
-        if (session?.user) loadProjects(session.user);
-        else setProjects([]);
+
+        if (session?.user) {
+          loadProjects(session.user);
+        } else {
+          setProjects([]);
+        }
       }
     );
 
@@ -206,269 +219,39 @@ setProjectData((data.data as ProjectData) ?? emptyProjectData);
 
   if (!user) {
     return (
-      <main style={styles.page}>
-        <section style={styles.card}>
-          <h1>Event Power Planner</h1>
-          <p style={styles.muted}>Sign in or create an account.</p>
-
-          <label style={styles.label}>
-            Email
-            <input
-              style={styles.input}
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-              type="email"
-            />
-          </label>
-
-          <label style={styles.label}>
-            Password
-            <input
-              style={styles.input}
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              type="password"
-            />
-          </label>
-
-          <div style={styles.row}>
-            <button style={styles.button} onClick={signIn}>
-              Sign In
-            </button>
-            <button style={styles.button} onClick={signUp}>
-              Create Account
-            </button>
-          </div>
-        </section>
-      </main>
+      <LoginForm
+        email={email}
+        password={password}
+        setEmail={setEmail}
+        setPassword={setPassword}
+        signIn={signIn}
+        signUp={signUp}
+      />
     );
   }
 
   if (activeProject) {
     return (
-      <main style={styles.page}>
-        <section style={styles.wideCard}>
-          <div style={styles.headerRow}>
-            <div>
-              <h1>{activeProject.name}</h1>
-              <p style={styles.muted}>Project workspace</p>
-            </div>
-
-            <div style={styles.row}>
-              <button
-                style={styles.secondaryButton}
-                onClick={() => setActiveProject(null)}
-              >
-                Back to Projects
-              </button>
-              <button style={styles.button} onClick={saveProject}>
-                Save Project
-              </button>
-            </div>
-          </div>
-
-          <hr style={styles.divider} />
-
-          <label style={styles.label}>
-            System Name
-            <input
-              style={styles.input}
-              value={projectData.systemName}
-              onChange={(event) =>
-                setProjectData({
-                  ...projectData,
-                  systemName: event.target.value,
-                })
-              }
-            />
-          </label>
-
-          <label style={styles.label}>
-            Notes
-            <textarea
-              style={styles.textarea}
-              value={projectData.notes}
-              onChange={(event) =>
-                setProjectData({
-                  ...projectData,
-                  notes: event.target.value,
-                })
-              }
-            />
-          </label>
-        </section>
-      </main>
+      <ProjectWorkspace
+        activeProject={activeProject}
+        projectData={projectData}
+        setProjectData={setProjectData}
+        saveProject={saveProject}
+        backToProjects={() => setActiveProject(null)}
+      />
     );
   }
 
   return (
-    <main style={styles.page}>
-      <section style={styles.wideCard}>
-        <div style={styles.headerRow}>
-          <div>
-            <h1>Event Power Planner</h1>
-            <p style={styles.muted}>Signed in as {user.email}</p>
-          </div>
-
-          <button style={styles.button} onClick={signOut}>
-            Sign Out
-          </button>
-        </div>
-
-        <hr style={styles.divider} />
-
-        <h2>Projects</h2>
-
-        <div style={styles.createProjectRow}>
-          <input
-            style={styles.input}
-            placeholder="New project name"
-            value={newProjectName}
-            onChange={(event) => setNewProjectName(event.target.value)}
-          />
-          <button style={styles.button} onClick={createProject}>
-            Create Project
-          </button>
-        </div>
-
-        <div style={styles.projectList}>
-          {projects.length === 0 ? (
-            <p style={styles.muted}>No projects yet.</p>
-          ) : (
-            projects.map((project) => (
-              <div key={project.id} style={styles.projectCard}>
-                <div>
-                  <strong>{project.name}</strong>
-                  <p style={styles.muted}>
-                    Created {new Date(project.created_at).toLocaleString()}
-                  </p>
-                </div>
-
-                <div style={styles.row}>
-                  <button
-                    style={styles.secondaryButton}
-                    onClick={() => openProject(project)}
-                  >
-                    Open
-                  </button>
-                  <button
-                    style={styles.dangerButton}
-                    onClick={() => deleteProject(project.id)}
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-    </main>
+    <ProjectDashboard
+      user={user}
+      projects={projects}
+      newProjectName={newProjectName}
+      setNewProjectName={setNewProjectName}
+      createProject={createProject}
+      openProject={openProject}
+      deleteProject={deleteProject}
+      signOut={signOut}
+    />
   );
 }
-
-const styles: Record<string, React.CSSProperties> = {
-  page: {
-    minHeight: "100vh",
-    padding: "40px",
-    fontFamily: "Arial, sans-serif",
-    background: "#f5f7fb",
-  },
-  card: {
-    maxWidth: "420px",
-    margin: "0 auto",
-    background: "white",
-    padding: "24px",
-    borderRadius: "14px",
-    border: "1px solid #d9e0ea",
-  },
-  wideCard: {
-    maxWidth: "900px",
-    margin: "0 auto",
-    background: "white",
-    padding: "24px",
-    borderRadius: "14px",
-    border: "1px solid #d9e0ea",
-  },
-  muted: { color: "#637083" },
-  label: {
-    display: "block",
-    marginTop: "12px",
-    marginBottom: "12px",
-  },
-  input: {
-    width: "100%",
-    padding: "10px",
-    marginTop: "6px",
-    borderRadius: "10px",
-    border: "1px solid #d9e0ea",
-  },
-  textarea: {
-    width: "100%",
-    minHeight: "120px",
-    padding: "10px",
-    marginTop: "6px",
-    borderRadius: "10px",
-    border: "1px solid #d9e0ea",
-  },
-  row: {
-    display: "flex",
-    gap: "8px",
-    alignItems: "center",
-    flexWrap: "wrap",
-  },
-  headerRow: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "16px",
-    alignItems: "center",
-  },
-  createProjectRow: {
-    display: "grid",
-    gridTemplateColumns: "1fr auto",
-    gap: "8px",
-    marginBottom: "20px",
-  },
-  button: {
-    padding: "10px 14px",
-    borderRadius: "10px",
-    border: "1px solid #172033",
-    background: "#172033",
-    color: "white",
-    cursor: "pointer",
-  },
-  secondaryButton: {
-    padding: "10px 14px",
-    borderRadius: "10px",
-    border: "1px solid #d9e0ea",
-    background: "white",
-    color: "#172033",
-    cursor: "pointer",
-  },
-  dangerButton: {
-    padding: "10px 14px",
-    borderRadius: "10px",
-    border: "1px solid #c53030",
-    background: "#fff5f5",
-    color: "#c53030",
-    cursor: "pointer",
-  },
-  divider: {
-    border: 0,
-    borderTop: "1px solid #d9e0ea",
-    margin: "20px 0",
-  },
-  projectList: {
-    display: "grid",
-    gap: "10px",
-  },
-  projectCard: {
-    border: "1px solid #d9e0ea",
-    borderRadius: "12px",
-    padding: "14px",
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-    gap: "12px",
-  },
-};
