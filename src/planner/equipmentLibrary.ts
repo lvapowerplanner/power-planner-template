@@ -1,6 +1,6 @@
-import type { EquipmentItem } from "./types";
+import type { PlannerEquipmentItem } from "./types";
 
-export const equipmentLibrary: EquipmentItem[] = [
+export const equipmentLibrary: PlannerEquipmentItem[] = [
   {"id": "e0", "category": "Audio - Control", "name": "A&H QU16", "watts": 95},
   {"id": "e1", "category": "Audio - Control", "name": "A&H SQ5", "watts": 75},
   {"id": "e2", "category": "Audio - Control", "name": "A&H SQ7", "watts": 110},

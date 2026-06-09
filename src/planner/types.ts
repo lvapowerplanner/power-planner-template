@@ -1,4 +1,4 @@
-export type EquipmentItem = {
+export type PlannerEquipmentItem = {
   id: string;
   category: string;
   name: string;
@@ -12,19 +12,16 @@ export type PlannerOutputItem = {
   quantity: number;
 };
 
-export type PlannerPhase = "L1" | "L2" | "L3" | "3Φ" | "Socapex";
-
 export type PlannerOutput = {
   id: string;
   label: string;
-  phase: PlannerPhase;
+  phase: "L1" | "L2" | "L3" | "3Φ" | "Socapex";
   type: string;
   rating: number;
   items: PlannerOutputItem[];
   notes?: string;
   displayName?: string;
   outputNumber?: number;
-  circuitNo?: number;
   breakerPair?: string | null;
   detail?: string;
   socaCircuits?: PlannerOutput[];
@@ -35,7 +32,6 @@ export type DistroDefinition = {
   input: string;
   inputA: number;
   outputs: PlannerOutput[];
-  custom?: boolean;
 };
 
 export type ProjectDistro = DistroDefinition & {
@@ -52,10 +48,6 @@ export type PowerSource = {
   conn: string;
   rating: number;
   notes: string;
-  phaseType?: "Single-Phase" | "Three-Phase";
-  auto?: boolean;
-  parentDistroId?: string;
-  parentOutputId?: string;
 };
 
 export type PlannerState = {
@@ -63,7 +55,7 @@ export type PlannerState = {
   sources: PowerSource[];
   distros: ProjectDistro[];
   active: string | null;
-  customEquipment: EquipmentItem[];
+  customEquipment: PlannerEquipmentItem[];
   customDistros: DistroDefinition[];
   reportHiddenSources: string[];
 };
