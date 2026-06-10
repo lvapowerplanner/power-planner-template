@@ -1,5 +1,8 @@
 import { useState } from "react";
-import type { PlannerState } from "@/types/project";
+import { DistroEditorTab } from "@/components/planner/DistroEditorTab";
+import { DistroOverviewTab } from "@/components/planner/DistroOverviewTab";
+import { PowerSourcesTab } from "@/components/planner/PowerSourcesTab";
+import type { PlannerState } from "@/planner/types";
 
 type PlannerShellProps = {
   plannerState: PlannerState;
@@ -36,6 +39,15 @@ export function PlannerShell({
       ...plannerState,
       systemName: value,
     });
+  }
+
+  function openDistroEditor(distroId: string) {
+    setPlannerState({
+      ...plannerState,
+      active: distroId,
+    });
+
+    setActiveTab("Distro Editor");
   }
 
   return (
@@ -93,24 +105,26 @@ export function PlannerShell({
       )}
 
       {activeTab === "Power Sources" && (
-        <section style={styles.card}>
-          <h2>Power Sources</h2>
-          <p style={styles.muted}>Power source management will go here.</p>
-        </section>
+        <PowerSourcesTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
+        />
       )}
 
       {activeTab === "Distro Overview" && (
-        <section style={styles.card}>
-          <h2>Distro Overview</h2>
-          <p style={styles.muted}>Distro overview will go here.</p>
-        </section>
+        <DistroOverviewTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
+          openDistroEditor={openDistroEditor}
+        />
       )}
 
       {activeTab === "Distro Editor" && (
-        <section style={styles.card}>
-          <h2>Distro Editor</h2>
-          <p style={styles.muted}>Distro editor will go here.</p>
-        </section>
+        <DistroEditorTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
+          goToDistroOverview={() => setActiveTab("Distro Overview")}
+        />
       )}
 
       {activeTab === "Custom Equipment" && (
