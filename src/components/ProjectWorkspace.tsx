@@ -62,7 +62,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#f5f7fb",
   },
   wideCard: {
-    maxWidth: "1200px",
+    maxWidth: "100%",
     margin: "0 auto",
     background: "white",
     padding: "24px",

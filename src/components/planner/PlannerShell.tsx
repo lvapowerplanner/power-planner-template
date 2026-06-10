@@ -2,6 +2,7 @@ import { useState } from "react";
 import { DistroEditorTab } from "@/components/planner/DistroEditorTab";
 import { DistroOverviewTab } from "@/components/planner/DistroOverviewTab";
 import { PowerSourcesTab } from "@/components/planner/PowerSourcesTab";
+import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import type { PlannerState } from "@/planner/types";
 
 type PlannerShellProps = {
@@ -34,13 +35,6 @@ export function PlannerShell({
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
 
-  function updateSystemName(value: string) {
-    setPlannerState({
-      ...plannerState,
-      systemName: value,
-    });
-  }
-
   function openDistroEditor(distroId: string) {
     setPlannerState({
       ...plannerState,
@@ -68,40 +62,11 @@ export function PlannerShell({
       </div>
 
       {activeTab === "System Overview" && (
-        <section style={styles.card}>
-          <h2>System Overview</h2>
-
-          <label style={styles.label}>
-            System Name
-            <input
-              style={styles.input}
-              value={plannerState.systemName}
-              onChange={(event) => updateSystemName(event.target.value)}
-            />
-          </label>
-
-          <div style={styles.summaryGrid}>
-            <div style={styles.summaryCard}>
-              <span>Total Sources</span>
-              <strong>{plannerState.sources.length}</strong>
-            </div>
-
-            <div style={styles.summaryCard}>
-              <span>Total Distros</span>
-              <strong>{plannerState.distros.length}</strong>
-            </div>
-
-            <div style={styles.summaryCard}>
-              <span>Custom Equipment</span>
-              <strong>{plannerState.customEquipment.length}</strong>
-            </div>
-
-            <div style={styles.summaryCard}>
-              <span>Custom Distros</span>
-              <strong>{plannerState.customDistros.length}</strong>
-            </div>
-          </div>
-        </section>
+        <SystemOverviewTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
+          openDistroEditor={openDistroEditor}
+        />
       )}
 
       {activeTab === "Power Sources" && (
@@ -186,29 +151,5 @@ const styles: Record<string, React.CSSProperties> = {
   },
   muted: {
     color: "#637083",
-  },
-  label: {
-    display: "block",
-    marginBottom: "18px",
-    color: "#637083",
-    fontWeight: 700,
-  },
-  input: {
-    width: "100%",
-    padding: "10px",
-    marginTop: "6px",
-    borderRadius: "10px",
-    border: "1px solid #d9e0ea",
-  },
-  summaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gap: "12px",
-  },
-  summaryCard: {
-    border: "1px solid #d9e0ea",
-    borderRadius: "14px",
-    padding: "14px",
-    background: "#f8fafc",
   },
 };
