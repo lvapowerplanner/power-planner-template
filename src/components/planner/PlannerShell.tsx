@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { CustomDistrosTab } from "@/components/planner/CustomDistrosTab";
+import { CustomEquipmentTab } from "@/components/planner/CustomEquipmentTab";
 import { DistroEditorTab } from "@/components/planner/DistroEditorTab";
 import { DistroOverviewTab } from "@/components/planner/DistroOverviewTab";
 import { PowerSourcesTab } from "@/components/planner/PowerSourcesTab";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
-import { CustomEquipmentTab } from "@/components/planner/CustomEquipmentTab";
 import type { PlannerState } from "@/planner/types";
 
 type PlannerShellProps = {
@@ -101,10 +102,10 @@ export function PlannerShell({
       )}
 
       {activeTab === "Custom Distros" && (
-        <section style={styles.card}>
-          <h2>Custom Distros</h2>
-          <p style={styles.muted}>Custom distro builder will go here.</p>
-        </section>
+        <CustomDistrosTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
+        />
       )}
 
       {activeTab === "Report" && (

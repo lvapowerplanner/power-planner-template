@@ -26,29 +26,50 @@ function displayDistroName(distro: ProjectDistro) {
     : distro.name;
 }
 
+function allDistroDefinitions(plannerState: PlannerState): DistroDefinition[] {
+  return [
+    ...distroLibrary,
+    ...plannerState.customDistros.map((distro) => ({
+      ...distro,
+      name: `Custom: ${distro.name}`,
+      custom: true,
+    })),
+  ].sort((a, b) => a.inputA - b.inputA || a.name.localeCompare(b.name));
+}
+
 export function DistroOverviewTab({
   plannerState,
   setPlannerState,
   openDistroEditor,
 }: DistroOverviewTabProps) {
-  const sortedDistroLibrary = [...distroLibrary].sort(
-    (a, b) => a.inputA - b.inputA || a.name.localeCompare(b.name)
-  );
-
+  const distroDefinitions = allDistroDefinitions(plannerState);
   const [selectedDistroIndex, setSelectedDistroIndex] = useState("0");
 
   function addDistro() {
     const definition = cloneDistro(
-      sortedDistroLibrary[Number(selectedDistroIndex)]
+      distroDefinitions[Number(selectedDistroIndex)]
     );
+
+    const cleanName = definition.name.replace(/^Custom:\s*/, "");
 
     const newDistro: ProjectDistro = {
       ...definition,
+      name: cleanName,
       id: createId("distro"),
       instanceName: "",
       sourceId: "",
       location: "",
       notes: "",
+      outputs: definition.outputs.map((output) => ({
+        ...output,
+        items: [],
+        notes: output.notes ?? "",
+        socaCircuits: output.socaCircuits?.map((socket) => ({
+          ...socket,
+          items: [],
+          notes: socket.notes ?? "",
+        })),
+      })),
     };
 
     setPlannerState({
@@ -101,7 +122,7 @@ export function DistroOverviewTab({
     <section style={styles.card}>
       <h2>Distro Overview</h2>
       <p style={styles.muted}>
-        Add distros from the library and assign them to power sources.
+        Add distros from the built-in library or from project custom distros.
       </p>
 
       <div style={styles.addPanel}>
@@ -112,7 +133,7 @@ export function DistroOverviewTab({
             value={selectedDistroIndex}
             onChange={(event) => setSelectedDistroIndex(event.target.value)}
           >
-            {sortedDistroLibrary.map((distro, index) => (
+            {distroDefinitions.map((distro, index) => (
               <option key={`${distro.name}-${index}`} value={index}>
                 {distro.name} — {distro.input}
               </option>
