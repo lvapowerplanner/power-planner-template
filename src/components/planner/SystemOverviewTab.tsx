@@ -4,7 +4,7 @@ import {
   phasePercentage,
   systemLoadSummary,
 } from "@/planner/calculations";
-import type { PhaseLoads } from "@/planner/calculations";
+import type { PhaseLoads, ValidationIssue } from "@/planner/calculations";
 import type { PlannerState } from "@/planner/types";
 
 type SystemOverviewTabProps = {
@@ -43,10 +43,7 @@ export function SystemOverviewTab({
 
       <div style={styles.summaryGrid}>
         <SummaryCard label="Total Distros" value={summary.totalDistros} />
-        <SummaryCard
-          label="Power Sources"
-          value={summary.manualPowerSources}
-        />
+        <SummaryCard label="Power Sources" value={summary.manualPowerSources} />
         <SummaryCard
           label="Connected Load Watts"
           value={formatWatts(summary.connectedWatts)}
@@ -56,6 +53,41 @@ export function SystemOverviewTab({
           value={formatAmps(summary.connectedAmps)}
         />
       </div>
+
+      <section style={styles.healthCard}>
+        <div>
+          <h3>System Health</h3>
+          <p style={styles.muted}>
+            {summary.health === "ok" && "No warnings or critical issues."}
+            {summary.health === "warning" &&
+              `${summary.warningCount} warning(s), no critical issues.`}
+            {summary.health === "critical" &&
+              `${summary.criticalCount} critical issue(s), ${summary.warningCount} warning(s).`}
+          </p>
+        </div>
+
+        <span
+          style={{
+            ...styles.healthBadge,
+            ...(summary.health === "ok"
+              ? styles.healthOk
+              : summary.health === "warning"
+                ? styles.healthWarning
+                : styles.healthCritical),
+          }}
+        >
+          {summary.health === "ok" && "OK"}
+          {summary.health === "warning" && "WARNINGS"}
+          {summary.health === "critical" && "CRITICAL"}
+        </span>
+      </section>
+
+      {summary.issues.length > 0 && (
+        <section style={styles.issuesPanel}>
+          <h3>Warnings & Issues</h3>
+          <IssueList issues={summary.issues} />
+        </section>
+      )}
 
       <section style={styles.flowSection}>
         <h3>Power Flow</h3>
@@ -70,8 +102,7 @@ export function SystemOverviewTab({
                   <div>
                     <strong>{source.sourceName}</strong>
                     <p style={styles.muted}>
-                      {source.sourceConnection} · {source.sourceRating}A per
-                      phase
+                      {source.sourceConnection} · {source.sourceRating}A per phase
                     </p>
                   </div>
 
@@ -80,36 +111,29 @@ export function SystemOverviewTab({
                   </div>
                 </div>
 
-                <PhaseLoadGrid
-                  loads={source.phaseLoads}
-                  rating={source.sourceRating}
-                />
+                <PhaseLoadGrid loads={source.phaseLoads} rating={source.sourceRating} />
+
+                {source.issues.length > 0 && <IssueList issues={source.issues} compact />}
 
                 {source.distros.length === 0 ? (
                   <p style={styles.muted}>No distros assigned to this source.</p>
                 ) : (
                   <div style={styles.distroFlowList}>
                     {source.distros.map((distroSummary) => (
-                      <div
-                        key={distroSummary.distro.id}
-                        style={styles.distroFlowCard}
-                      >
+                      <div key={distroSummary.distro.id} style={styles.distroFlowCard}>
                         <div style={styles.sourceHeader}>
                           <div>
                             <strong>
                               {displayDistroName(distroSummary.distro)}
                             </strong>
                             <p style={styles.muted}>
-                              {distroSummary.distro.name} ·{" "}
-                              {distroSummary.distro.input}
+                              {distroSummary.distro.name} · {distroSummary.distro.input}
                             </p>
                           </div>
 
                           <button
                             style={styles.secondaryButton}
-                            onClick={() =>
-                              openDistroEditor(distroSummary.distro.id)
-                            }
+                            onClick={() => openDistroEditor(distroSummary.distro.id)}
                           >
                             Open
                           </button>
@@ -139,10 +163,7 @@ export function SystemOverviewTab({
 
             <div style={styles.distroFlowList}>
               {summary.unassignedDistros.map((distroSummary) => (
-                <div
-                  key={distroSummary.distro.id}
-                  style={styles.unassignedCard}
-                >
+                <div key={distroSummary.distro.id} style={styles.unassignedCard}>
                   <div style={styles.sourceHeader}>
                     <div>
                       <strong>{displayDistroName(distroSummary.distro)}</strong>
@@ -179,6 +200,33 @@ function SummaryCard({ label, value }: { label: string; value: string | number }
     <div style={styles.summaryCard}>
       <span>{label}</span>
       <strong>{value}</strong>
+    </div>
+  );
+}
+
+function IssueList({
+  issues,
+  compact = false,
+}: {
+  issues: ValidationIssue[];
+  compact?: boolean;
+}) {
+  return (
+    <div style={compact ? styles.compactIssueList : styles.issueList}>
+      {issues.map((issue) => (
+        <div
+          key={issue.id}
+          style={{
+            ...styles.issueItem,
+            ...(issue.severity === "critical"
+              ? styles.issueCritical
+              : styles.issueWarning),
+          }}
+        >
+          <strong>{issue.severity === "critical" ? "Critical" : "Warning"}</strong>
+          <span>{issue.message}</span>
+        </div>
+      ))}
     </div>
   );
 }
@@ -273,6 +321,69 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     padding: "14px",
     background: "#f8fafc",
+  },
+  healthCard: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "16px",
+    padding: "16px",
+    background: "#f8fafc",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    alignItems: "center",
+    marginBottom: "22px",
+  },
+  healthBadge: {
+    padding: "8px 12px",
+    borderRadius: "999px",
+    fontWeight: 800,
+    fontSize: "12px",
+  },
+  healthOk: {
+    background: "#ecfdf3",
+    color: "#0f8a5f",
+  },
+  healthWarning: {
+    background: "#fffbeb",
+    color: "#b7791f",
+  },
+  healthCritical: {
+    background: "#fff5f5",
+    color: "#c53030",
+  },
+  issuesPanel: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "16px",
+    padding: "16px",
+    background: "white",
+    marginBottom: "22px",
+  },
+  issueList: {
+    display: "grid",
+    gap: "8px",
+  },
+  compactIssueList: {
+    display: "grid",
+    gap: "6px",
+    marginTop: "10px",
+  },
+  issueItem: {
+    display: "grid",
+    gridTemplateColumns: "90px 1fr",
+    gap: "8px",
+    borderRadius: "10px",
+    padding: "10px",
+    fontSize: "13px",
+  },
+  issueWarning: {
+    background: "#fffbeb",
+    color: "#92400e",
+    border: "1px solid #fde68a",
+  },
+  issueCritical: {
+    background: "#fff5f5",
+    color: "#991b1b",
+    border: "1px solid #fecaca",
   },
   flowSection: {
     marginTop: "22px",
