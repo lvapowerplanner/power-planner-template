@@ -1,3 +1,5 @@
+import { useMemo, useState } from "react";
+import type { DragEvent } from "react";
 import { equipmentLibrary } from "@/planner/equipmentLibrary";
 import type {
   EquipmentItem,
@@ -11,6 +13,10 @@ type DistroEditorTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   goToDistroOverview: () => void;
+};
+
+type DraggedEquipment = {
+  equipmentId: string;
 };
 
 function createId(prefix: string) {
@@ -73,19 +79,66 @@ function createOutputItem(equipment: EquipmentItem): PlannerOutputItem {
   };
 }
 
+function dragPayload(equipmentId: string): string {
+  return JSON.stringify({ equipmentId } satisfies DraggedEquipment);
+}
+
+function readDragPayload(event: DragEvent): DraggedEquipment | null {
+  const raw = event.dataTransfer.getData("application/json");
+
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as DraggedEquipment;
+
+    if (!parsed.equipmentId) return null;
+
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
 export function DistroEditorTab({
   plannerState,
   setPlannerState,
   goToDistroOverview,
 }: DistroEditorTabProps) {
+  const [equipmentSearch, setEquipmentSearch] = useState("");
+  const [equipmentCategory, setEquipmentCategory] = useState("");
+
   const activeDistro =
     plannerState.distros.find((distro) => distro.id === plannerState.active) ??
     plannerState.distros[0];
 
-  const equipmentOptions = [
-    ...equipmentLibrary,
-    ...plannerState.customEquipment,
-  ].sort((a, b) => a.category.localeCompare(b.category) || a.name.localeCompare(b.name));
+  const equipmentOptions = useMemo(
+    () =>
+      [...equipmentLibrary, ...plannerState.customEquipment].sort(
+        (a, b) =>
+          a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
+      ),
+    [plannerState.customEquipment]
+  );
+
+  const equipmentCategories = useMemo(
+    () =>
+      Array.from(new Set(equipmentOptions.map((item) => item.category))).sort(),
+    [equipmentOptions]
+  );
+
+  const filteredEquipment = equipmentOptions.filter((item) => {
+    const matchesCategory = equipmentCategory
+      ? item.category === equipmentCategory
+      : true;
+
+    const search = equipmentSearch.trim().toLowerCase();
+
+    const matchesSearch = search
+      ? `${item.category} ${item.name}`.toLowerCase().includes(search)
+      : true;
+
+    return matchesCategory && matchesSearch;
+  });
 
   function updateDistro(updatedDistro: ProjectDistro) {
     setPlannerState({
@@ -221,6 +274,37 @@ export function DistroEditorTab({
     }));
   }
 
+  function handleDragStart(event: DragEvent, equipmentId: string) {
+    event.dataTransfer.setData("application/json", dragPayload(equipmentId));
+    event.dataTransfer.effectAllowed = "copy";
+  }
+
+  function handleOutputDrop(event: DragEvent, outputId: string) {
+    event.preventDefault();
+
+    const payload = readDragPayload(event);
+    if (!payload) return;
+
+    addEquipmentToOutput(outputId, payload.equipmentId);
+  }
+
+  function handleSocapexSocketDrop(
+    event: DragEvent,
+    socapexOutputId: string,
+    socketId: string
+  ) {
+    event.preventDefault();
+
+    const payload = readDragPayload(event);
+    if (!payload) return;
+
+    addEquipmentToSocapexSocket(
+      socapexOutputId,
+      socketId,
+      payload.equipmentId
+    );
+  }
+
   if (!activeDistro) {
     return (
       <section style={styles.card}>
@@ -250,295 +334,362 @@ export function DistroEditorTab({
     (output) => output.phase === "3Φ"
   );
 
-  const totalWatts =
-    activeDistro.outputs.reduce((total, output) => {
-      const mainOutputWatts = outputWatts(output);
-      const socaWatts = (output.socaCircuits ?? []).reduce(
-        (socketTotal, socket) => socketTotal + outputWatts(socket),
-        0
-      );
+  const totalWatts = activeDistro.outputs.reduce((total, output) => {
+    const mainOutputWatts = outputWatts(output);
+    const socaWatts = (output.socaCircuits ?? []).reduce(
+      (socketTotal, socket) => socketTotal + outputWatts(socket),
+      0
+    );
 
-      return total + mainOutputWatts + socaWatts;
-    }, 0);
+    return total + mainOutputWatts + socaWatts;
+  }, 0);
 
   return (
-    <section style={styles.card}>
-      <div style={styles.headerRow}>
-        <div>
-          <h2>Distro Editor</h2>
-          <p style={styles.muted}>{displayDistroName(activeDistro)}</p>
-        </div>
+    <section style={styles.editorLayout}>
+      <aside style={styles.sidebar}>
+        <h2>Equipment Library</h2>
+        <p style={styles.muted}>
+          Drag equipment onto an output, or use the dropdowns inside each output.
+        </p>
 
-        <button style={styles.secondaryButton} onClick={goToDistroOverview}>
-          Back to Distro Overview
-        </button>
-      </div>
-
-      <hr style={styles.divider} />
-
-      <div style={styles.summaryGrid}>
-        <div style={styles.summaryCard}>
-          <span>Total Load</span>
-          <strong>{formatWatts(totalWatts)}</strong>
-        </div>
-
-        <div style={styles.summaryCard}>
-          <span>Input</span>
-          <strong>{activeDistro.input}</strong>
-        </div>
-
-        <div style={styles.summaryCard}>
-          <span>Outputs</span>
-          <strong>{activeDistro.outputs.length}</strong>
-        </div>
-      </div>
-
-      <div style={styles.controlsGrid}>
         <label style={styles.label}>
-          Distro Name
+          Search
           <input
             style={styles.input}
-            value={activeDistro.instanceName}
-            onChange={(event) =>
-              updateDistro({
-                ...activeDistro,
-                instanceName: event.target.value,
-              })
-            }
-            placeholder="Optional name"
+            value={equipmentSearch}
+            onChange={(event) => setEquipmentSearch(event.target.value)}
+            placeholder="Search equipment"
           />
         </label>
 
         <label style={styles.label}>
-          Location
-          <input
-            style={styles.input}
-            value={activeDistro.location}
-            onChange={(event) =>
-              updateDistro({
-                ...activeDistro,
-                location: event.target.value,
-              })
-            }
-            placeholder="e.g. Stage Left"
-          />
-        </label>
-
-        <label style={styles.label}>
-          Source
+          Category
           <select
             style={styles.input}
-            value={activeDistro.sourceId}
-            onChange={(event) =>
-              updateDistro({
-                ...activeDistro,
-                sourceId: event.target.value,
-              })
-            }
+            value={equipmentCategory}
+            onChange={(event) => setEquipmentCategory(event.target.value)}
           >
-            <option value="">No source selected</option>
-            {availableSources.map((source) => (
-              <option key={source.id} value={source.id}>
-                {source.name} — {source.conn}
+            <option value="">All categories</option>
+            {equipmentCategories.map((category) => (
+              <option key={category} value={category}>
+                {category}
               </option>
             ))}
           </select>
         </label>
-      </div>
 
-      <label style={styles.label}>
-        Distro Notes
-        <textarea
-          style={styles.textarea}
-          value={activeDistro.notes}
-          onChange={(event) =>
-            updateDistro({
-              ...activeDistro,
-              notes: event.target.value,
-            })
-          }
-          placeholder="Notes for this distro"
-        />
-      </label>
+        <div style={styles.equipmentList}>
+          {filteredEquipment.length === 0 ? (
+            <p style={styles.muted}>No equipment found.</p>
+          ) : (
+            filteredEquipment.map((item) => (
+              <div
+                key={item.id}
+                style={styles.equipmentCard}
+                draggable
+                onDragStart={(event) => handleDragStart(event, item.id)}
+              >
+                <strong>{item.name}</strong>
+                <p style={styles.muted}>
+                  {item.category} · {item.watts}W
+                </p>
+              </div>
+            ))
+          )}
+        </div>
+      </aside>
 
-      {singlePhaseOutputs.length > 0 && (
-        <section style={styles.sectionBlock}>
-          <h3 style={styles.sectionTitle}>Single Phase Outputs</h3>
-
-          <div style={styles.phaseGrid}>
-            {(["L1", "L2", "L3"] as const).map((phase) => {
-              const phaseOutputs = singlePhaseOutputs.filter(
-                (output) => output.phase === phase
-              );
-
-              if (phaseOutputs.length === 0) return null;
-
-              return (
-                <div key={phase} style={styles.phaseColumn}>
-                  <h4 style={styles.phaseTitle}>{phase}</h4>
-
-                  <div style={styles.outputList}>
-                    {phaseOutputs.map((output) => {
-                      const outputIndex = activeDistro.outputs.findIndex(
-                        (item) => item.id === output.id
-                      );
-
-                      return (
-                        <OutputCard
-                          key={output.id}
-                          output={output}
-                          title={outputTitle(output, outputIndex)}
-                          equipmentOptions={equipmentOptions}
-                          addEquipment={(equipmentId) =>
-                            addEquipmentToOutput(output.id, equipmentId)
-                          }
-                          updateQuantity={(itemId, quantity) =>
-                            updateOutputItemQuantity(
-                              output.id,
-                              itemId,
-                              quantity
-                            )
-                          }
-                          removeItem={(itemId) =>
-                            removeOutputItem(output.id, itemId)
-                          }
-                          updateNotes={(notes) =>
-                            updateOutputNotes(output.id, notes)
-                          }
-                        />
-                      );
-                    })}
-                  </div>
-                </div>
-              );
-            })}
+      <main style={styles.mainPanel}>
+        <div style={styles.headerRow}>
+          <div>
+            <h2>Distro Editor</h2>
+            <p style={styles.muted}>{displayDistroName(activeDistro)}</p>
           </div>
-        </section>
-      )}
 
-      {socapexOutputs.length > 0 && (
-        <section style={styles.sectionBlock}>
-          <h3 style={styles.sectionTitle}>Socapex Outputs</h3>
+          <button style={styles.secondaryButton} onClick={goToDistroOverview}>
+            Back to Distro Overview
+          </button>
+        </div>
 
-          <div style={styles.socapexList}>
-            {socapexOutputs.map((output) => {
-              const outputIndex = activeDistro.outputs.findIndex(
-                (item) => item.id === output.id
-              );
+        <hr style={styles.divider} />
 
-              return (
-                <div key={output.id} style={styles.socapexCard}>
-                  <div style={styles.outputHeader}>
-                    <strong>{outputTitle(output, outputIndex)}</strong>
-                    <span style={styles.pill}>Socapex</span>
-                  </div>
+        <div style={styles.summaryGrid}>
+          <div style={styles.summaryCard}>
+            <span>Total Load</span>
+            <strong>{formatWatts(totalWatts)}</strong>
+          </div>
 
-                  {output.detail && <p style={styles.muted}>{output.detail}</p>}
+          <div style={styles.summaryCard}>
+            <span>Input</span>
+            <strong>{activeDistro.input}</strong>
+          </div>
 
-                  <label style={styles.smallLabel}>
-                    Socapex Output Notes
-                    <textarea
-                      style={styles.smallTextarea}
-                      value={output.notes ?? ""}
-                      onChange={(event) =>
-                        updateOutputNotes(output.id, event.target.value)
-                      }
-                    />
-                  </label>
+          <div style={styles.summaryCard}>
+            <span>Outputs</span>
+            <strong>{activeDistro.outputs.length}</strong>
+          </div>
+        </div>
 
-                  <div style={styles.socapexSocketGrid}>
-                    {(["L1", "L2", "L3"] as const).map((phase) => {
-                      const sockets = (output.socaCircuits ?? [])
-                        .filter((socket) => socket.phase === phase)
-                        .sort(
-                          (a, b) => (a.circuitNo ?? 0) - (b.circuitNo ?? 0)
+        <div style={styles.controlsGrid}>
+          <label style={styles.label}>
+            Distro Name
+            <input
+              style={styles.input}
+              value={activeDistro.instanceName}
+              onChange={(event) =>
+                updateDistro({
+                  ...activeDistro,
+                  instanceName: event.target.value,
+                })
+              }
+              placeholder="Optional name"
+            />
+          </label>
+
+          <label style={styles.label}>
+            Location
+            <input
+              style={styles.input}
+              value={activeDistro.location}
+              onChange={(event) =>
+                updateDistro({
+                  ...activeDistro,
+                  location: event.target.value,
+                })
+              }
+              placeholder="e.g. Stage Left"
+            />
+          </label>
+
+          <label style={styles.label}>
+            Source
+            <select
+              style={styles.input}
+              value={activeDistro.sourceId}
+              onChange={(event) =>
+                updateDistro({
+                  ...activeDistro,
+                  sourceId: event.target.value,
+                })
+              }
+            >
+              <option value="">No source selected</option>
+              {availableSources.map((source) => (
+                <option key={source.id} value={source.id}>
+                  {source.name} — {source.conn}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+
+        <label style={styles.label}>
+          Distro Notes
+          <textarea
+            style={styles.textarea}
+            value={activeDistro.notes}
+            onChange={(event) =>
+              updateDistro({
+                ...activeDistro,
+                notes: event.target.value,
+              })
+            }
+            placeholder="Notes for this distro"
+          />
+        </label>
+
+        {singlePhaseOutputs.length > 0 && (
+          <section style={styles.sectionBlock}>
+            <h3 style={styles.sectionTitle}>Single Phase Outputs</h3>
+
+            <div style={styles.phaseGrid}>
+              {(["L1", "L2", "L3"] as const).map((phase) => {
+                const phaseOutputs = singlePhaseOutputs.filter(
+                  (output) => output.phase === phase
+                );
+
+                if (phaseOutputs.length === 0) return null;
+
+                return (
+                  <div key={phase} style={styles.phaseColumn}>
+                    <h4 style={styles.phaseTitle}>{phase}</h4>
+
+                    <div style={styles.outputList}>
+                      {phaseOutputs.map((output) => {
+                        const outputIndex = activeDistro.outputs.findIndex(
+                          (item) => item.id === output.id
                         );
 
-                      return (
-                        <div key={phase} style={styles.socapexPhaseColumn}>
-                          <h4 style={styles.phaseTitle}>{phase}</h4>
-
-                          <div style={styles.outputList}>
-                            {sockets.map((socket) => (
-                              <OutputCard
-                                key={socket.id}
-                                output={socket}
-                                title={socapexSocketTitle(socket)}
-                                equipmentOptions={equipmentOptions}
-                                addEquipment={(equipmentId) =>
-                                  addEquipmentToSocapexSocket(
-                                    output.id,
-                                    socket.id,
-                                    equipmentId
-                                  )
-                                }
-                                updateQuantity={(itemId, quantity) =>
-                                  updateSocapexSocketItemQuantity(
-                                    output.id,
-                                    socket.id,
-                                    itemId,
-                                    quantity
-                                  )
-                                }
-                                removeItem={(itemId) =>
-                                  removeSocapexSocketItem(
-                                    output.id,
-                                    socket.id,
-                                    itemId
-                                  )
-                                }
-                                updateNotes={(notes) =>
-                                  updateSocapexSocketNotes(
-                                    output.id,
-                                    socket.id,
-                                    notes
-                                  )
-                                }
-                              />
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    })}
+                        return (
+                          <OutputCard
+                            key={output.id}
+                            output={output}
+                            title={outputTitle(output, outputIndex)}
+                            equipmentOptions={equipmentOptions}
+                            onDrop={(event) =>
+                              handleOutputDrop(event, output.id)
+                            }
+                            addEquipment={(equipmentId) =>
+                              addEquipmentToOutput(output.id, equipmentId)
+                            }
+                            updateQuantity={(itemId, quantity) =>
+                              updateOutputItemQuantity(
+                                output.id,
+                                itemId,
+                                quantity
+                              )
+                            }
+                            removeItem={(itemId) =>
+                              removeOutputItem(output.id, itemId)
+                            }
+                            updateNotes={(notes) =>
+                              updateOutputNotes(output.id, notes)
+                            }
+                          />
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
-      )}
+                );
+              })}
+            </div>
+          </section>
+        )}
 
-      {threePhaseOutputs.length > 0 && (
-        <section style={styles.sectionBlock}>
-          <h3 style={styles.sectionTitle}>Three Phase Outputs</h3>
+        {socapexOutputs.length > 0 && (
+          <section style={styles.sectionBlock}>
+            <h3 style={styles.sectionTitle}>Socapex Outputs</h3>
 
-          <div style={styles.threePhaseList}>
-            {threePhaseOutputs.map((output) => {
-              const outputIndex = activeDistro.outputs.findIndex(
-                (item) => item.id === output.id
-              );
+            <div style={styles.socapexList}>
+              {socapexOutputs.map((output) => {
+                const outputIndex = activeDistro.outputs.findIndex(
+                  (item) => item.id === output.id
+                );
 
-              return (
-                <OutputCard
-                  key={output.id}
-                  output={output}
-                  title={outputTitle(output, outputIndex)}
-                  equipmentOptions={equipmentOptions}
-                  threePhase
-                  addEquipment={(equipmentId) =>
-                    addEquipmentToOutput(output.id, equipmentId)
-                  }
-                  updateQuantity={(itemId, quantity) =>
-                    updateOutputItemQuantity(output.id, itemId, quantity)
-                  }
-                  removeItem={(itemId) => removeOutputItem(output.id, itemId)}
-                  updateNotes={(notes) => updateOutputNotes(output.id, notes)}
-                />
-              );
-            })}
-          </div>
-        </section>
-      )}
+                return (
+                  <div key={output.id} style={styles.socapexCard}>
+                    <div style={styles.outputHeader}>
+                      <strong>{outputTitle(output, outputIndex)}</strong>
+                      <span style={styles.pill}>Socapex</span>
+                    </div>
+
+                    {output.detail && (
+                      <p style={styles.muted}>{output.detail}</p>
+                    )}
+
+                    <label style={styles.smallLabel}>
+                      Socapex Output Notes
+                      <textarea
+                        style={styles.smallTextarea}
+                        value={output.notes ?? ""}
+                        onChange={(event) =>
+                          updateOutputNotes(output.id, event.target.value)
+                        }
+                      />
+                    </label>
+
+                    <div style={styles.socapexSocketGrid}>
+                      {(["L1", "L2", "L3"] as const).map((phase) => {
+                        const sockets = (output.socaCircuits ?? [])
+                          .filter((socket) => socket.phase === phase)
+                          .sort(
+                            (a, b) => (a.circuitNo ?? 0) - (b.circuitNo ?? 0)
+                          );
+
+                        return (
+                          <div key={phase} style={styles.socapexPhaseColumn}>
+                            <h4 style={styles.phaseTitle}>{phase}</h4>
+
+                            <div style={styles.outputList}>
+                              {sockets.map((socket) => (
+                                <OutputCard
+                                  key={socket.id}
+                                  output={socket}
+                                  title={socapexSocketTitle(socket)}
+                                  equipmentOptions={equipmentOptions}
+                                  onDrop={(event) =>
+                                    handleSocapexSocketDrop(
+                                      event,
+                                      output.id,
+                                      socket.id
+                                    )
+                                  }
+                                  addEquipment={(equipmentId) =>
+                                    addEquipmentToSocapexSocket(
+                                      output.id,
+                                      socket.id,
+                                      equipmentId
+                                    )
+                                  }
+                                  updateQuantity={(itemId, quantity) =>
+                                    updateSocapexSocketItemQuantity(
+                                      output.id,
+                                      socket.id,
+                                      itemId,
+                                      quantity
+                                    )
+                                  }
+                                  removeItem={(itemId) =>
+                                    removeSocapexSocketItem(
+                                      output.id,
+                                      socket.id,
+                                      itemId
+                                    )
+                                  }
+                                  updateNotes={(notes) =>
+                                    updateSocapexSocketNotes(
+                                      output.id,
+                                      socket.id,
+                                      notes
+                                    )
+                                  }
+                                />
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+        )}
+
+        {threePhaseOutputs.length > 0 && (
+          <section style={styles.sectionBlock}>
+            <h3 style={styles.sectionTitle}>Three Phase Outputs</h3>
+
+            <div style={styles.threePhaseList}>
+              {threePhaseOutputs.map((output) => {
+                const outputIndex = activeDistro.outputs.findIndex(
+                  (item) => item.id === output.id
+                );
+
+                return (
+                  <OutputCard
+                    key={output.id}
+                    output={output}
+                    title={outputTitle(output, outputIndex)}
+                    equipmentOptions={equipmentOptions}
+                    threePhase
+                    onDrop={(event) => handleOutputDrop(event, output.id)}
+                    addEquipment={(equipmentId) =>
+                      addEquipmentToOutput(output.id, equipmentId)
+                    }
+                    updateQuantity={(itemId, quantity) =>
+                      updateOutputItemQuantity(output.id, itemId, quantity)
+                    }
+                    removeItem={(itemId) => removeOutputItem(output.id, itemId)}
+                    updateNotes={(notes) => updateOutputNotes(output.id, notes)}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        )}
+      </main>
     </section>
   );
 }
@@ -548,6 +699,7 @@ type OutputCardProps = {
   title: string;
   equipmentOptions: EquipmentItem[];
   threePhase?: boolean;
+  onDrop: (event: DragEvent) => void;
   addEquipment: (equipmentId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   removeItem: (itemId: string) => void;
@@ -559,6 +711,7 @@ function OutputCard({
   title,
   equipmentOptions,
   threePhase = false,
+  onDrop,
   addEquipment,
   updateQuantity,
   removeItem,
@@ -569,7 +722,11 @@ function OutputCard({
   const phaseAmps = threePhaseAmps(output);
 
   return (
-    <div style={styles.outputCard}>
+    <div
+      style={styles.outputCard}
+      onDragOver={(event) => event.preventDefault()}
+      onDrop={onDrop}
+    >
       <div style={styles.outputHeader}>
         <strong>{title}</strong>
         <span style={styles.pill}>{output.type}</span>
@@ -659,6 +816,29 @@ function OutputCard({
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  editorLayout: {
+    display: "grid",
+    gridTemplateColumns: "300px minmax(0, 1fr)",
+    gap: "16px",
+    alignItems: "start",
+  },
+  sidebar: {
+    position: "sticky",
+    top: "20px",
+    maxHeight: "calc(100vh - 40px)",
+    overflow: "auto",
+    border: "1px solid #d9e0ea",
+    borderRadius: "18px",
+    padding: "18px",
+    background: "white",
+  },
+  mainPanel: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "18px",
+    padding: "18px",
+    background: "white",
+    minWidth: 0,
+  },
   card: {
     border: "1px solid #d9e0ea",
     borderRadius: "18px",
@@ -873,5 +1053,17 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "8px",
     background: "white",
     fontSize: "12px",
+  },
+  equipmentList: {
+    display: "grid",
+    gap: "8px",
+    marginTop: "12px",
+  },
+  equipmentCard: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "12px",
+    padding: "10px",
+    background: "#f8fafc",
+    cursor: "grab",
   },
 };
