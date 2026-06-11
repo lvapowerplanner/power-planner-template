@@ -4,6 +4,7 @@ import { CustomEquipmentTab } from "@/components/planner/CustomEquipmentTab";
 import { DistroEditorTab } from "@/components/planner/DistroEditorTab";
 import { DistroOverviewTab } from "@/components/planner/DistroOverviewTab";
 import { PowerSourcesTab } from "@/components/planner/PowerSourcesTab";
+import { ReportTab } from "@/components/planner/ReportTab";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import type { PlannerState } from "@/planner/types";
 
@@ -109,10 +110,10 @@ export function PlannerShell({
       )}
 
       {activeTab === "Report" && (
-        <section style={styles.card}>
-          <h2>Report</h2>
-          <p style={styles.muted}>Report export will go here.</p>
-        </section>
+        <ReportTab
+          plannerState={plannerState}
+          openDistroEditor={openDistroEditor}
+        />
       )}
     </section>
   );
@@ -144,14 +145,5 @@ const styles: Record<string, React.CSSProperties> = {
   activeTab: {
     background: "#111827",
     color: "white",
-  },
-  card: {
-    border: "1px solid #d9e0ea",
-    borderRadius: "18px",
-    padding: "18px",
-    background: "white",
-  },
-  muted: {
-    color: "#637083",
   },
 };
