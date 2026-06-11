@@ -1,6 +1,8 @@
-import { autoSourceId } from "@/planner/autoSources";
-import type { PlannerOutput, PlannerState, ProjectDistro } from "@/planner/types";
 
+import type { PlannerOutput, PlannerState, ProjectDistro } from "@/planner/types";
+function autoSourceId(parentDistroId: string, outputId: string): string {
+  return `auto_${parentDistroId}_${outputId}`;
+}
 export type PhaseLoads = {
   L1: number;
   L2: number;
