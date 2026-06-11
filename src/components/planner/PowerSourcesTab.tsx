@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { autoSourcesForDistro } from "@/planner/autoSources";
 import type { PlannerState, PowerSource } from "@/planner/types";
 
 type PowerSourcesTabProps = {
@@ -36,7 +37,10 @@ export function PowerSourcesTab({
   const [sourceNotes, setSourceNotes] = useState("");
 
   const manualSources = plannerState.sources.filter((source) => !source.auto);
-  const autoSources = plannerState.sources.filter((source) => source.auto);
+
+  const autoSources = plannerState.distros.flatMap((distro) =>
+    autoSourcesForDistro(distro)
+  );
 
   function addPowerSource() {
     const newSource: PowerSource = {
@@ -51,7 +55,7 @@ export function PowerSourcesTab({
 
     setPlannerState({
       ...plannerState,
-      sources: [...plannerState.sources, newSource],
+      sources: [...manualSources, newSource, ...autoSources],
     });
 
     setSourceName("");
@@ -61,7 +65,7 @@ export function PowerSourcesTab({
   function deletePowerSource(sourceId: string) {
     setPlannerState({
       ...plannerState,
-      sources: plannerState.sources.filter((source) => source.id !== sourceId),
+      sources: manualSources.filter((source) => source.id !== sourceId),
       distros: plannerState.distros.map((distro) =>
         distro.sourceId === sourceId ? { ...distro, sourceId: "" } : distro
       ),
@@ -72,7 +76,8 @@ export function PowerSourcesTab({
     <section style={styles.card}>
       <h2>Power Sources</h2>
       <p style={styles.muted}>
-        Manual sources are venue supplies or generators. Auto sources are created from distro outputs.
+        Manual sources are venue supplies or generators. Auto sources are created
+        from distro outputs rated 32A or above.
       </p>
 
       <div style={styles.formGrid}>
@@ -161,7 +166,7 @@ export function PowerSourcesTab({
       <div style={styles.list}>
         {autoSources.length === 0 ? (
           <p style={styles.muted}>
-            No auto-created sources yet. Add distros with 32A+ outputs.
+            No auto-created sources yet. Add a distro with 32A+ outputs.
           </p>
         ) : (
           autoSources.map((source) => (
