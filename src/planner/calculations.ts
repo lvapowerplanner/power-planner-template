@@ -1,8 +1,5 @@
-
 import type { PlannerOutput, PlannerState, ProjectDistro } from "@/planner/types";
-function autoSourceId(parentDistroId: string, outputId: string): string {
-  return `auto_${parentDistroId}_${outputId}`;
-}
+
 export type PhaseLoads = {
   L1: number;
   L2: number;
@@ -21,10 +18,16 @@ export type ValidationIssue = {
 export type DistroLoadSummary = {
   distro: ProjectDistro;
   watts: number;
+  ownWatts: number;
+  downstreamWatts: number;
   amps: number;
   phaseLoads: PhaseLoads;
+  ownPhaseLoads: PhaseLoads;
+  downstreamPhaseLoads: PhaseLoads;
   issues: ValidationIssue[];
   children: DistroLoadSummary[];
+  fedFromOutputId?: string;
+  fedFromOutputLabel?: string;
 };
 
 export type SourceLoadSummary = {
@@ -51,6 +54,10 @@ export type SystemLoadSummary = {
   criticalCount: number;
   health: ValidationSeverity;
 };
+
+function autoSourceId(parentDistroId: string, outputId: string): string {
+  return `auto_${parentDistroId}_${outputId}`;
+}
 
 export function isThreePhaseConnection(connection: string): boolean {
   return connection.includes("/ 3") || connection.includes("/3");
@@ -83,27 +90,6 @@ export function outputOwnWatts(output: PlannerOutput): number {
   );
 }
 
-export function outputWatts(
-  output: PlannerOutput,
-  plannerState?: PlannerState,
-  parentDistro?: ProjectDistro,
-  visited: Set<string> = new Set()
-): number {
-  const ownWatts = outputOwnWatts(output);
-
-  if (!plannerState || !parentDistro) return ownWatts;
-
-  const childDistro = childDistroFedFromOutput(
-    plannerState,
-    parentDistro.id,
-    output.id
-  );
-
-  if (!childDistro || visited.has(childDistro.id)) return ownWatts;
-
-  return ownWatts + distroWatts(childDistro, plannerState, new Set(visited));
-}
-
 export function outputOwnPhaseLoads(output: PlannerOutput): PhaseLoads {
   const watts = outputOwnWatts(output);
   const amps = wattsToAmps(watts);
@@ -120,6 +106,84 @@ export function outputOwnPhaseLoads(output: PlannerOutput): PhaseLoads {
   return createEmptyPhaseLoads();
 }
 
+export function socapexOutputPhaseLoads(output: PlannerOutput): PhaseLoads {
+  return (output.socaCircuits ?? []).reduce<PhaseLoads>(
+    (total, socket) => addPhaseLoads(total, outputOwnPhaseLoads(socket)),
+    createEmptyPhaseLoads()
+  );
+}
+
+export function socapexOutputWatts(output: PlannerOutput): number {
+  return (output.socaCircuits ?? []).reduce<number>(
+    (total, socket) => total + outputOwnWatts(socket),
+    0
+  );
+}
+
+export function outputDisplayName(output: PlannerOutput, index: number): string {
+  if (output.displayName) return output.displayName;
+  if (output.phase === "Socapex") return `Soca ${output.outputNumber ?? index + 1}`;
+  if (output.phase === "3Φ") return `${index + 1} - ${output.rating}/3`;
+  return `${index + 1} - ${output.rating}a`;
+}
+
+export function displayDistroName(distro: { instanceName: string; name: string }): string {
+  return distro.instanceName.trim()
+    ? `${distro.instanceName} - ${distro.name}`
+    : distro.name;
+}
+
+export function childDistroFedFromOutput(
+  plannerState: PlannerState,
+  parentDistroId: string,
+  outputId: string
+): ProjectDistro | undefined {
+  const sourceId = autoSourceId(parentDistroId, outputId);
+
+  return plannerState.distros.find((distro) => distro.sourceId === sourceId);
+}
+
+export function childDistrosForDistro(
+  plannerState: PlannerState,
+  distro: ProjectDistro
+): ProjectDistro[] {
+  return distro.outputs
+    .map((output) => childDistroFedFromOutput(plannerState, distro.id, output.id))
+    .filter((distro): distro is ProjectDistro => Boolean(distro));
+}
+
+function childSummaryForOutput(
+  plannerState: PlannerState,
+  parentDistro: ProjectDistro,
+  output: PlannerOutput,
+  outputIndex: number,
+  visited: Set<string>
+): DistroLoadSummary | null {
+  const child = childDistroFedFromOutput(plannerState, parentDistro.id, output.id);
+
+  if (!child || visited.has(child.id)) return null;
+
+  return distroLoadSummary(child, plannerState, visited, {
+    outputId: output.id,
+    outputLabel: outputDisplayName(output, outputIndex),
+  });
+}
+
+function mapChildLoadsOntoParentOutput(
+  output: PlannerOutput,
+  childLoads: PhaseLoads
+): PhaseLoads {
+  if (output.phase === "3Φ") return childLoads;
+
+  const childTotal = phaseLoadTotal(childLoads);
+
+  if (output.phase === "L1") return { L1: childTotal, L2: 0, L3: 0 };
+  if (output.phase === "L2") return { L1: 0, L2: childTotal, L3: 0 };
+  if (output.phase === "L3") return { L1: 0, L2: 0, L3: childTotal };
+
+  return createEmptyPhaseLoads();
+}
+
 export function outputPhaseLoads(
   output: PlannerOutput,
   plannerState?: PlannerState,
@@ -128,44 +192,49 @@ export function outputPhaseLoads(
 ): PhaseLoads {
   let loads = outputOwnPhaseLoads(output);
 
-  if (!plannerState || !parentDistro) return loads;
-
-  const childDistro = childDistroFedFromOutput(
-    plannerState,
-    parentDistro.id,
-    output.id
-  );
-
-  if (!childDistro || visited.has(childDistro.id)) return loads;
-
-  const childLoads = distroPhaseLoads(childDistro, plannerState, new Set(visited));
-
-  if (output.phase === "3Φ") {
-    return addPhaseLoads(loads, childLoads);
+  if (!plannerState || !parentDistro || output.phase === "Socapex") {
+    return loads;
   }
 
-  const childTotal = phaseLoadTotal(childLoads);
+  const child = childDistroFedFromOutput(plannerState, parentDistro.id, output.id);
 
-  if (output.phase === "L1") {
-    loads = addPhaseLoads(loads, { L1: childTotal, L2: 0, L3: 0 });
+  if (!child || visited.has(child.id)) {
+    return loads;
   }
 
-  if (output.phase === "L2") {
-    loads = addPhaseLoads(loads, { L1: 0, L2: childTotal, L3: 0 });
-  }
-
-  if (output.phase === "L3") {
-    loads = addPhaseLoads(loads, { L1: 0, L2: 0, L3: childTotal });
-  }
-
-  return loads;
+  const childLoads = distroPhaseLoads(child, plannerState, new Set(visited));
+  return addPhaseLoads(loads, mapChildLoadsOntoParentOutput(output, childLoads));
 }
 
-export function socapexOutputPhaseLoads(output: PlannerOutput): PhaseLoads {
-  return (output.socaCircuits ?? []).reduce(
-    (total, socket) => addPhaseLoads(total, outputOwnPhaseLoads(socket)),
-    createEmptyPhaseLoads()
-  );
+export function outputWatts(
+  output: PlannerOutput,
+  plannerState?: PlannerState,
+  parentDistro?: ProjectDistro,
+  visited: Set<string> = new Set()
+): number {
+  const ownWatts = outputOwnWatts(output);
+
+  if (!plannerState || !parentDistro || output.phase === "Socapex") {
+    return ownWatts;
+  }
+
+  const child = childDistroFedFromOutput(plannerState, parentDistro.id, output.id);
+
+  if (!child || visited.has(child.id)) {
+    return ownWatts;
+  }
+
+  return ownWatts + distroWatts(child, plannerState, new Set(visited));
+}
+
+export function distroOwnPhaseLoads(distro: ProjectDistro): PhaseLoads {
+  return distro.outputs.reduce<PhaseLoads>((total, output) => {
+    if (output.phase === "Socapex") {
+      return addPhaseLoads(total, socapexOutputPhaseLoads(output));
+    }
+
+    return addPhaseLoads(total, outputOwnPhaseLoads(output));
+  }, createEmptyPhaseLoads());
 }
 
 export function distroPhaseLoads(
@@ -190,6 +259,16 @@ export function distroPhaseLoads(
   }, createEmptyPhaseLoads());
 }
 
+export function distroOwnWatts(distro: ProjectDistro): number {
+  return distro.outputs.reduce<number>((total, output) => {
+    if (output.phase === "Socapex") {
+      return total + socapexOutputWatts(output);
+    }
+
+    return total + outputOwnWatts(output);
+  }, 0);
+}
+
 export function distroWatts(
   distro: ProjectDistro,
   plannerState?: PlannerState,
@@ -201,37 +280,12 @@ export function distroWatts(
   nextVisited.add(distro.id);
 
   return distro.outputs.reduce<number>((total, output) => {
-    const mainOutputWatts: number =
-      output.phase === "Socapex"
-        ? 0
-        : outputWatts(output, plannerState, distro, nextVisited);
+    if (output.phase === "Socapex") {
+      return total + socapexOutputWatts(output);
+    }
 
-    const socapexWatts: number = (output.socaCircuits ?? []).reduce<number>(
-      (socketTotal, socket) => socketTotal + outputOwnWatts(socket),
-      0
-    );
-
-    return total + mainOutputWatts + socapexWatts;
+    return total + outputWatts(output, plannerState, distro, nextVisited);
   }, 0);
-}
-
-export function childDistroFedFromOutput(
-  plannerState: PlannerState,
-  parentDistroId: string,
-  outputId: string
-): ProjectDistro | undefined {
-  const sourceId = autoSourceId(parentDistroId, outputId);
-
-  return plannerState.distros.find((distro) => distro.sourceId === sourceId);
-}
-
-export function childDistrosForDistro(
-  plannerState: PlannerState,
-  distro: ProjectDistro
-): ProjectDistro[] {
-  return distro.outputs
-    .map((output) => childDistroFedFromOutput(plannerState, distro.id, output.id))
-    .filter((distro): distro is ProjectDistro => Boolean(distro));
 }
 
 export function maxPhase(loads: PhaseLoads): number {
@@ -260,7 +314,7 @@ export function validateOutput(
   if (output.phase === "Socapex") return [];
 
   const loads = outputPhaseLoads(output, plannerState, parentDistro);
-  const amps = output.phase === "3Φ" ? loads.L1 : phaseLoadTotal(loads);
+  const amps = output.phase === "3Φ" ? maxPhase(loads) : phaseLoadTotal(loads);
 
   if (amps > output.rating) {
     return [
@@ -268,9 +322,7 @@ export function validateOutput(
         id: `${output.id}-overload`,
         severity: "critical",
         context,
-        message: `${context} is overloaded: ${formatAmps(amps)} / ${formatAmps(
-          output.rating
-        )}.`,
+        message: `${context} is overloaded: ${formatAmps(amps)} / ${formatAmps(output.rating)}.`,
       },
     ];
   }
@@ -281,9 +333,7 @@ export function validateOutput(
         id: `${output.id}-near-limit`,
         severity: "warning",
         context,
-        message: `${context} is above 80% capacity: ${formatAmps(
-          amps
-        )} / ${formatAmps(output.rating)}.`,
+        message: `${context} is above 80% capacity: ${formatAmps(amps)} / ${formatAmps(output.rating)}.`,
       },
     ];
   }
@@ -408,26 +458,68 @@ export function validateSource(
 export function distroLoadSummary(
   distro: ProjectDistro,
   plannerState?: PlannerState,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
+  feedInfo?: {
+    outputId: string;
+    outputLabel: string;
+  }
 ): DistroLoadSummary {
+  if (visited.has(distro.id)) {
+    return {
+      distro,
+      watts: 0,
+      ownWatts: 0,
+      downstreamWatts: 0,
+      amps: 0,
+      phaseLoads: createEmptyPhaseLoads(),
+      ownPhaseLoads: createEmptyPhaseLoads(),
+      downstreamPhaseLoads: createEmptyPhaseLoads(),
+      issues: [],
+      children: [],
+      fedFromOutputId: feedInfo?.outputId,
+      fedFromOutputLabel: feedInfo?.outputLabel,
+    };
+  }
+
   const nextVisited = new Set(visited);
   nextVisited.add(distro.id);
 
   const children = plannerState
-    ? childDistrosForDistro(plannerState, distro)
-        .filter((child) => !visited.has(child.id))
-        .map((child) => distroLoadSummary(child, plannerState, nextVisited))
+    ? distro.outputs
+        .map((output, outputIndex) =>
+          childSummaryForOutput(
+            plannerState,
+            distro,
+            output,
+            outputIndex,
+            nextVisited
+          )
+        )
+        .filter((child): child is DistroLoadSummary => Boolean(child))
     : [];
 
-  const phaseLoads = distroPhaseLoads(distro, plannerState);
+  const ownPhaseLoads = distroOwnPhaseLoads(distro);
+  const phaseLoads = distroPhaseLoads(distro, plannerState, visited);
+  const ownWatts = distroOwnWatts(distro);
+  const watts = distroWatts(distro, plannerState, visited);
 
   return {
     distro,
-    watts: distroWatts(distro, plannerState),
+    watts,
+    ownWatts,
+    downstreamWatts: Math.max(0, watts - ownWatts),
     amps: phaseLoadTotal(phaseLoads),
     phaseLoads,
+    ownPhaseLoads,
+    downstreamPhaseLoads: {
+      L1: Math.max(0, phaseLoads.L1 - ownPhaseLoads.L1),
+      L2: Math.max(0, phaseLoads.L2 - ownPhaseLoads.L2),
+      L3: Math.max(0, phaseLoads.L3 - ownPhaseLoads.L3),
+    },
     issues: validateDistro(distro, plannerState),
     children,
+    fedFromOutputId: feedInfo?.outputId,
+    fedFromOutputLabel: feedInfo?.outputLabel,
   };
 }
 
@@ -436,6 +528,18 @@ export function flattenDistroIssues(summary: DistroLoadSummary): ValidationIssue
     ...summary.issues,
     ...summary.children.flatMap((child) => flattenDistroIssues(child)),
   ];
+}
+
+function hasManualOrAutoSource(distro: ProjectDistro): boolean {
+  return Boolean(distro.sourceId);
+}
+
+function isFedByAnotherDistro(plannerState: PlannerState, distro: ProjectDistro): boolean {
+  return plannerState.distros.some((parent) =>
+    parent.outputs.some(
+      (output) => autoSourceId(parent.id, output.id) === distro.sourceId
+    )
+  );
 }
 
 export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary {
@@ -478,7 +582,10 @@ export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary
   });
 
   const unassignedDistros = plannerState.distros
-    .filter((distro) => !distro.sourceId)
+    .filter(
+      (distro) =>
+        !hasManualOrAutoSource(distro) && !isFedByAnotherDistro(plannerState, distro)
+    )
     .map((distro) => distroLoadSummary(distro, plannerState));
 
   const issues = [
@@ -533,17 +640,4 @@ export function formatAmps(value: number): string {
 export function phasePercentage(amps: number, rating: number): number {
   if (!rating) return 0;
   return Math.round((amps / rating) * 100);
-}
-
-export function displayDistroName(distro: { instanceName: string; name: string }): string {
-  return distro.instanceName.trim()
-    ? `${distro.instanceName} - ${distro.name}`
-    : distro.name;
-}
-
-export function outputDisplayName(output: PlannerOutput, index: number): string {
-  if (output.displayName) return output.displayName;
-  if (output.phase === "Socapex") return `Soca ${output.outputNumber ?? index + 1}`;
-  if (output.phase === "3Φ") return `${index + 1} - ${output.rating}/3`;
-  return `${index + 1} - ${output.rating}a`;
 }
