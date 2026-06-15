@@ -12,6 +12,7 @@ export type PlannerOutputItem = {
   name: string;
   watts: number;
   quantity: number;
+  notes?: string;
 };
 
 export type PlannerPhase = "L1" | "L2" | "L3" | "3Φ" | "Socapex";

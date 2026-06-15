@@ -4,6 +4,7 @@ import { distroLibrary } from "@/planner/distroLibrary";
 import type {
   DistroDefinition,
   PlannerState,
+  PowerSource,
   ProjectDistro,
 } from "@/planner/types";
 
@@ -40,6 +41,20 @@ function allDistroDefinitions(plannerState: PlannerState): DistroDefinition[] {
       custom: true,
     })),
   ].sort((a, b) => a.inputA - b.inputA || a.name.localeCompare(b.name));
+}
+
+function sourceIsUsedByOtherDistro(
+  plannerState: PlannerState,
+  sourceId: string,
+  currentDistroId: string
+) {
+  return plannerState.distros.some(
+    (distro) => distro.id !== currentDistroId && distro.sourceId === sourceId
+  );
+}
+
+function sourceBelongsToDistroOwnOutput(source: PowerSource, distroId: string) {
+  return source.auto && source.parentDistroId === distroId;
 }
 
 export function DistroOverviewTab({
@@ -132,7 +147,7 @@ export function DistroOverviewTab({
     <section style={styles.card}>
       <h2>Distro Overview</h2>
       <p style={styles.muted}>
-        Add distros from the built-in library or from project custom distros.
+        Add distros from the built-in library or project custom distros.
       </p>
 
       <div style={styles.addPanel}>
@@ -163,11 +178,26 @@ export function DistroOverviewTab({
       ) : (
         <div style={styles.list}>
           {plannerState.distros.map((distro) => {
-            const availableSources = allAvailableSources.filter(
-              (source) =>
+            const availableSources = allAvailableSources.filter((source) => {
+              const compatible =
                 normaliseConnection(source.conn) ===
-                normaliseConnection(distro.input)
-            );
+                normaliseConnection(distro.input);
+
+              if (!compatible) return false;
+
+              if (sourceBelongsToDistroOwnOutput(source, distro.id)) {
+                return false;
+              }
+
+              if (
+                source.id !== distro.sourceId &&
+                sourceIsUsedByOtherDistro(plannerState, source.id, distro.id)
+              ) {
+                return false;
+              }
+
+              return true;
+            });
 
             return (
               <div key={distro.id} style={styles.distroCard}>

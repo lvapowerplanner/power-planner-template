@@ -7,6 +7,7 @@ import type {
   PlannerOutput,
   PlannerOutputItem,
   PlannerState,
+  PowerSource,
   ProjectDistro,
 } from "@/planner/types";
 
@@ -56,6 +57,12 @@ function threePhaseAmps(output: PlannerOutput) {
   return outputAmps(output) / 3;
 }
 
+function outputUsagePercent(output: PlannerOutput, threePhase = false) {
+  const amps = threePhase ? threePhaseAmps(output) : outputAmps(output);
+  if (!output.rating) return 0;
+  return Math.round((amps / output.rating) * 100);
+}
+
 function formatWatts(value: number) {
   return `${Math.round(value).toLocaleString()} W`;
 }
@@ -70,6 +77,7 @@ function createOutputItem(equipment: EquipmentItem): PlannerOutputItem {
     name: equipment.name,
     watts: equipment.watts,
     quantity: 1,
+    notes: "",
   };
 }
 
@@ -94,6 +102,20 @@ function normaliseConnection(value: string) {
   return value.replace(/\s+/g, "").toLowerCase();
 }
 
+function sourceIsUsedByOtherDistro(
+  plannerState: PlannerState,
+  sourceId: string,
+  activeDistroId: string
+) {
+  return plannerState.distros.some(
+    (distro) => distro.id !== activeDistroId && distro.sourceId === sourceId
+  );
+}
+
+function sourceBelongsToDistroOwnOutput(source: PowerSource, distroId: string) {
+  return source.auto && source.parentDistroId === distroId;
+}
+
 function isDownstreamOf(
   plannerState: PlannerState,
   possibleParentId: string,
@@ -116,6 +138,12 @@ function isDownstreamOf(
 
     return isDownstreamOf(plannerState, child.id, possibleChildId);
   });
+}
+
+function outputSourceConnection(output: PlannerOutput) {
+  return output.phase === "3Φ"
+    ? `${output.rating}A / 3`
+    : `${output.rating}A / 1`;
 }
 
 export function DistroEditorTab({
@@ -159,7 +187,7 @@ export function DistroEditorTab({
     return matchesCategory && matchesSearch;
   });
 
-  const allAvailableSources = [
+  const allDerivedSources = [
     ...plannerState.sources.filter((source) => !source.auto),
     ...plannerState.distros.flatMap((distro) => autoSourcesForDistro(distro)),
   ];
@@ -280,6 +308,33 @@ export function DistroEditorTab({
     }));
   }
 
+  function updateOutputItemNotes(
+    outputId: string,
+    itemId: string,
+    notes: string
+  ) {
+    updateOutput(outputId, (output) => ({
+      ...output,
+      items: output.items.map((item) =>
+        item.id === itemId ? { ...item, notes } : item
+      ),
+    }));
+  }
+
+  function updateSocapexSocketItemNotes(
+    socapexOutputId: string,
+    socketId: string,
+    itemId: string,
+    notes: string
+  ) {
+    updateSocapexSocket(socapexOutputId, socketId, (socket) => ({
+      ...socket,
+      items: socket.items.map((item) =>
+        item.id === itemId ? { ...item, notes } : item
+      ),
+    }));
+  }
+
   function removeOutputItem(outputId: string, itemId: string) {
     updateOutput(outputId, (output) => ({
       ...output,
@@ -305,10 +360,8 @@ export function DistroEditorTab({
 
   function handleOutputDrop(event: DragEvent, outputId: string) {
     event.preventDefault();
-
     const payload = readDragPayload(event);
     if (!payload) return;
-
     addEquipmentToOutput(outputId, payload.equipmentId);
   }
 
@@ -318,7 +371,6 @@ export function DistroEditorTab({
     socketId: string
   ) {
     event.preventDefault();
-
     const payload = readDragPayload(event);
     if (!payload) return;
 
@@ -333,8 +385,8 @@ export function DistroEditorTab({
     if (!activeDistro) return [];
     if (output.phase === "Socapex") return [];
 
-    const sourceConn =
-      output.phase === "3Φ" ? `${output.rating}A / 3` : `${output.rating}A / 1`;
+    const sourceConn = outputSourceConnection(output);
+    const sourceId = autoSourceId(activeDistro.id, output.id);
 
     return plannerState.distros.filter((distro) => {
       if (distro.id === activeDistro.id) return false;
@@ -343,6 +395,8 @@ export function DistroEditorTab({
         normaliseConnection(distro.input) === normaliseConnection(sourceConn);
 
       if (!compatible) return false;
+
+      if (distro.sourceId && distro.sourceId !== sourceId) return false;
 
       const wouldCreateLoop = isDownstreamOf(
         plannerState,
@@ -413,10 +467,23 @@ export function DistroEditorTab({
     );
   }
 
-  const availableSources = allAvailableSources.filter(
-    (source) =>
-      normaliseConnection(source.conn) === normaliseConnection(activeDistro.input)
-  );
+  const availableSources = allDerivedSources.filter((source) => {
+    const compatible =
+      normaliseConnection(source.conn) === normaliseConnection(activeDistro.input);
+
+    if (!compatible) return false;
+
+    if (sourceBelongsToDistroOwnOutput(source, activeDistro.id)) return false;
+
+    if (
+      source.id !== activeDistro.sourceId &&
+      sourceIsUsedByOtherDistro(plannerState, source.id, activeDistro.id)
+    ) {
+      return false;
+    }
+
+    return true;
+  });
 
   const singlePhaseOutputs = activeDistro.outputs.filter(
     (output) => output.phase !== "3Φ" && output.phase !== "Socapex"
@@ -637,6 +704,9 @@ export function DistroEditorTab({
                             updateQuantity={(itemId, quantity) =>
                               updateOutputItemQuantity(output.id, itemId, quantity)
                             }
+                            updateItemNotes={(itemId, notes) =>
+                              updateOutputItemNotes(output.id, itemId, notes)
+                            }
                             removeItem={(itemId) => removeOutputItem(output.id, itemId)}
                             updateNotes={(notes) => updateOutputNotes(output.id, notes)}
                           />
@@ -724,6 +794,14 @@ export function DistroEditorTab({
                                       quantity
                                     )
                                   }
+                                  updateItemNotes={(itemId, notes) =>
+                                    updateSocapexSocketItemNotes(
+                                      output.id,
+                                      socket.id,
+                                      itemId,
+                                      notes
+                                    )
+                                  }
                                   removeItem={(itemId) =>
                                     removeSocapexSocketItem(
                                       output.id,
@@ -783,6 +861,9 @@ export function DistroEditorTab({
                     updateQuantity={(itemId, quantity) =>
                       updateOutputItemQuantity(output.id, itemId, quantity)
                     }
+                    updateItemNotes={(itemId, notes) =>
+                      updateOutputItemNotes(output.id, itemId, notes)
+                    }
                     removeItem={(itemId) => removeOutputItem(output.id, itemId)}
                     updateNotes={(notes) => updateOutputNotes(output.id, notes)}
                   />
@@ -807,6 +888,7 @@ type OutputCardProps = {
   onDrop: (event: DragEvent) => void;
   addEquipment: (equipmentId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
+  updateItemNotes: (itemId: string, notes: string) => void;
   removeItem: (itemId: string) => void;
   updateNotes: (notes: string) => void;
 };
@@ -822,16 +904,23 @@ function OutputCard({
   onDrop,
   addEquipment,
   updateQuantity,
+  updateItemNotes,
   removeItem,
   updateNotes,
 }: OutputCardProps) {
   const watts = outputWatts(output);
   const amps = outputAmps(output);
   const phaseAmps = threePhaseAmps(output);
+  const usagePercent = outputUsagePercent(output, threePhase);
+  const overloaded = usagePercent > 100;
+  const nearLimit = usagePercent >= 95;
 
   return (
     <div
-      style={styles.outputCard}
+      style={{
+        ...styles.outputCard,
+        ...(overloaded ? styles.outputCardCritical : {}),
+      }}
       onDragOver={(event) => event.preventDefault()}
       onDrop={onDrop}
     >
@@ -847,6 +936,33 @@ function OutputCard({
           : `${formatAmps(amps)}`}{" "}
         / {output.rating}A
       </p>
+
+      <div style={styles.capacityBlock}>
+        <div style={styles.capacityHeader}>
+          <strong>{usagePercent}%</strong>
+          <span>
+            {overloaded
+              ? "Overloaded"
+              : nearLimit
+                ? "Near limit"
+                : "Capacity OK"}
+          </span>
+        </div>
+
+        <div style={styles.capacityMeter}>
+          <div
+            style={{
+              ...styles.capacityFill,
+              width: `${Math.min(usagePercent, 100)}%`,
+              background: overloaded
+                ? "#c53030"
+                : nearLimit
+                  ? "#b7791f"
+                  : "#0f8a5f",
+            }}
+          />
+        </div>
+      </div>
 
       {threePhase && (
         <div style={styles.threePhaseGrid}>
@@ -903,6 +1019,18 @@ function OutputCard({
                   {item.watts}W each · Total{" "}
                   {formatWatts(item.watts * item.quantity)}
                 </p>
+
+                <label style={styles.itemNotesLabel}>
+                  Item Notes
+                  <input
+                    style={styles.input}
+                    value={item.notes ?? ""}
+                    onChange={(event) =>
+                      updateItemNotes(item.id, event.target.value)
+                    }
+                    placeholder="e.g. FOH rack, LX bar 3, spare, client kit..."
+                  />
+                </label>
               </div>
 
               <label style={styles.qtyLabel}>
@@ -1022,6 +1150,13 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     fontSize: "12px",
   },
+  itemNotesLabel: {
+    display: "block",
+    marginTop: "8px",
+    color: "#637083",
+    fontWeight: 700,
+    fontSize: "12px",
+  },
   qtyLabel: {
     display: "grid",
     gap: "4px",
@@ -1120,6 +1255,10 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "12px",
     background: "white",
   },
+  outputCardCritical: {
+    border: "1px solid #c53030",
+    background: "#fffafa",
+  },
   outputHeader: {
     display: "flex",
     justifyContent: "space-between",
@@ -1134,6 +1273,26 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 700,
     color: "#344054",
   },
+  capacityBlock: {
+    marginTop: "10px",
+  },
+  capacityHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "8px",
+    fontSize: "12px",
+    marginBottom: "5px",
+  },
+  capacityMeter: {
+    height: "9px",
+    borderRadius: "999px",
+    overflow: "hidden",
+    background: "#edf0f5",
+  },
+  capacityFill: {
+    height: "100%",
+    borderRadius: "999px",
+  },
   addEquipmentRow: {
     marginTop: "10px",
   },
@@ -1146,7 +1305,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "1fr auto auto",
     gap: "10px",
-    alignItems: "center",
+    alignItems: "start",
     border: "1px solid #d9e0ea",
     borderRadius: "10px",
     padding: "10px",
