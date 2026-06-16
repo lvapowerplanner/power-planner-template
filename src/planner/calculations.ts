@@ -28,6 +28,7 @@ export type DistroLoadSummary = {
   children: DistroLoadSummary[];
   fedFromOutputId?: string;
   fedFromOutputLabel?: string;
+  fedFromOutputPhase?: PlannerOutput["phase"];
 };
 
 export type SourceLoadSummary = {
@@ -166,6 +167,7 @@ function childSummaryForOutput(
   return distroLoadSummary(child, plannerState, visited, {
     outputId: output.id,
     outputLabel: outputDisplayName(output, outputIndex),
+    outputPhase: output.phase,
   });
 }
 
@@ -182,6 +184,30 @@ function mapChildLoadsOntoParentOutput(
   if (output.phase === "L3") return { L1: 0, L2: 0, L3: childTotal };
 
   return createEmptyPhaseLoads();
+}
+
+
+function mapSinglePhaseDistroLoadsToFeedPhase(
+  feedPhase: PlannerOutput["phase"] | undefined,
+  loads: PhaseLoads
+): PhaseLoads {
+  if (feedPhase !== "L1" && feedPhase !== "L2" && feedPhase !== "L3") {
+    return loads;
+  }
+
+  const total = phaseLoadTotal(loads);
+
+  if (feedPhase === "L1") return { L1: total, L2: 0, L3: 0 };
+  if (feedPhase === "L2") return { L1: 0, L2: total, L3: 0 };
+  return { L1: 0, L2: 0, L3: total };
+}
+
+function shouldMapDistroSummaryToFeedPhase(
+  distro: ProjectDistro,
+  feedPhase: PlannerOutput["phase"] | undefined
+): boolean {
+  return !isThreePhaseConnection(distro.input) &&
+    (feedPhase === "L1" || feedPhase === "L2" || feedPhase === "L3");
 }
 
 export function outputPhaseLoads(
@@ -336,7 +362,7 @@ if (amps > output.rating * warningThreshold) {
         id: `${output.id}-near-limit`,
         severity: "warning",
         context,
-        message: `${context} is above 80% capacity: ${formatAmps(amps)} / ${formatAmps(output.rating)}.`,
+        message: `${context} is near capacity: ${formatAmps(amps)} / ${formatAmps(output.rating)}.`,
       },
     ];
   }
@@ -442,6 +468,7 @@ export function distroLoadSummary(
   feedInfo?: {
     outputId: string;
     outputLabel: string;
+    outputPhase?: PlannerOutput["phase"];
   }
 ): DistroLoadSummary {
   if (visited.has(distro.id)) {
@@ -458,6 +485,7 @@ export function distroLoadSummary(
       children: [],
       fedFromOutputId: feedInfo?.outputId,
       fedFromOutputLabel: feedInfo?.outputLabel,
+      fedFromOutputPhase: feedInfo?.outputPhase,
     };
   }
 
@@ -478,8 +506,18 @@ export function distroLoadSummary(
         .filter((child): child is DistroLoadSummary => Boolean(child))
     : [];
 
-  const ownPhaseLoads = distroOwnPhaseLoads(distro);
-  const phaseLoads = distroPhaseLoads(distro, plannerState, visited);
+  const localOwnPhaseLoads = distroOwnPhaseLoads(distro);
+  const localPhaseLoads = distroPhaseLoads(distro, plannerState, visited);
+  const shouldMapToFeedPhase = shouldMapDistroSummaryToFeedPhase(
+    distro,
+    feedInfo?.outputPhase
+  );
+  const ownPhaseLoads = shouldMapToFeedPhase
+    ? mapSinglePhaseDistroLoadsToFeedPhase(feedInfo?.outputPhase, localOwnPhaseLoads)
+    : localOwnPhaseLoads;
+  const phaseLoads = shouldMapToFeedPhase
+    ? mapSinglePhaseDistroLoadsToFeedPhase(feedInfo?.outputPhase, localPhaseLoads)
+    : localPhaseLoads;
   const ownWatts = distroOwnWatts(distro);
   const watts = distroWatts(distro, plannerState, visited);
 
@@ -500,6 +538,7 @@ export function distroLoadSummary(
     children,
     fedFromOutputId: feedInfo?.outputId,
     fedFromOutputLabel: feedInfo?.outputLabel,
+    fedFromOutputPhase: feedInfo?.outputPhase,
   };
 }
 

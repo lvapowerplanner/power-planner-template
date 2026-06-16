@@ -18,68 +18,54 @@ type SystemOverviewTabProps = {
   openDistroEditor: (distroId: string) => void;
 };
 
+function isThreePhaseConnection(connection: string) {
+  return (
+    connection.includes("/ 3") ||
+    connection.includes("/3") ||
+    connection.includes("3Φ")
+  );
+}
+
+function connectionColour(connection: string) {
+  return isThreePhaseConnection(connection) ? "threePhase" : "singlePhase";
+}
+
+function connectionLabel(summary: DistroLoadSummary) {
+  if (summary.fedFromOutputLabel) {
+    return `${summary.fedFromOutputLabel} → ${summary.distro.input}`;
+  }
+
+  return summary.distro.input;
+}
+
 export function SystemOverviewTab({
   plannerState,
-  setPlannerState,
   openDistroEditor,
 }: SystemOverviewTabProps) {
   const summary = systemLoadSummary(plannerState);
 
-  function updateSystemName(value: string) {
-    setPlannerState({
-      ...plannerState,
-      systemName: value,
-    });
-  }
-
   return (
     <section style={styles.card}>
-      <h2>System Overview</h2>
-
-      <label style={styles.label}>
-        System Name
-        <input
-          style={styles.input}
-          value={plannerState.systemName}
-          onChange={(event) => updateSystemName(event.target.value)}
-          placeholder="e.g. Main Stage Power System"
-        />
-      </label>
-
-      <div style={styles.summaryGrid}>
-        <SummaryCard label="Manual Power Sources" value={summary.manualPowerSources} />
-        <SummaryCard label="Total Distros" value={summary.totalDistros} />
-        <SummaryCard label="Connected Load Watts" value={formatWatts(summary.connectedWatts)} />
-        <SummaryCard label="Connected Load Amps" value={formatAmps(summary.connectedAmps)} />
-      </div>
-
-      <section style={styles.healthCard}>
+      <div style={styles.headerRow}>
         <div>
-          <h3>System Health</h3>
+          <h2>System Overview</h2>
           <p style={styles.muted}>
-            {summary.health === "ok" && "No warnings or critical issues."}
-            {summary.health === "warning" &&
-              `${summary.warningCount} warning(s), no critical issues.`}
-            {summary.health === "critical" &&
-              `${summary.criticalCount} critical issue(s), ${summary.warningCount} warning(s).`}
+            Power source and distro hierarchy. Three-phase links are red;
+            single-phase links are blue.
           </p>
         </div>
 
-        <span
-          style={{
-            ...styles.healthBadge,
-            ...(summary.health === "ok"
-              ? styles.healthOk
-              : summary.health === "warning"
-                ? styles.healthWarning
-                : styles.healthCritical),
-          }}
-        >
-          {summary.health === "ok" && "OK"}
-          {summary.health === "warning" && "WARNINGS"}
-          {summary.health === "critical" && "CRITICAL"}
-        </span>
-      </section>
+        <div style={styles.legend}>
+          <span style={styles.legendItem}>
+            <span style={{ ...styles.legendLine, ...styles.threePhaseLine }} />
+            3-phase
+          </span>
+          <span style={styles.legendItem}>
+            <span style={{ ...styles.legendLine, ...styles.singlePhaseLine }} />
+            Single-phase
+          </span>
+        </div>
+      </div>
 
       {summary.issues.length > 0 && (
         <section style={styles.issuesPanel}>
@@ -89,8 +75,6 @@ export function SystemOverviewTab({
       )}
 
       <section style={styles.flowSection}>
-        <h3>Power Flow</h3>
-
         {summary.sourceSummaries.length === 0 ? (
           <p style={styles.muted}>No manual power sources added yet.</p>
         ) : (
@@ -99,9 +83,9 @@ export function SystemOverviewTab({
               <div key={source.sourceId} style={styles.sourceCard}>
                 <div style={styles.sourceHeader}>
                   <div>
-                    <strong>{source.sourceName}</strong>
+                    <h3 style={styles.sourceTitle}>{source.sourceName}</h3>
                     <p style={styles.muted}>
-                      {source.sourceConnection} · {source.sourceRating}A
+                      {source.sourceConnection} · {source.sourceRating}A per phase
                     </p>
                   </div>
 
@@ -115,7 +99,7 @@ export function SystemOverviewTab({
                 {source.distros.length === 0 ? (
                   <p style={styles.muted}>No distros assigned to this source.</p>
                 ) : (
-                  <div style={styles.distroFlowList}>
+                  <div style={styles.treeList}>
                     {source.distros.map((distroSummary) => (
                       <DistroTreeCard
                         key={distroSummary.distro.id}
@@ -135,7 +119,7 @@ export function SystemOverviewTab({
           <section style={styles.unassignedSection}>
             <h3>Unassigned Distros</h3>
 
-            <div style={styles.distroFlowList}>
+            <div style={styles.treeList}>
               {summary.unassignedDistros.map((distroSummary) => (
                 <DistroTreeCard
                   key={distroSummary.distro.id}
@@ -164,57 +148,80 @@ function DistroTreeCard({
   depth: number;
   unassigned?: boolean;
 }) {
-  return (
-    <div
-      style={{
-        ...(unassigned ? styles.unassignedCard : styles.distroFlowCard),
-        marginLeft: depth ? `${depth * 22}px` : 0,
-      }}
-    >
-      <div style={styles.sourceHeader}>
-        <div>
-          <strong>{displayDistroName(summary.distro)}</strong>
-          <p style={styles.muted}>
-            {summary.distro.name} · {summary.distro.input}
-            {summary.distro.location ? ` · ${summary.distro.location}` : ""}
-          </p>
-        </div>
+  const connectionType = connectionColour(summary.distro.input);
+  const lineStyle =
+    connectionType === "threePhase" ? styles.threePhaseLine : styles.singlePhaseLine;
+  const badgeStyle =
+    connectionType === "threePhase"
+      ? styles.threePhaseBadge
+      : styles.singlePhaseBadge;
 
-        <button
-          style={styles.secondaryButton}
-          onClick={() => openDistroEditor(summary.distro.id)}
-        >
-          Open
-        </button>
+  return (
+    <div style={styles.treeNode}>
+      <div
+        style={{
+          ...styles.connectorRow,
+          marginLeft: depth ? `${depth * 30}px` : 0,
+        }}
+      >
+        {depth > 0 && (
+          <>
+            <span style={{ ...styles.verticalConnector, ...lineStyle }} />
+            <span style={{ ...styles.horizontalConnector, ...lineStyle }} />
+          </>
+        )}
+
+        <span style={{ ...styles.connectionBadge, ...badgeStyle }}>
+          {connectionLabel(summary)}
+        </span>
       </div>
 
-      <PhaseLoadGrid loads={summary.phaseLoads} rating={summary.distro.inputA} />
+      <div
+        style={{
+          ...(unassigned ? styles.unassignedCard : styles.distroCard),
+          ...(connectionType === "threePhase"
+            ? styles.threePhaseCard
+            : styles.singlePhaseCard),
+          marginLeft: depth ? `${depth * 30}px` : 0,
+        }}
+      >
+        <div style={styles.distroHeader}>
+          <div>
+            <strong>{displayDistroName(summary.distro)}</strong>
+            <p style={styles.muted}>
+              {summary.distro.name} · Input {summary.distro.input}
+              {summary.distro.location ? ` · ${summary.distro.location}` : ""}
+            </p>
+          </div>
 
-      <p style={styles.muted}>
-        {formatWatts(summary.watts)} · {formatAmps(summary.amps)}
-      </p>
-
-      {(summary.children ?? []).length > 0 && (
-        <div style={styles.childList}>
-          {(summary.children ?? []).map((child) => (
-            <DistroTreeCard
-              key={child.distro.id}
-              summary={child}
-              openDistroEditor={openDistroEditor}
-              depth={depth + 1}
-            />
-          ))}
+          <div style={styles.distroActions}>
+            <span style={styles.distroTotal}>
+              {formatWatts(summary.watts)} · {formatAmps(summary.amps)}
+            </span>
+            <button
+              style={styles.secondaryButton}
+              onClick={() => openDistroEditor(summary.distro.id)}
+            >
+              Open
+            </button>
+          </div>
         </div>
-      )}
-    </div>
-  );
-}
 
-function SummaryCard({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div style={styles.summaryCard}>
-      <span>{label}</span>
-      <strong>{value}</strong>
+        <PhaseLoadGrid loads={summary.phaseLoads} rating={summary.distro.inputA} />
+
+        {(summary.children ?? []).length > 0 && (
+          <div style={styles.childList}>
+            {(summary.children ?? []).map((child) => (
+              <DistroTreeCard
+                key={child.distro.id}
+                summary={child}
+                openDistroEditor={openDistroEditor}
+                depth={depth + 1}
+              />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -286,7 +293,7 @@ function PhaseLoadCard({
             background:
               percentage >= 100
                 ? "#c53030"
-                : percentage >= 80
+                : percentage >= 95
                   ? "#b7791f"
                   : "#0f8a5f",
           }}
@@ -303,69 +310,54 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px",
     background: "white",
   },
+  headerRow: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "16px",
+    alignItems: "flex-start",
+    marginBottom: "18px",
+  },
   muted: {
     color: "#637083",
   },
-  label: {
-    display: "block",
-    marginBottom: "18px",
-    color: "#637083",
-    fontWeight: 700,
-  },
-  input: {
-    width: "100%",
-    padding: "10px",
-    marginTop: "6px",
-    borderRadius: "10px",
-    border: "1px solid #d9e0ea",
-  },
-  summaryGrid: {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
-    gap: "12px",
-    marginBottom: "22px",
-  },
-  summaryCard: {
-    border: "1px solid #d9e0ea",
-    borderRadius: "14px",
-    padding: "14px",
-    background: "#f8fafc",
-  },
-  healthCard: {
-    border: "1px solid #d9e0ea",
-    borderRadius: "16px",
-    padding: "16px",
-    background: "#f8fafc",
+  legend: {
     display: "flex",
-    justifyContent: "space-between",
     gap: "12px",
+    flexWrap: "wrap",
     alignItems: "center",
-    marginBottom: "22px",
+    padding: "10px",
+    border: "1px solid #d9e0ea",
+    borderRadius: "12px",
+    background: "#f8fafc",
   },
-  healthBadge: {
-    padding: "8px 12px",
-    borderRadius: "999px",
+  legendItem: {
+    display: "flex",
+    gap: "7px",
+    alignItems: "center",
+    fontSize: "13px",
     fontWeight: 800,
-    fontSize: "12px",
+    color: "#344054",
   },
-  healthOk: {
-    background: "#ecfdf3",
-    color: "#0f8a5f",
+  legendLine: {
+    display: "inline-block",
+    width: "28px",
+    height: "5px",
+    borderRadius: "999px",
   },
-  healthWarning: {
-    background: "#fffbeb",
-    color: "#b7791f",
+  singlePhaseLine: {
+    background: "#2563eb",
+    borderColor: "#2563eb",
   },
-  healthCritical: {
-    background: "#fff5f5",
-    color: "#c53030",
+  threePhaseLine: {
+    background: "#dc2626",
+    borderColor: "#dc2626",
   },
   issuesPanel: {
     border: "1px solid #d9e0ea",
     borderRadius: "16px",
     padding: "16px",
-    background: "white",
-    marginBottom: "22px",
+    background: "#ffffff",
+    marginBottom: "20px",
   },
   issueList: {
     display: "grid",
@@ -390,14 +382,14 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #fecaca",
   },
   flowSection: {
-    marginTop: "22px",
+    marginTop: "10px",
   },
   sourceList: {
     display: "grid",
-    gap: "16px",
+    gap: "18px",
   },
   sourceCard: {
-    border: "2px solid #93c5fd",
+    border: "2px solid #172033",
     borderRadius: "18px",
     padding: "16px",
     background: "#ffffff",
@@ -408,22 +400,106 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "12px",
     alignItems: "center",
   },
+  sourceTitle: {
+    margin: 0,
+  },
   sourceTotal: {
-    fontWeight: 700,
+    fontWeight: 800,
     color: "#172033",
+    whiteSpace: "nowrap",
+  },
+  treeList: {
+    display: "grid",
+    gap: "12px",
+    marginTop: "14px",
+  },
+  treeNode: {
+    display: "grid",
+    gap: "6px",
+  },
+  connectorRow: {
+    display: "flex",
+    alignItems: "center",
+    minHeight: "18px",
+  },
+  verticalConnector: {
+    width: "5px",
+    height: "18px",
+    borderRadius: "999px",
+    marginRight: "8px",
+  },
+  horizontalConnector: {
+    width: "24px",
+    height: "5px",
+    borderRadius: "999px",
+    marginRight: "8px",
+  },
+  connectionBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    padding: "5px 9px",
+    borderRadius: "999px",
+    fontSize: "12px",
+    fontWeight: 800,
+  },
+  singlePhaseBadge: {
+    background: "#eff6ff",
+    color: "#1d4ed8",
+    border: "1px solid #bfdbfe",
+  },
+  threePhaseBadge: {
+    background: "#fff1f2",
+    color: "#be123c",
+    border: "1px solid #fecdd3",
+  },
+  distroCard: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "14px",
+    padding: "14px",
+    background: "#f8fafc",
+  },
+  singlePhaseCard: {
+    borderLeft: "6px solid #2563eb",
+  },
+  threePhaseCard: {
+    borderLeft: "6px solid #dc2626",
+  },
+  unassignedCard: {
+    border: "1px dashed #b7791f",
+    borderLeft: "6px solid #b7791f",
+    borderRadius: "14px",
+    padding: "14px",
+    background: "#fffbeb",
+  },
+  distroHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    alignItems: "center",
+  },
+  distroActions: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  distroTotal: {
+    fontWeight: 800,
+    color: "#172033",
+    whiteSpace: "nowrap",
   },
   phaseGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
     gap: "8px",
     marginTop: "12px",
-    marginBottom: "12px",
   },
   phaseCard: {
     border: "1px solid #d9e0ea",
     borderRadius: "12px",
     padding: "10px",
-    background: "#f8fafc",
+    background: "white",
   },
   phaseHeader: {
     display: "flex",
@@ -440,31 +516,13 @@ const styles: Record<string, React.CSSProperties> = {
     height: "100%",
     borderRadius: "999px",
   },
-  distroFlowList: {
-    display: "grid",
-    gap: "10px",
-    marginTop: "12px",
-  },
-  distroFlowCard: {
-    border: "1px solid #d9e0ea",
-    borderLeft: "5px solid #2563eb",
-    borderRadius: "14px",
-    padding: "14px",
-    background: "#f8fafc",
-  },
   childList: {
     display: "grid",
-    gap: "10px",
-    marginTop: "12px",
+    gap: "12px",
+    marginTop: "14px",
   },
   unassignedSection: {
     marginTop: "24px",
-  },
-  unassignedCard: {
-    border: "1px dashed #b7791f",
-    borderRadius: "14px",
-    padding: "14px",
-    background: "#fffbeb",
   },
   secondaryButton: {
     padding: "9px 12px",
