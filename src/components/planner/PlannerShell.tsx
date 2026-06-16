@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { CustomDistrosTab } from "@/components/planner/CustomDistrosTab";
 import { CustomEquipmentTab } from "@/components/planner/CustomEquipmentTab";
 import { DistroEditorTab } from "@/components/planner/DistroEditorTab";
@@ -6,6 +6,7 @@ import { DistroOverviewTab } from "@/components/planner/DistroOverviewTab";
 import { PowerSourcesTab } from "@/components/planner/PowerSourcesTab";
 import { ReportTab } from "@/components/planner/ReportTab";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
+import { ensureAutoSources } from "@/planner/autoSources";
 import type { PlannerState } from "@/planner/types";
 
 type PlannerShellProps = {
@@ -37,6 +38,14 @@ export function PlannerShell({
   setPlannerState,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
+
+  useEffect(() => {
+    const updatedState = ensureAutoSources(plannerState);
+
+    if (JSON.stringify(updatedState.sources) !== JSON.stringify(plannerState.sources)) {
+      setPlannerState(updatedState);
+    }
+  }, [plannerState, setPlannerState]);
 
   function openDistroEditor(distroId: string) {
     setPlannerState({

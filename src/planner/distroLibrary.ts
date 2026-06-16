@@ -1,4 +1,4 @@
-import type { DistroDefinition, PlannerOutput } from './types';
+import type { DistroDefinition, PlannerOutput } from "./types";
 
 function outs(prefix: string, count: number, phases: PlannerOutput['phase'][], type = '16A', rating = 16): PlannerOutput[] {
   const arr: PlannerOutput[] = [];

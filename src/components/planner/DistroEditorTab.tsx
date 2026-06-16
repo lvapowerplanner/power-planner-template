@@ -17,9 +17,17 @@ type DistroEditorTabProps = {
   goToDistroOverview: () => void;
 };
 
-type DraggedEquipment = {
-  equipmentId: string;
-};
+type DraggedEquipment =
+  | {
+      type: "library";
+      equipmentId: string;
+    }
+  | {
+      type: "assigned-item";
+      itemId: string;
+      sourceOutputId: string;
+      sourceSocapexOutputId?: string;
+    };
 
 type PhaseLoads = {
   L1: number;
@@ -87,8 +95,24 @@ function createOutputItem(equipment: EquipmentItem): PlannerOutputItem {
   };
 }
 
-function dragPayload(equipmentId: string): string {
-  return JSON.stringify({ equipmentId } satisfies DraggedEquipment);
+function libraryDragPayload(equipmentId: string): string {
+  return JSON.stringify({
+    type: "library",
+    equipmentId,
+  } satisfies DraggedEquipment);
+}
+
+function assignedItemDragPayload(
+  itemId: string,
+  sourceOutputId: string,
+  sourceSocapexOutputId?: string
+): string {
+  return JSON.stringify({
+    type: "assigned-item",
+    itemId,
+    sourceOutputId,
+    sourceSocapexOutputId,
+  } satisfies DraggedEquipment);
 }
 
 function readDragPayload(event: DragEvent): DraggedEquipment | null {
@@ -100,11 +124,24 @@ function readDragPayload(event: DragEvent): DraggedEquipment | null {
 
   try {
     const parsed = JSON.parse(raw) as DraggedEquipment;
-    if (!parsed.equipmentId) return null;
-    return parsed;
+
+    if (parsed.type === "library" && parsed.equipmentId) return parsed;
+
+    if (
+      parsed.type === "assigned-item" &&
+      parsed.itemId &&
+      parsed.sourceOutputId
+    ) {
+      return parsed;
+    }
+
+    return null;
   } catch {
     if (raw.startsWith("equipment:")) {
-      return { equipmentId: raw.replace("equipment:", "") };
+      return {
+        type: "library",
+        equipmentId: raw.replace("equipment:", ""),
+      };
     }
 
     return null;
@@ -210,6 +247,11 @@ export function DistroEditorTab({
   const [draggingEquipmentId, setDraggingEquipmentId] = useState<string | null>(
     null
   );
+  const [draggingAssignedItem, setDraggingAssignedItem] = useState<{
+    itemId: string;
+    sourceOutputId: string;
+    sourceSocapexOutputId?: string;
+  } | null>(null);
 
   const activeDistro =
     plannerState.distros.find((distro) => distro.id === plannerState.active) ??
@@ -411,23 +453,227 @@ export function DistroEditorTab({
   }
 
   function handleDragStart(event: DragEvent, equipmentId: string) {
-    const jsonPayload = dragPayload(equipmentId);
+    const jsonPayload = libraryDragPayload(equipmentId);
     event.dataTransfer.setData("application/json", jsonPayload);
     event.dataTransfer.setData("text/plain", `equipment:${equipmentId}`);
     event.dataTransfer.effectAllowed = "copy";
     setDraggingEquipmentId(equipmentId);
   }
-
   function handleDragEnd() {
     setDraggingEquipmentId(null);
+    setDraggingAssignedItem(null);
   }
+
+  function handleAssignedItemDragStart(
+    event: DragEvent,
+    itemId: string,
+    sourceOutputId: string,
+    sourceSocapexOutputId?: string
+  ) {
+    const target = event.target as HTMLElement;
+
+    if (target.closest("input, textarea, select, button")) {
+      event.preventDefault();
+      return;
+    }
+
+    const jsonPayload = assignedItemDragPayload(
+      itemId,
+      sourceOutputId,
+      sourceSocapexOutputId
+    );
+
+    setDraggingAssignedItem({
+      itemId,
+      sourceOutputId,
+      sourceSocapexOutputId,
+    });
+
+    event.stopPropagation();
+    event.dataTransfer.clearData();
+    event.dataTransfer.setData("application/json", jsonPayload);
+    event.dataTransfer.setData("text/plain", jsonPayload);
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+function findAssignedItem(
+  sourceOutputId: string,
+  itemId: string,
+  sourceSocapexOutputId?: string
+): PlannerOutputItem | null {
+  if (!activeDistro) return null;
+
+  if (sourceSocapexOutputId) {
+    const socapexOutput = activeDistro.outputs.find(
+      (output) => output.id === sourceSocapexOutputId
+    );
+
+    const socket = socapexOutput?.socaCircuits?.find(
+      (item) => item.id === sourceOutputId
+    );
+
+    return socket?.items.find((item) => item.id === itemId) ?? null;
+  }
+
+  const output = activeDistro.outputs.find(
+    (item) => item.id === sourceOutputId
+  );
+
+  return output?.items.find((item) => item.id === itemId) ?? null;
+}
+
+function removeAssignedItemFromSource(
+  sourceOutputId: string,
+  itemId: string,
+  sourceSocapexOutputId?: string
+) {
+  if (sourceSocapexOutputId) {
+    removeSocapexSocketItem(sourceSocapexOutputId, sourceOutputId, itemId);
+    return;
+  }
+
+  removeOutputItem(sourceOutputId, itemId);
+}
+
+function moveAssignedItemToOutput(
+  targetOutputId: string,
+  payload: Extract<DraggedEquipment, { type: "assigned-item" }>
+) {
+  if (!activeDistro) return;
+
+  const movedItem = findAssignedItem(
+    payload.sourceOutputId,
+    payload.itemId,
+    payload.sourceSocapexOutputId
+  );
+
+  if (!movedItem) return;
+
+  if (!payload.sourceSocapexOutputId && payload.sourceOutputId === targetOutputId) {
+    return;
+  }
+
+  setPlannerState({
+    ...plannerState,
+    distros: plannerState.distros.map((distro) => {
+      if (distro.id !== activeDistro.id) return distro;
+
+      return {
+        ...distro,
+        outputs: distro.outputs.map((output) => {
+          const isSource =
+            !payload.sourceSocapexOutputId &&
+            output.id === payload.sourceOutputId;
+
+          const isTarget = output.id === targetOutputId;
+
+          if (!isSource && !isTarget) return output;
+
+          return {
+            ...output,
+            items: [
+              ...output.items.filter((item) => item.id !== payload.itemId),
+              ...(isTarget ? [movedItem] : []),
+            ],
+          };
+        }),
+      };
+    }),
+  });
+}
+
+function moveAssignedItemToSocapexSocket(
+  targetSocapexOutputId: string,
+  targetSocketId: string,
+  payload: Extract<DraggedEquipment, { type: "assigned-item" }>
+) {
+  if (!activeDistro) return;
+
+  const movedItem = findAssignedItem(
+    payload.sourceOutputId,
+    payload.itemId,
+    payload.sourceSocapexOutputId
+  );
+
+  if (!movedItem) return;
+
+  if (
+    payload.sourceSocapexOutputId === targetSocapexOutputId &&
+    payload.sourceOutputId === targetSocketId
+  ) {
+    return;
+  }
+
+  setPlannerState({
+    ...plannerState,
+    distros: plannerState.distros.map((distro) => {
+      if (distro.id !== activeDistro.id) return distro;
+
+      return {
+        ...distro,
+        outputs: distro.outputs.map((output) => {
+          if (output.id === targetSocapexOutputId) {
+            return {
+              ...output,
+              socaCircuits: output.socaCircuits?.map((socket) => {
+                const isTargetSocket = socket.id === targetSocketId;
+                const isSourceSocket =
+                  payload.sourceSocapexOutputId === targetSocapexOutputId &&
+                  socket.id === payload.sourceOutputId;
+
+                if (!isTargetSocket && !isSourceSocket) return socket;
+
+                return {
+                  ...socket,
+                  items: [
+                    ...socket.items.filter((item) => item.id !== payload.itemId),
+                    ...(isTargetSocket ? [movedItem] : []),
+                  ],
+                };
+              }),
+            };
+          }
+
+          if (!payload.sourceSocapexOutputId && output.id === payload.sourceOutputId) {
+            return {
+              ...output,
+              items: output.items.filter((item) => item.id !== payload.itemId),
+            };
+          }
+
+          return output;
+        }),
+      };
+    }),
+  });
+}
 
   function handleOutputDrop(event: DragEvent, outputId: string) {
     event.preventDefault();
     event.stopPropagation();
 
     const payload = readDragPayload(event);
-    const equipmentId = payload?.equipmentId ?? draggingEquipmentId;
+
+    const assignedPayload =
+      payload?.type === "assigned-item"
+        ? payload
+        : draggingAssignedItem
+          ? {
+              type: "assigned-item" as const,
+              itemId: draggingAssignedItem.itemId,
+              sourceOutputId: draggingAssignedItem.sourceOutputId,
+              sourceSocapexOutputId: draggingAssignedItem.sourceSocapexOutputId,
+            }
+          : null;
+
+    if (assignedPayload) {
+      moveAssignedItemToOutput(outputId, assignedPayload);
+      setDraggingAssignedItem(null);
+      return;
+    }
+
+    const equipmentId =
+      payload?.type === "library" ? payload.equipmentId : draggingEquipmentId;
 
     if (!equipmentId) return;
 
@@ -444,7 +690,27 @@ export function DistroEditorTab({
     event.stopPropagation();
 
     const payload = readDragPayload(event);
-    const equipmentId = payload?.equipmentId ?? draggingEquipmentId;
+
+    const assignedPayload =
+      payload?.type === "assigned-item"
+        ? payload
+        : draggingAssignedItem
+          ? {
+              type: "assigned-item" as const,
+              itemId: draggingAssignedItem.itemId,
+              sourceOutputId: draggingAssignedItem.sourceOutputId,
+              sourceSocapexOutputId: draggingAssignedItem.sourceSocapexOutputId,
+            }
+          : null;
+
+    if (assignedPayload) {
+      moveAssignedItemToSocapexSocket(socapexOutputId, socketId, assignedPayload);
+      setDraggingAssignedItem(null);
+      return;
+    }
+
+    const equipmentId =
+      payload?.type === "library" ? payload.equipmentId : draggingEquipmentId;
 
     if (!equipmentId) return;
 
@@ -788,6 +1054,10 @@ export function DistroEditorTab({
                             updateItemNotes={(itemId, notes) =>
                               updateOutputItemNotes(output.id, itemId, notes)
                             }
+                            onAssignedItemDragStart={(event, itemId) =>
+                              handleAssignedItemDragStart(event, itemId, output.id)
+                            }
+                            onAssignedItemDragEnd={handleDragEnd}
                             removeItem={(itemId) => removeOutputItem(output.id, itemId)}
                             updateNotes={(notes) => updateOutputNotes(output.id, notes)}
                           />
@@ -877,12 +1147,16 @@ export function DistroEditorTab({
                                   }
                                   updateItemNotes={(itemId, notes) =>
                                     updateSocapexSocketItemNotes(
-                                      output.id,
-                                      socket.id,
-                                      itemId,
-                                      notes
+                                        output.id,
+                                        socket.id,
+                                        itemId,
+                                        notes
                                     )
                                   }
+                                  onAssignedItemDragStart={(event, itemId) =>
+                                    handleAssignedItemDragStart(event, itemId, socket.id, output.id)
+                                  }
+                                  onAssignedItemDragEnd={handleDragEnd}
                                   removeItem={(itemId) =>
                                     removeSocapexSocketItem(
                                       output.id,
@@ -945,6 +1219,10 @@ export function DistroEditorTab({
                     updateItemNotes={(itemId, notes) =>
                       updateOutputItemNotes(output.id, itemId, notes)
                     }
+                    onAssignedItemDragStart={(event, itemId) =>
+                      handleAssignedItemDragStart(event, itemId, output.id)
+                    }
+                    onAssignedItemDragEnd={handleDragEnd}
                     removeItem={(itemId) => removeOutputItem(output.id, itemId)}
                     updateNotes={(notes) => updateOutputNotes(output.id, notes)}
                   />
@@ -1030,6 +1308,8 @@ type OutputCardProps = {
   addEquipment: (equipmentId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   updateItemNotes: (itemId: string, notes: string) => void;
+  onAssignedItemDragStart: (event: DragEvent, itemId: string) => void;
+  onAssignedItemDragEnd: () => void;
   removeItem: (itemId: string) => void;
   updateNotes: (notes: string) => void;
 };
@@ -1046,6 +1326,8 @@ function OutputCard({
   addEquipment,
   updateQuantity,
   updateItemNotes,
+  onAssignedItemDragStart,
+  onAssignedItemDragEnd,
   removeItem,
   updateNotes,
 }: OutputCardProps) {
@@ -1062,6 +1344,11 @@ function OutputCard({
         ...styles.outputCard,
         ...(overloaded ? styles.outputCardCritical : {}),
       }}
+      onDragOver={(event) => {
+        event.preventDefault();
+        event.dataTransfer.dropEffect = "move";
+      }}
+      onDrop={onDrop}
     >
       <div style={styles.outputHeader}>
         <strong>{title}</strong>
@@ -1107,7 +1394,7 @@ function OutputCard({
         style={styles.dropZone}
         onDragOver={(event) => {
           event.preventDefault();
-          event.dataTransfer.dropEffect = "copy";
+          event.dataTransfer.dropEffect = "move";
         }}
         onDrop={onDrop}
       >
@@ -1162,7 +1449,13 @@ function OutputCard({
       {output.items.length > 0 && (
         <div style={styles.assignedList}>
           {output.items.map((item) => (
-            <div key={item.id} style={styles.assignedItem}>
+            <div
+              key={item.id}
+              style={styles.assignedItem}
+              draggable
+              onDragStart={(event) => onAssignedItemDragStart(event, item.id)}
+              onDragEnd={onAssignedItemDragEnd}
+            >
               <div>
                 <strong>{item.name}</strong>
                 <p style={styles.muted}>
@@ -1178,6 +1471,7 @@ function OutputCard({
                     onChange={(event) =>
                       updateItemNotes(item.id, event.target.value)
                     }
+                    onDragStart={(event) => event.preventDefault()}
                     placeholder="e.g. FOH rack, LX bar 3, spare..."
                   />
                 </label>
@@ -1193,18 +1487,19 @@ function OutputCard({
                   onChange={(event) =>
                     updateQuantity(item.id, Number(event.target.value))
                   }
+                  onDragStart={(event) => event.preventDefault()}
                 />
               </label>
 
               <button
                 style={styles.dangerButton}
                 onClick={() => removeItem(item.id)}
+                onDragStart={(event) => event.preventDefault()}
               >
                 Remove
               </button>
             </div>
-          ))}
-        </div>
+          ))}        </div>
       )}
 
       <label style={styles.smallLabel}>
@@ -1487,7 +1782,20 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "10px",
     padding: "10px",
     background: "#eef4ff",
+    cursor: "grab",
   },
+
+  dragHandle: {
+  padding: "8px 10px",
+  borderRadius: "10px",
+  border: "1px solid #93c5fd",
+  background: "#eff6ff",
+  color: "#1d4ed8",
+  cursor: "grab",
+  fontWeight: 800,
+  alignSelf: "start",
+},
+
   socapexList: {
     display: "grid",
     gap: "14px",
