@@ -10,7 +10,7 @@ import type {
   PhaseLoads,
   ValidationIssue,
 } from "@/planner/calculations";
-import type { PlannerState } from "@/planner/types";
+import type { PlannerState, ProjectInfo } from "@/planner/types";
 
 type SystemOverviewTabProps = {
   plannerState: PlannerState;
@@ -38,11 +38,43 @@ function connectionLabel(summary: DistroLoadSummary) {
   return summary.distro.input;
 }
 
+const emptyProjectInfo: ProjectInfo = {
+  projectManager: "",
+  projectNumber: "",
+  projectName: "",
+  eventDate: "",
+  venue: "",
+};
+
+function projectInfoForState(plannerState: PlannerState): ProjectInfo {
+  return {
+    ...emptyProjectInfo,
+    ...(plannerState.projectInfo ?? {}),
+    projectName:
+      plannerState.projectInfo?.projectName ?? plannerState.systemName ?? "",
+  };
+}
+
 export function SystemOverviewTab({
   plannerState,
+  setPlannerState,
   openDistroEditor,
 }: SystemOverviewTabProps) {
   const summary = systemLoadSummary(plannerState);
+  const projectInfo = projectInfoForState(plannerState);
+
+  function updateProjectInfo(field: keyof ProjectInfo, value: string) {
+    const nextProjectInfo = {
+      ...projectInfo,
+      [field]: value,
+    };
+
+    setPlannerState({
+      ...plannerState,
+      projectInfo: nextProjectInfo,
+      systemName: field === "projectName" ? value : plannerState.systemName,
+    });
+  }
 
   return (
     <section style={styles.card}>
@@ -66,6 +98,75 @@ export function SystemOverviewTab({
           </span>
         </div>
       </div>
+
+      <section style={styles.projectInfoPanel}>
+        <div>
+          <h3 style={styles.projectInfoTitle}>Project Information</h3>
+          <p style={styles.projectInfoText}>
+            These details are used in report headers and JSON exports.
+          </p>
+        </div>
+
+        <div style={styles.projectInfoGrid}>
+          <label style={styles.label}>
+            Project Manager
+            <input
+              style={styles.input}
+              value={projectInfo.projectManager}
+              onChange={(event) =>
+                updateProjectInfo("projectManager", event.target.value)
+              }
+              placeholder=""
+            />
+          </label>
+
+          <label style={styles.label}>
+            Project Number
+            <input
+              style={styles.input}
+              value={projectInfo.projectNumber}
+              onChange={(event) =>
+                updateProjectInfo("projectNumber", event.target.value)
+              }
+              placeholder=""
+            />
+          </label>
+
+          <label style={styles.label}>
+            Project Name
+            <input
+              style={styles.input}
+              value={projectInfo.projectName}
+              onChange={(event) =>
+                updateProjectInfo("projectName", event.target.value)
+              }
+              placeholder=""
+            />
+          </label>
+
+          <label style={styles.label}>
+            Event Date
+            <input
+              style={styles.input}
+              type="date"
+              value={projectInfo.eventDate}
+              onChange={(event) =>
+                updateProjectInfo("eventDate", event.target.value)
+              }
+            />
+          </label>
+
+          <label style={styles.label}>
+            Venue
+            <input
+              style={styles.input}
+              value={projectInfo.venue}
+              onChange={(event) => updateProjectInfo("venue", event.target.value)}
+              placeholder=""
+            />
+          </label>
+        </div>
+      </section>
 
       {summary.issues.length > 0 && (
         <section style={styles.issuesPanel}>
@@ -319,6 +420,48 @@ const styles: Record<string, React.CSSProperties> = {
   },
   muted: {
     color: "#667085",
+  },
+  projectInfoPanel: {
+    border: "1px solid #DCE5EC",
+    borderRadius: "18px",
+    padding: "16px",
+    background: "#F5F7FA",
+    marginBottom: "20px",
+    boxShadow: "inset 0 1px 0 rgba(255, 255, 255, 0.8)",
+  },
+  projectInfoTitle: {
+    margin: 0,
+    fontSize: "18px",
+    letterSpacing: "-0.01em",
+  },
+  projectInfoText: {
+    margin: "4px 0 14px",
+    color: "#667085",
+    fontSize: "13px",
+  },
+  projectInfoGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(5, minmax(0, 1fr))",
+    gap: "12px",
+  },
+  label: {
+    display: "block",
+    color: "#111827",
+    fontSize: "12px",
+    fontWeight: 800,
+    letterSpacing: "0.01em",
+  },
+  input: {
+    width: "100%",
+    marginTop: "6px",
+    padding: "11px 12px",
+    borderRadius: "13px",
+    border: "1px solid #DCE5EC",
+    background: "#FFFFFF",
+    color: "#111827",
+    fontFamily: "inherit",
+    fontWeight: 600,
+    outline: "none",
   },
   legend: {
     display: "flex",

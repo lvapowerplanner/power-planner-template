@@ -10,7 +10,7 @@ import {
   systemLoadSummary,
 } from "@/planner/calculations";
 import type { DistroLoadSummary } from "@/planner/calculations";
-import type { PlannerOutput, PlannerState, ProjectDistro } from "@/planner/types";
+import type { PlannerOutput, PlannerState, ProjectDistro, ProjectInfo } from "@/planner/types";
 
 type ReportTabProps = {
   plannerState: PlannerState;
@@ -40,6 +40,37 @@ function phaseDrawText(loads: { L1: number; L2: number; L3: number }) {
 
 function wattsText(value: number) {
   return `${Math.round(value).toLocaleString()} W`;
+}
+
+const emptyProjectInfo: ProjectInfo = {
+  projectManager: "",
+  projectNumber: "",
+  projectName: "",
+  eventDate: "",
+  venue: "",
+};
+
+function projectInfoForState(plannerState: PlannerState): ProjectInfo {
+  return {
+    ...emptyProjectInfo,
+    ...(plannerState.projectInfo ?? {}),
+    projectName:
+      plannerState.projectInfo?.projectName ?? plannerState.systemName ?? "",
+  };
+}
+
+function displayDate(value: string) {
+  if (!value) return "";
+
+  const date = new Date(`${value}T00:00:00`);
+
+  if (Number.isNaN(date.getTime())) return value;
+
+  return date.toLocaleDateString("en-GB", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
 }
 
 function itemText(item: { name: string; notes?: string }) {
@@ -201,7 +232,14 @@ export function ReportTab({
   const visibleSourceSummaries = summary.sourceSummaries.filter(
     (source) => !hiddenSources.includes(source.sourceId)
   );
-  const reportTitle = plannerState.systemName.trim() || "Power Report";
+  const projectInfo = projectInfoForState(plannerState);
+  const reportTitle = projectInfo.projectName.trim() || "Power Report";
+  const reportMetaItems = [
+    ["Project Manager", projectInfo.projectManager],
+    ["Project Number", projectInfo.projectNumber],
+    ["Event Date", displayDate(projectInfo.eventDate)],
+    ["Venue", projectInfo.venue],
+  ].filter(([, value]) => String(value).trim());
 
   function toggleSource(sourceId: string) {
     const currentHiddenSources = plannerState.reportHiddenSources ?? [];
@@ -336,7 +374,27 @@ export function ReportTab({
       </section>
 
       <div id="power-planner-report" style={styles.reportPage}>
-        <h1 style={styles.reportTitle}>{reportTitle}</h1>
+        <header style={styles.reportHeader}>
+          <div>
+            <h1 style={styles.reportTitle}>{reportTitle}</h1>
+            {projectInfo.projectNumber.trim() && (
+              <p style={styles.reportSubtitle}>
+                Project Number: {projectInfo.projectNumber}
+              </p>
+            )}
+          </div>
+
+          {reportMetaItems.length > 0 && (
+            <div style={styles.reportMetaGrid}>
+              {reportMetaItems.map(([label, value]) => (
+                <div key={label} style={styles.reportMetaItem}>
+                  <strong>{label}</strong>
+                  <span>{value}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </header>
 
         {visibleSourceSummaries.length === 0 ? (
           <p style={styles.muted}>No sources selected for this report.</p>
@@ -574,9 +632,38 @@ const styles: Record<string, CSSProperties> = {
     fontSize: "11px",
     lineHeight: 1.25,
   },
+  reportHeader: {
+    border: "1px solid #cbd5e1",
+    borderRadius: "14px",
+    padding: "12px",
+    background: "#F5F7FA",
+    marginBottom: "16px",
+    display: "grid",
+    gridTemplateColumns: "1fr 1.5fr",
+    gap: "12px",
+    alignItems: "start",
+  },
   reportTitle: {
     fontSize: "22px",
-    marginBottom: "12px",
+    marginBottom: "4px",
+  },
+  reportSubtitle: {
+    margin: 0,
+    color: "#475467",
+    fontWeight: 800,
+  },
+  reportMetaGrid: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: "7px",
+  },
+  reportMetaItem: {
+    display: "grid",
+    gap: "2px",
+    border: "1px solid #dbe3eb",
+    borderRadius: "10px",
+    padding: "7px",
+    background: "#FFFFFF",
   },
   sourceSection: {
     marginBottom: "22px",

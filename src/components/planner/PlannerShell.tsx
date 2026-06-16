@@ -60,7 +60,9 @@ function isPlannerState(value: unknown): value is PlannerState {
 
 function normaliseImportedPlannerState(value: PlannerState): PlannerState {
   return ensureAutoSources({
-    systemName: value.systemName ?? "Power Report",
+    systemName:
+      value.projectInfo?.projectName ?? value.systemName ?? "Power Report",
+    projectInfo: value.projectInfo,
     sources: value.sources ?? [],
     distros: value.distros ?? [],
     active: value.active ?? null,
@@ -103,7 +105,12 @@ export function PlannerShell({
     const stamp = new Date().toISOString().slice(0, 10);
 
     link.href = url;
-    link.download = `${safeFileName(exportState.systemName)}-${stamp}.json`;
+    const exportName =
+      exportState.projectInfo?.projectName ||
+      exportState.systemName ||
+      "power-planner-project";
+
+    link.download = `${safeFileName(exportName)}-${stamp}.json`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -285,9 +292,9 @@ const styles: Record<string, React.CSSProperties> = {
   primaryButton: {
     padding: "11px 14px",
     borderRadius: "13px",
-    border: "1px solid #e9e9e9",
-    background: "#e0e0e0",
-    color: "#111827",
+    border: "1px solid #4e4e4e",
+    background: "#ececec",
+    color: "#000000",
     fontWeight: 800,
     cursor: "pointer",
   },

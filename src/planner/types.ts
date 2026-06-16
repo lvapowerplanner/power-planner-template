@@ -61,8 +61,18 @@ export type PowerSource = {
   parentOutputId?: string;
 };
 
+export type ProjectInfo = {
+  projectManager: string;
+  projectNumber: string;
+  projectName: string;
+  eventDate: string;
+  venue: string;
+};
+
 export type PlannerState = {
+  /** Kept for backwards compatibility with older saved projects. Use projectInfo.projectName for new UI/report titles. */
   systemName: string;
+  projectInfo?: ProjectInfo;
   sources: PowerSource[];
   distros: ProjectDistro[];
   active: string | null;
