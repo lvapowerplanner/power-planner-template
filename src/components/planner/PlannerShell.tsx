@@ -121,6 +121,7 @@ export function PlannerShell({
       {activeTab === "Report" && (
         <ReportTab
           plannerState={plannerState}
+          setPlannerState={setPlannerState}
           openDistroEditor={openDistroEditor}
         />
       )}
