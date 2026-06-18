@@ -24,7 +24,7 @@ export function ProjectWorkspace({
         <div style={styles.headerRow}>
           <div>
             <h1>{activeProject.name}</h1>
-            <p style={styles.muted}>Sterling Event Group - Power Planner</p>
+            <p style={styles.muted}>Power Planner</p>
             <p style={styles.saveStatus}>{saveStatus}</p>
           </div>
 

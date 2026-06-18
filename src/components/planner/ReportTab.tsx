@@ -341,7 +341,7 @@ export function ReportTab({
         <div>
           <h2>Report</h2>
           <p style={styles.muted}>
-            Toggle sources for export. The PDF preview below mirrors the original HTML report layout.
+            Toggle sources for export. The preview below mirrors the report export layout.
           </p>
         </div>
 
