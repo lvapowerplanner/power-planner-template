@@ -40,9 +40,13 @@ function outputFromConnector(
 ): PlannerOutput {
   const ampsMatch = connector.match(/\d+/);
   const rating = ampsMatch ? Number(ampsMatch[0]) : 16;
-  const isThreePhase =
-    connector.toLowerCase().includes("3") ||
-    connector.toLowerCase().includes("three");
+ const normalisedConnector = connector.toLowerCase();
+
+ const isThreePhase =
+   normalisedConnector.includes("/ 3") ||
+   normalisedConnector.includes("/3") ||
+   normalisedConnector.includes("3 phase") ||
+   normalisedConnector.includes("three phase");
 
   return {
     id: `out${index + 1}`,
