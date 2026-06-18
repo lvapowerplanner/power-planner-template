@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { autoSourcesForDistro } from "@/planner/autoSources";
-import { distroLibrary } from "@/planner/distroLibrary";
+import { useCompanyDistroLibrary } from "@/planner/companyStock";
 import type {
   DistroDefinition,
   PlannerState,
@@ -32,9 +32,12 @@ function normaliseConnection(value: string) {
   return value.replace(/\s+/g, "").toLowerCase();
 }
 
-function allDistroDefinitions(plannerState: PlannerState): DistroDefinition[] {
+function allDistroDefinitions(
+  plannerState: PlannerState,
+  companyDistroLibrary: DistroDefinition[]
+): DistroDefinition[] {
   return [
-    ...distroLibrary,
+    ...companyDistroLibrary,
     ...plannerState.customDistros.map((distro) => ({
       ...distro,
       name: `Custom: ${distro.name}`,
@@ -62,7 +65,8 @@ export function DistroOverviewTab({
   setPlannerState,
   openDistroEditor,
 }: DistroOverviewTabProps) {
-  const distroDefinitions = allDistroDefinitions(plannerState);
+  const { distroLibrary, loadingDistros } = useCompanyDistroLibrary();
+  const distroDefinitions = allDistroDefinitions(plannerState, distroLibrary);
   const [selectedDistroIndex, setSelectedDistroIndex] = useState("0");
 
   const allAvailableSources = [
@@ -71,10 +75,11 @@ export function DistroOverviewTab({
   ];
 
   function addDistro() {
-    const definition = cloneDistro(
-      distroDefinitions[Number(selectedDistroIndex)]
-    );
+    const selectedDefinition = distroDefinitions[Number(selectedDistroIndex)];
 
+    if (!selectedDefinition) return;
+
+    const definition = cloneDistro(selectedDefinition);
     const cleanName = definition.name.replace(/^Custom:\s*/, "");
 
     const newDistro: ProjectDistro = {
@@ -147,7 +152,7 @@ export function DistroOverviewTab({
     <section style={styles.card}>
       <h2>Distro Overview</h2>
       <p style={styles.muted}>
-        Add distros from the built-in library or project custom distros.
+        Add distros from the company Supabase library or project custom distros.
       </p>
 
       <div style={styles.addPanel}>
@@ -157,6 +162,7 @@ export function DistroOverviewTab({
             style={styles.input}
             value={selectedDistroIndex}
             onChange={(event) => setSelectedDistroIndex(event.target.value)}
+            disabled={loadingDistros || distroDefinitions.length === 0}
           >
             {distroDefinitions.map((distro, index) => (
               <option key={`${distro.name}-${index}`} value={index}>
@@ -166,10 +172,22 @@ export function DistroOverviewTab({
           </select>
         </label>
 
-        <button style={styles.button} onClick={addDistro}>
+        <button
+          style={styles.button}
+          onClick={addDistro}
+          disabled={loadingDistros || distroDefinitions.length === 0}
+        >
           Add Distro
         </button>
       </div>
+
+      {loadingDistros ? (
+        <p style={styles.muted}>Loading company distro library…</p>
+      ) : distroDefinitions.length === 0 ? (
+        <p style={styles.muted}>
+          No company distros found. Add rows to the Supabase distro table.
+        </p>
+      ) : null}
 
       <hr style={styles.divider} />
 

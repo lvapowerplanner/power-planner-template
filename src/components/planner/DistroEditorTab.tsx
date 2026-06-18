@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { autoSourcesForDistro, autoSourceId } from "@/planner/autoSources";
-import { equipmentLibrary } from "@/planner/equipmentLibrary";
+import { useCompanyEquipmentLibrary } from "@/planner/companyStock";
 import type {
   EquipmentItem,
   PlannerOutput,
@@ -253,6 +253,8 @@ export function DistroEditorTab({
     sourceSocapexOutputId?: string;
   } | null>(null);
 
+  const { equipmentLibrary } = useCompanyEquipmentLibrary();
+
   const activeDistro =
     plannerState.distros.find((distro) => distro.id === plannerState.active) ??
     plannerState.distros[0];
@@ -263,7 +265,7 @@ export function DistroEditorTab({
         (a, b) =>
           a.category.localeCompare(b.category) || a.name.localeCompare(b.name)
       ),
-    [plannerState.customEquipment]
+    [equipmentLibrary, plannerState.customEquipment]
   );
 
   const equipmentCategories = useMemo(
