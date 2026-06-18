@@ -30,7 +30,73 @@ function mapEquipmentRow(row: any): EquipmentItem {
 }
 
 function normaliseInputConnector(value: unknown): string {
-  return String(value ?? "").replace("3 Phase", "/ 3").replace("Single Phase", "/ 1");
+  return String(value ?? "")
+    .replace("3 Phase", "/ 3")
+    .replace("Three Phase", "/ 3")
+    .replace("Single Phase", "/ 1");
+}
+
+function isThreePhaseConnector(connector: string) {
+  const normalised = connector.toLowerCase();
+
+  return (
+    normalised.includes("/ 3") ||
+    normalised.includes("/3") ||
+    normalised.includes("3 phase") ||
+    normalised.includes("three phase")
+  );
+}
+
+function isSocapexConnector(connector: string) {
+  return connector.toLowerCase().includes("soca");
+}
+
+function connectorRating(connector: string, fallback = 16) {
+  const ampsMatch = connector.match(/\d+/);
+  return ampsMatch ? Number(ampsMatch[0]) : fallback;
+}
+
+function createSocapexOutput(index: number, connector: string): PlannerOutput {
+  const number = index + 1;
+  const circuits: PlannerOutput[] = [];
+
+  (
+    [
+      ["L1", [1, 4]],
+      ["L2", [2, 5]],
+      ["L3", [3, 6]],
+    ] as const
+  ).forEach(([phase, circuitNumbers]) => {
+    circuitNumbers.forEach((circuitNumber) => {
+      circuits.push({
+        id: `soca${number}-${phase}-${circuitNumber}`,
+        label: `${number} - ${circuitNumber}`,
+        phase,
+        circuitNo: circuitNumber,
+        type: "16A / 1",
+        rating: 16,
+        items: [],
+        notes: "",
+      });
+    });
+  });
+
+  const breakerPairMatch = connector.match(/\((.*?)\)/);
+  const breakerPair = breakerPairMatch ? breakerPairMatch[1] : null;
+
+  return {
+    id: `soca${number}`,
+    outputNumber: number,
+    label: `Socapex ${number}`,
+    phase: "Socapex",
+    type: "Socapex",
+    rating: 32,
+    items: [],
+    notes: "",
+    breakerPair,
+    socaCircuits: circuits,
+    detail: "2 × 16A sockets per phase · L1 1 & 4 · L2 2 & 5 · L3 3 & 6",
+  };
 }
 
 function outputFromConnector(
@@ -38,15 +104,12 @@ function outputFromConnector(
   index: number,
   phase: PlannerOutput["phase"]
 ): PlannerOutput {
-  const ampsMatch = connector.match(/\d+/);
-  const rating = ampsMatch ? Number(ampsMatch[0]) : 16;
- const normalisedConnector = connector.toLowerCase();
+  if (isSocapexConnector(connector)) {
+    return createSocapexOutput(index, connector);
+  }
 
- const isThreePhase =
-   normalisedConnector.includes("/ 3") ||
-   normalisedConnector.includes("/3") ||
-   normalisedConnector.includes("3 phase") ||
-   normalisedConnector.includes("three phase");
+  const isThreePhase = isThreePhaseConnector(connector);
+  const rating = connectorRating(connector, 16);
 
   return {
     id: `out${index + 1}`,
@@ -55,6 +118,7 @@ function outputFromConnector(
     type: `${rating}A / ${isThreePhase ? "3" : "1"}`,
     rating,
     items: [],
+    notes: "",
   };
 }
 
@@ -78,7 +142,7 @@ function mapDistroRow(row: any): DistroDefinition | null {
     input: normaliseInputConnector(row.input_connector),
     inputA: Number(row.rating_amps ?? 0),
     outputs: outputConnectors.map((connector: string, index: number) =>
-      outputFromConnector(connector, index, phases[index % phases.length])
+      outputFromConnector(String(connector), index, phases[index % phases.length])
     ),
   };
 }

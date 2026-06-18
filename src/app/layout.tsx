@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Power Planner",
-  description: "Sterling Event Group - Power Planner",
+  description: "Power Planner",
 };
 
 export default function RootLayout({

@@ -4,7 +4,6 @@ type LoginFormProps = {
   setEmail: (value: string) => void;
   setPassword: (value: string) => void;
   signIn: () => void;
-  signUp: () => void;
 };
 
 export function LoginForm({
@@ -13,13 +12,14 @@ export function LoginForm({
   setEmail,
   setPassword,
   signIn,
-  signUp,
 }: LoginFormProps) {
   return (
     <main style={styles.page}>
       <section style={styles.card}>
-        <h1>Event Power Planner</h1>
-        <p style={styles.muted}>Sign in or create an account.</p>
+        <h1>LVA Power Planner</h1>
+        <p style={styles.muted}>
+          Please sign in using the account provided by your administrator.
+        </p>
 
         <label style={styles.label}>
           Email
@@ -44,9 +44,6 @@ export function LoginForm({
         <div style={styles.row}>
           <button style={styles.button} onClick={signIn}>
             Sign In
-          </button>
-          <button style={styles.button} onClick={signUp}>
-            Create Account
           </button>
         </div>
       </section>
@@ -98,3 +95,4 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
   },
 };
+
