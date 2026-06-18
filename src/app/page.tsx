@@ -251,7 +251,6 @@ export default function Home() {
         setEmail={setEmail}
         setPassword={setPassword}
         signIn={signIn}
-        signUp={signUp}
       />
     );
   }
