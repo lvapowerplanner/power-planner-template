@@ -27,6 +27,65 @@ export default function PlannerPortal() {
     useState<ProjectData>(emptyProjectData);
 
   const [saveStatus, setSaveStatus] = useState("Not saved yet");
+  const [accessMessage, setAccessMessage] = useState("");
+
+  function currentSubdomain() {
+    if (typeof window === "undefined") return "";
+
+    const host = window.location.hostname.toLowerCase();
+
+    if (host === "localhost" || host === "127.0.0.1") {
+      return "demo";
+    }
+
+    return host.split(".")[0] ?? "";
+  }
+
+  function clearSessionState(message = "") {
+    setUser(null);
+    setProjects([]);
+    setActiveProject(null);
+    setProjectData(emptyProjectData);
+    setSaveStatus("Not saved yet");
+    setAccessMessage(message);
+  }
+
+  async function checkWorkspaceAccess(currentUser: User) {
+    const { data: profile, error } = await supabase
+      .from("user_profiles")
+      .select("allowed_subdomain")
+      .eq("id", currentUser.id)
+      .single();
+
+    if (error || !profile) {
+      await supabase.auth.signOut();
+      clearSessionState("This account is not assigned to a workspace.");
+      return false;
+    }
+
+    const currentWorkspace = currentSubdomain();
+    const allowedWorkspace = String(profile.allowed_subdomain ?? "")
+      .trim()
+      .toLowerCase();
+
+    if (allowedWorkspace !== currentWorkspace) {
+      await supabase.auth.signOut();
+      clearSessionState("This account is not authorised for this workspace.");
+      return false;
+    }
+
+    setAccessMessage("");
+    return true;
+  }
+
+  async function approveAndLoadUser(currentUser: User) {
+    const allowed = await checkWorkspaceAccess(currentUser);
+
+    if (!allowed) return;
+
+    setUser(currentUser);
+    await loadProjects(currentUser);
+  }
 
   async function signUp() {
     const { error } = await supabase.auth.signUp({ email, password });
@@ -40,23 +99,26 @@ export default function PlannerPortal() {
   }
 
   async function signIn() {
-    const { error } = await supabase.auth.signInWithPassword({
+    setAccessMessage("");
+
+    const { data, error } = await supabase.auth.signInWithPassword({
       email,
       password,
     });
 
     if (error) {
       alert(error.message);
+      return;
+    }
+
+    if (data.user) {
+      await approveAndLoadUser(data.user);
     }
   }
 
   async function signOut() {
     await supabase.auth.signOut();
-    setUser(null);
-    setProjects([]);
-    setActiveProject(null);
-    setProjectData(emptyProjectData);
-    setSaveStatus("Not saved yet");
+    clearSessionState();
   }
 
   async function loadProjects(currentUser: User) {
@@ -113,7 +175,6 @@ export default function PlannerPortal() {
     setNewProjectName("");
     await loadProjects(user);
   }
-
 
   async function renameProject(projectId: string, nextName: string) {
     const cleanName = nextName.trim();
@@ -253,21 +314,19 @@ export default function PlannerPortal() {
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => {
-      setUser(data.user);
-
       if (data.user) {
-        loadProjects(data.user);
+        approveAndLoadUser(data.user);
+      } else {
+        clearSessionState();
       }
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        setUser(session?.user ?? null);
-
         if (session?.user) {
-          loadProjects(session.user);
+          approveAndLoadUser(session.user);
         } else {
-          setProjects([]);
+          clearSessionState();
         }
       }
     );
@@ -279,13 +338,18 @@ export default function PlannerPortal() {
 
   if (!user) {
     return (
-      <LoginForm
-        email={email}
-        password={password}
-        setEmail={setEmail}
-        setPassword={setPassword}
-        signIn={signIn}
-      />
+      <>
+        {accessMessage && (
+          <div style={styles.accessMessage}>{accessMessage}</div>
+        )}
+        <LoginForm
+          email={email}
+          password={password}
+          setEmail={setEmail}
+          setPassword={setPassword}
+          signIn={signIn}
+        />
+      </>
     );
   }
 
@@ -317,3 +381,18 @@ export default function PlannerPortal() {
     />
   );
 }
+
+const styles: Record<string, React.CSSProperties> = {
+  accessMessage: {
+    maxWidth: "520px",
+    margin: "20px auto -20px",
+    padding: "12px 14px",
+    border: "1px solid #E5484D",
+    borderRadius: "12px",
+    background: "#FFF1F1",
+    color: "#B42318",
+    fontFamily: "'Outfit', Arial, sans-serif",
+    fontWeight: 500,
+    textAlign: "center",
+  },
+};
