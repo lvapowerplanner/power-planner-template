@@ -801,6 +801,16 @@ function moveAssignedItemToSocapexSocket(
     });
   }
 
+  function changeActiveDistro(distroId: string) {
+    setDraggingEquipmentId(null);
+    setDraggingAssignedItem(null);
+
+    setPlannerState({
+      ...plannerState,
+      active: distroId,
+    });
+  }
+
   if (!activeDistro) {
     return (
       <section style={styles.card}>
@@ -923,9 +933,26 @@ function moveAssignedItemToSocapexSocket(
             <p style={styles.muted}>{displayDistroName(activeDistro)}</p>
           </div>
 
-          <button style={styles.secondaryButton} onClick={goToDistroOverview}>
-            Back to Distro Overview
-          </button>
+          <div style={styles.editorHeaderActions}>
+            <label style={styles.editorSelectLabel}>
+              Editing Distro
+              <select
+                style={styles.editorSelect}
+                value={activeDistro.id}
+                onChange={(event) => changeActiveDistro(event.target.value)}
+              >
+                {plannerState.distros.map((distro) => (
+                  <option key={distro.id} value={distro.id}>
+                    {displayDistroName(distro)}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <button style={styles.secondaryButton} onClick={goToDistroOverview}>
+              Back to Distro Overview
+            </button>
+          </div>
         </div>
 
         <hr style={styles.divider} />
@@ -1562,6 +1589,29 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     gap: "16px",
     alignItems: "center",
+  },
+  editorHeaderActions: {
+    display: "flex",
+    gap: "10px",
+    alignItems: "end",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
+  editorSelectLabel: {
+    display: "block",
+    color: "#667085",
+    fontWeight: 700,
+    fontSize: "12px",
+    minWidth: "260px",
+  },
+  editorSelect: {
+    width: "100%",
+    padding: "9px 10px",
+    marginTop: "6px",
+    borderRadius: "10px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#111827",
   },
   controlsGrid: {
     display: "grid",
