@@ -294,7 +294,7 @@ function reportPrintStyles() {
       font-weight: 700;
     }
     .no-print { display: none !important; }
-    .report-brand-logo { max-height: 42px; max-width: 150px; object-fit: contain; }
+    .report-brand-logo { display: block; max-height: 42px; max-width: 150px; object-fit: contain; }
     .report-brand-name { font-weight: 700; font-size: 12px; margin-bottom: 3px; }
     .report-brand-subtitle { color: #475467; font-size: 9px; }
     .report-footer {
@@ -330,7 +330,28 @@ function reportPrintStyles() {
   `;
 }
 
-function writePrintWindow(title: string, bodyHtml: string) {
+async function waitForReportImages(printWindow: Window) {
+  const images = Array.from(printWindow.document.images);
+
+  if (images.length === 0) return;
+
+  await Promise.all(
+    images.map(
+      (image) =>
+        new Promise<void>((resolve) => {
+          if (image.complete) {
+            resolve();
+            return;
+          }
+
+          image.onload = () => resolve();
+          image.onerror = () => resolve();
+        })
+    )
+  );
+}
+
+async function writePrintWindow(title: string, bodyHtml: string) {
   const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
@@ -351,7 +372,12 @@ function writePrintWindow(title: string, bodyHtml: string) {
 
   printWindow.document.close();
   printWindow.focus();
-  printWindow.print();
+
+  await waitForReportImages(printWindow);
+
+  setTimeout(() => {
+    printWindow.print();
+  }, 150);
 }
 
 export function ReportTab({
@@ -423,7 +449,7 @@ export function ReportTab({
     });
   }
 
-  function exportReportPdf() {
+  async function exportReportPdf() {
     const reportElement = document.getElementById("power-planner-report");
 
     if (!reportElement) {
@@ -431,10 +457,10 @@ export function ReportTab({
       return;
     }
 
-    writePrintWindow(reportTitle, reportElement.innerHTML);
+    await writePrintWindow(reportTitle, reportElement.innerHTML);
   }
 
-  function exportIndividualDistroReportsPdf() {
+  async function exportIndividualDistroReportsPdf() {
     const reportElement = document.getElementById("individual-distro-reports");
 
     if (!reportElement) {
@@ -447,7 +473,7 @@ export function ReportTab({
       return;
     }
 
-    writePrintWindow(`${reportTitle} - Distro Reports`, reportElement.innerHTML);
+    await writePrintWindow(`${reportTitle} - Distro Reports`, reportElement.innerHTML);
   }
 
   return (
@@ -680,7 +706,12 @@ function ReportHeader({
             className="report-brand-logo"
             src={brandLogoUrl}
             alt={`${brandName} logo`}
+            referrerPolicy="no-referrer"
+            crossOrigin="anonymous"
             style={styles.reportBrandLogo}
+            onError={(event) => {
+              event.currentTarget.style.display = "none";
+            }}
           />
         ) : null}
         <div>
@@ -973,6 +1004,8 @@ const styles: Record<string, CSSProperties> = {
     alignItems: "center",
   },
   reportBrandLogo: {
+    display: "block",
+    width: "auto",
     maxWidth: "150px",
     maxHeight: "42px",
     objectFit: "contain",
