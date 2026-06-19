@@ -11,10 +11,6 @@ export function isEligibleAutoSourceOutput(output: PlannerOutput): boolean {
 }
 
 export function outputSourceConnection(output: PlannerOutput): string {
-  if (output.connectorStyle === "powerlock") {
-    return `${output.rating}A Powerlock`;
-  }
-
   if (output.phase === "3Φ") {
     return `${output.rating}A / 3`;
   }
@@ -33,11 +29,9 @@ export function outputSourceName(
 
   const outputName =
     output.displayName ??
-    (output.connectorStyle === "powerlock"
-      ? `Output ${index + 1} – ${output.rating}A Powerlock`
-      : output.phase === "3Φ"
-        ? `Output ${index + 1} – ${output.rating}/3`
-        : `Output ${index + 1} – ${output.rating}/1`);
+    (output.phase === "3Φ"
+      ? `Output ${index + 1} – ${output.rating}/3`
+      : `Output ${index + 1} – ${output.rating}/1`);
 
   return `${distroName} → ${outputName}`;
 }

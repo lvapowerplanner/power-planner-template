@@ -148,8 +148,94 @@ function readDragPayload(event: DragEvent): DraggedEquipment | null {
   }
 }
 
+function connectorRatingFromText(value: string): number {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
 function normaliseConnection(value: string) {
-  return value.replace(/\s+/g, "").toLowerCase();
+  const cleaned = value.replace(/\s+/g, "").toLowerCase();
+  const rating = connectorRatingFromText(cleaned);
+
+  const isThreePhase =
+    cleaned.includes("/3") ||
+    cleaned.includes("3phase") ||
+    cleaned.includes("threephase") ||
+    cleaned.includes("powerlock");
+
+  const isSinglePhase =
+    cleaned.includes("/1") ||
+    cleaned.includes("1phase") ||
+    cleaned.includes("singlephase");
+
+  if (isThreePhase) {
+    return {
+      rating,
+      phase: "3" as const,
+      highCurrentThreePhase: rating >= 200,
+    };
+  }
+
+  if (isSinglePhase) {
+    return {
+      rating,
+      phase: "1" as const,
+      highCurrentThreePhase: false,
+    };
+  }
+
+  return {
+    rating,
+    phase: cleaned,
+    highCurrentThreePhase: false,
+  };
+}
+
+function connectionsAreCompatible(sourceConnection: string, distroInput: string) {
+  const source = normaliseConnection(sourceConnection);
+  const distro = normaliseConnection(distroInput);
+
+  if (
+    source.phase === "3" &&
+    distro.phase === "3" &&
+    source.highCurrentThreePhase &&
+    distro.highCurrentThreePhase
+  ) {
+    return source.rating <= distro.rating;
+  }
+
+  return source.phase === distro.phase && source.rating === distro.rating;
+}
+
+function effectiveDistroPhaseCap(
+  distro: ProjectDistro,
+  source: PowerSource | undefined
+) {
+  if (!source) {
+    return {
+      rating: distro.inputA,
+      capped: false,
+      sourceName: "",
+    };
+  }
+
+  const sourceConnection = normaliseConnection(source.conn);
+  const distroConnection = normaliseConnection(distro.input);
+
+  const shouldCapToSource =
+    sourceConnection.phase === "3" &&
+    distroConnection.phase === "3" &&
+    sourceConnection.highCurrentThreePhase &&
+    distroConnection.highCurrentThreePhase &&
+    sourceConnection.rating > 0 &&
+    distroConnection.rating > 0 &&
+    sourceConnection.rating < distroConnection.rating;
+
+  return {
+    rating: shouldCapToSource ? source.rating : distro.inputA,
+    capped: shouldCapToSource,
+    sourceName: source.name,
+  };
 }
 
 function sourceIsUsedByOtherDistro(
@@ -737,8 +823,7 @@ function moveAssignedItemToSocapexSocket(
     return plannerState.distros.filter((distro) => {
       if (distro.id === activeDistro.id) return false;
 
-      const compatible =
-        normaliseConnection(distro.input) === normaliseConnection(sourceConn);
+      const compatible = connectionsAreCompatible(sourceConn, distro.input);
 
       if (!compatible) return false;
 
@@ -824,8 +909,7 @@ function moveAssignedItemToSocapexSocket(
   }
 
   const availableSources = allDerivedSources.filter((source) => {
-    const compatible =
-      normaliseConnection(source.conn) === normaliseConnection(activeDistro.input);
+    const compatible = connectionsAreCompatible(source.conn, activeDistro.input);
 
     if (!compatible) return false;
 
@@ -840,6 +924,11 @@ function moveAssignedItemToSocapexSocket(
 
     return true;
   });
+
+  const selectedSource = allDerivedSources.find(
+    (source) => source.id === activeDistro.sourceId
+  );
+  const phaseCap = effectiveDistroPhaseCap(activeDistro, selectedSource);
 
   const singlePhaseOutputs = activeDistro.outputs.filter(
     (output) => output.phase !== "3Φ" && output.phase !== "Socapex"
@@ -972,9 +1061,32 @@ function moveAssignedItemToSocapexSocket(
             <span>Outputs </span>
             <strong>{activeDistro.outputs.length}</strong>
           </div>
+
+          <div
+            style={{
+              ...styles.summaryCard,
+              ...(phaseCap.capped ? styles.summaryCardCapped : {}),
+            }}
+          >
+            <span>Phase Cap </span>
+            <strong>{formatAmps(phaseCap.rating)}</strong>
+            {phaseCap.capped && (
+              <small style={styles.capNotice}>Capped by {phaseCap.sourceName}</small>
+            )}
+          </div>
         </div>
 
-        <PhaseCapacityGrid loads={phaseLoads} rating={activeDistro.inputA} />
+        {phaseCap.capped && (
+          <div style={styles.capBanner}>
+            This distro input is {activeDistro.input}, but it is currently capped to {formatAmps(phaseCap.rating)} per phase by the selected source.
+          </div>
+        )}
+
+        <PhaseCapacityGrid
+          loads={phaseLoads}
+          rating={phaseCap.rating}
+          capped={phaseCap.capped}
+        />
 
         <div style={styles.controlsGrid}>
           <label style={styles.label}>
@@ -1275,15 +1387,17 @@ function moveAssignedItemToSocapexSocket(
 function PhaseCapacityGrid({
   loads,
   rating,
+  capped = false,
 }: {
   loads: PhaseLoads;
   rating: number;
+  capped?: boolean;
 }) {
   return (
     <div style={styles.phaseCapacityGrid}>
-      <PhaseCapacityCard phase="L1" amps={loads.L1} rating={rating} />
-      <PhaseCapacityCard phase="L2" amps={loads.L2} rating={rating} />
-      <PhaseCapacityCard phase="L3" amps={loads.L3} rating={rating} />
+      <PhaseCapacityCard phase="L1" amps={loads.L1} rating={rating} capped={capped} />
+      <PhaseCapacityCard phase="L2" amps={loads.L2} rating={rating} capped={capped} />
+      <PhaseCapacityCard phase="L3" amps={loads.L3} rating={rating} capped={capped} />
     </div>
   );
 }
@@ -1292,10 +1406,12 @@ function PhaseCapacityCard({
   phase,
   amps,
   rating,
+  capped = false,
 }: {
   phase: string;
   amps: number;
   rating: number;
+  capped?: boolean;
 }) {
   const percent = rating ? Math.round((amps / rating) * 100) : 0;
   const overloaded = percent > 100;
@@ -1306,12 +1422,14 @@ function PhaseCapacityCard({
       style={{
         ...styles.phaseCapacityCard,
         ...(overloaded ? styles.phaseCapacityCritical : {}),
+        ...(capped && !overloaded ? styles.phaseCapacityCapped : {}),
       }}
     >
       <div style={styles.capacityHeader}>
         <strong>{phase}</strong>
         <span>
           {formatAmps(amps)} / {formatAmps(rating)} · {percent}%
+          {capped ? " · source cap" : ""}
         </span>
       </div>
 
@@ -1620,7 +1738,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
     gap: "12px",
     marginBottom: "12px",
   },
@@ -1629,6 +1747,26 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     padding: "14px",
     background: "#F5F7FA",
+  },
+  summaryCardCapped: {
+    border: "1px solid #B7791F",
+    background: "#FFFBEB",
+  },
+  capNotice: {
+    display: "block",
+    marginTop: "4px",
+    color: "#92400E",
+    fontWeight: 800,
+  },
+  capBanner: {
+    marginBottom: "12px",
+    border: "1px solid #FDE68A",
+    borderRadius: "12px",
+    padding: "10px 12px",
+    background: "#FFFBEB",
+    color: "#92400E",
+    fontWeight: 800,
+    fontSize: "13px",
   },
   phaseCapacityGrid: {
     display: "grid",
@@ -1645,6 +1783,10 @@ const styles: Record<string, React.CSSProperties> = {
   phaseCapacityCritical: {
     border: "1px solid #E5484D",
     background: "#FFF1F1",
+  },
+  phaseCapacityCapped: {
+    border: "1px solid #F59E0B",
+    background: "#FFFBEB",
   },
   label: {
     display: "block",

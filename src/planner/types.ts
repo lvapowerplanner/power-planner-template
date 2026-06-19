@@ -41,6 +41,7 @@ export type DistroDefinition = {
   input: string;
   inputA: number;
   outputs: PlannerOutput[];
+  connectorStyle?: ConnectorStyle;
   custom?: boolean;
 };
 

@@ -30,7 +30,14 @@ function mapEquipmentRow(row: any): EquipmentItem {
 }
 
 function normaliseInputConnector(value: unknown): string {
-  return String(value ?? "")
+  const raw = String(value ?? "").trim();
+  const rating = connectorRating(raw, 0);
+
+  if (isPowerlockConnector(raw)) {
+    return `${rating}A / 3`;
+  }
+
+  return raw
     .replace("3 Phase", "/ 3")
     .replace("Three Phase", "/ 3")
     .replace("Single Phase", "/ 1");
@@ -106,7 +113,6 @@ function createSocapexOutput(index: number, connector: string): PlannerOutput {
     breakerPair,
     socaCircuits: circuits,
     detail: "2 × 16A sockets per phase · L1 1 & 4 · L2 2 & 5 · L3 3 & 6",
-    connectorStyle: "soca",
   };
 }
 
@@ -120,22 +126,16 @@ function outputFromConnector(
   }
 
   const isThreePhase = isThreePhaseConnector(connector);
-  const isPowerlock = isPowerlockConnector(connector);
   const rating = connectorRating(connector, 16);
-  const type = isPowerlock
-    ? powerlockConnectorLabel(connector)
-    : `${rating}A / ${isThreePhase ? "3" : "1"}`;
 
   return {
     id: `out${index + 1}`,
     label: String(index + 1),
-    displayName: isPowerlock ? powerlockConnectorLabel(connector) : undefined,
     phase: isThreePhase ? "3Φ" : phase,
-    type,
+    type: `${rating}A / ${isThreePhase ? "3" : "1"}`,
     rating,
     items: [],
     notes: "",
-    connectorStyle: isPowerlock ? "powerlock" : "ceeform",
   };
 }
 

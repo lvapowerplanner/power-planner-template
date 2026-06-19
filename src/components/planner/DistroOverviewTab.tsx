@@ -28,8 +28,63 @@ function displayDistroName(distro: ProjectDistro) {
     : distro.name;
 }
 
+function connectorRatingFromText(value: string): number {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
 function normaliseConnection(value: string) {
-  return value.replace(/\s+/g, "").toLowerCase();
+  const cleaned = value.replace(/\s+/g, "").toLowerCase();
+  const rating = connectorRatingFromText(cleaned);
+
+  const isThreePhase =
+    cleaned.includes("/3") ||
+    cleaned.includes("3phase") ||
+    cleaned.includes("threephase") ||
+    cleaned.includes("powerlock");
+
+  const isSinglePhase =
+    cleaned.includes("/1") ||
+    cleaned.includes("1phase") ||
+    cleaned.includes("singlephase");
+
+  if (isThreePhase) {
+    return {
+      rating,
+      phase: "3" as const,
+      highCurrentThreePhase: rating >= 200,
+    };
+  }
+
+  if (isSinglePhase) {
+    return {
+      rating,
+      phase: "1" as const,
+      highCurrentThreePhase: false,
+    };
+  }
+
+  return {
+    rating,
+    phase: cleaned,
+    highCurrentThreePhase: false,
+  };
+}
+
+function connectionsAreCompatible(sourceConnection: string, distroInput: string) {
+  const source = normaliseConnection(sourceConnection);
+  const distro = normaliseConnection(distroInput);
+
+  if (
+    source.phase === "3" &&
+    distro.phase === "3" &&
+    source.highCurrentThreePhase &&
+    distro.highCurrentThreePhase
+  ) {
+    return source.rating <= distro.rating;
+  }
+
+  return source.phase === distro.phase && source.rating === distro.rating;
 }
 
 function allDistroDefinitions(
@@ -197,9 +252,7 @@ export function DistroOverviewTab({
         <div style={styles.list}>
           {plannerState.distros.map((distro) => {
             const availableSources = allAvailableSources.filter((source) => {
-              const compatible =
-                normaliseConnection(source.conn) ===
-                normaliseConnection(distro.input);
+              const compatible = connectionsAreCompatible(source.conn, distro.input);
 
               if (!compatible) return false;
 

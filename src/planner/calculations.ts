@@ -128,7 +128,6 @@ export function socapexOutputWatts(output: PlannerOutput): number {
 export function outputDisplayName(output: PlannerOutput, index: number): string {
   if (output.displayName) return output.displayName;
   if (output.phase === "Socapex") return `Soca ${output.outputNumber ?? index + 1}`;
-  if (output.connectorStyle === "powerlock") return `${index + 1} - ${output.rating}A Powerlock`;
   if (output.phase === "3Φ") return `${index + 1} - ${output.rating}/3`;
   return `${index + 1} - ${output.rating}a`;
 }

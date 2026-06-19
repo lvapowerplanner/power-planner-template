@@ -38,6 +38,78 @@ function connectionLabel(summary: DistroLoadSummary) {
   return summary.distro.input;
 }
 
+function connectorRatingFromText(value: string): number {
+  const match = value.match(/\d+/);
+  return match ? Number(match[0]) : 0;
+}
+
+function normaliseConnection(value: string) {
+  const cleaned = value.replace(/\s+/g, "").toLowerCase();
+  const rating = connectorRatingFromText(cleaned);
+
+  const isThreePhase =
+    cleaned.includes("/3") ||
+    cleaned.includes("3phase") ||
+    cleaned.includes("threephase") ||
+    cleaned.includes("powerlock");
+
+  const isSinglePhase =
+    cleaned.includes("/1") ||
+    cleaned.includes("1phase") ||
+    cleaned.includes("singlephase");
+
+  if (isThreePhase) {
+    return {
+      rating,
+      phase: "3" as const,
+      highCurrentThreePhase: rating >= 200,
+    };
+  }
+
+  if (isSinglePhase) {
+    return {
+      rating,
+      phase: "1" as const,
+      highCurrentThreePhase: false,
+    };
+  }
+
+  return {
+    rating,
+    phase: cleaned,
+    highCurrentThreePhase: false,
+  };
+}
+
+function effectiveDistroPhaseCap(
+  distroInput: string,
+  distroInputA: number,
+  sourceConnection?: string,
+  sourceRating?: number
+) {
+  if (!sourceConnection || !sourceRating) {
+    return {
+      rating: distroInputA,
+      capped: false,
+    };
+  }
+
+  const source = normaliseConnection(sourceConnection);
+  const distro = normaliseConnection(distroInput);
+
+  const shouldCapToSource =
+    source.phase === "3" &&
+    distro.phase === "3" &&
+    source.highCurrentThreePhase &&
+    distro.highCurrentThreePhase &&
+    sourceRating < distroInputA;
+
+  return {
+    rating: shouldCapToSource ? sourceRating : distroInputA,
+    capped: shouldCapToSource,
+  };
+}
+
 const emptyProjectInfo: ProjectInfo = {
   projectManager: "",
   projectNumber: "",
@@ -207,6 +279,8 @@ export function SystemOverviewTab({
                         summary={distroSummary}
                         openDistroEditor={openDistroEditor}
                         depth={0}
+                        sourceConnection={source.sourceConnection}
+                        sourceRating={source.sourceRating}
                       />
                     ))}
                   </div>
@@ -243,11 +317,15 @@ function DistroTreeCard({
   openDistroEditor,
   depth,
   unassigned = false,
+  sourceConnection,
+  sourceRating,
 }: {
   summary: DistroLoadSummary;
   openDistroEditor: (distroId: string) => void;
   depth: number;
   unassigned?: boolean;
+  sourceConnection?: string;
+  sourceRating?: number;
 }) {
   const connectionType = connectionColour(summary.distro.input);
   const lineStyle =
@@ -256,6 +334,12 @@ function DistroTreeCard({
     connectionType === "threePhase"
       ? styles.threePhaseBadge
       : styles.singlePhaseBadge;
+  const phaseCap = effectiveDistroPhaseCap(
+    summary.distro.input,
+    summary.distro.inputA,
+    sourceConnection,
+    sourceRating
+  );
 
   return (
     <div style={styles.treeNode}>
@@ -308,7 +392,17 @@ function DistroTreeCard({
           </div>
         </div>
 
-        <PhaseLoadGrid loads={summary.phaseLoads} rating={summary.distro.inputA} />
+        {phaseCap.capped && (
+          <div style={styles.capBanner}>
+            Input {summary.distro.input} capped to {formatAmps(phaseCap.rating)} per phase by source.
+          </div>
+        )}
+
+        <PhaseLoadGrid
+          loads={summary.phaseLoads}
+          rating={phaseCap.rating}
+          capped={phaseCap.capped}
+        />
 
         {(summary.children ?? []).length > 0 && (
           <div style={styles.childList}>
@@ -351,15 +445,17 @@ function IssueList({ issues }: { issues: ValidationIssue[] }) {
 function PhaseLoadGrid({
   loads,
   rating,
+  capped = false,
 }: {
   loads: PhaseLoads;
   rating: number;
+  capped?: boolean;
 }) {
   return (
     <div style={styles.phaseGrid}>
-      <PhaseLoadCard phase="L1" amps={loads.L1} rating={rating} />
-      <PhaseLoadCard phase="L2" amps={loads.L2} rating={rating} />
-      <PhaseLoadCard phase="L3" amps={loads.L3} rating={rating} />
+      <PhaseLoadCard phase="L1" amps={loads.L1} rating={rating} capped={capped} />
+      <PhaseLoadCard phase="L2" amps={loads.L2} rating={rating} capped={capped} />
+      <PhaseLoadCard phase="L3" amps={loads.L3} rating={rating} capped={capped} />
     </div>
   );
 }
@@ -368,22 +464,30 @@ function PhaseLoadCard({
   phase,
   amps,
   rating,
+  capped = false,
 }: {
   phase: string;
   amps: number;
   rating: number;
+  capped?: boolean;
 }) {
   const percentage = phasePercentage(amps, rating);
 
   return (
-    <div data-lva-card style={styles.phaseCard}>
+    <div
+      data-lva-card
+      style={{
+        ...styles.phaseCard,
+        ...(capped ? styles.phaseCardCapped : {}),
+      }}
+    >
       <div style={styles.phaseHeader}>
         <strong>{phase}</strong>
         <span>{percentage}%</span>
       </div>
 
       <p style={styles.muted}>
-        {formatAmps(amps)} / {formatAmps(rating)}
+        {formatAmps(amps)} / {formatAmps(rating)}{capped ? " source cap" : ""}
       </p>
 
       <div style={styles.meter}>
@@ -632,6 +736,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111827",
     whiteSpace: "nowrap",
   },
+  capBanner: {
+    marginTop: "10px",
+    marginBottom: "10px",
+    border: "1px solid #FDE68A",
+    borderRadius: "12px",
+    padding: "9px 10px",
+    background: "#FFFBEB",
+    color: "#92400E",
+    fontSize: "12px",
+    fontWeight: 800,
+  },
   phaseGrid: {
     display: "grid",
     gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
@@ -643,6 +758,10 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "12px",
     padding: "10px",
     background: "white",
+  },
+  phaseCardCapped: {
+    border: "1px solid #F59E0B",
+    background: "#FFFBEB",
   },
   phaseHeader: {
     display: "flex",
