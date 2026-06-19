@@ -11,11 +11,11 @@ export default function LandingPage() {
 
       <section className="mx-auto max-w-5xl px-6 pb-20 pt-8 text-center">
         <h1 className="text-5xl font-bold tracking-tight md:text-7xl">
-          Professional power planning for live events.
+          Power planning software for live events & temporary power systems..
         </h1>
 
         <p className="mx-auto mt-6 max-w-3xl text-lg text-gray-600 md:text-xl">
-          LVA Power Planner helps event teams build clear, structured power
+          LVA Power Planner helps production teams build clear, structured power
           plans for generators, distros, circuits, equipment loads and
           professional reports.
         </p>
@@ -24,7 +24,7 @@ export default function LandingPage() {
       <section className="mx-auto grid max-w-6xl gap-6 px-6 pb-24 md:grid-cols-3">
         {[
           [
-            "Generator Planning",
+            "Power Planning",
             "Plan power sources and understand available capacity before arriving on site.",
           ],
           [
@@ -37,7 +37,7 @@ export default function LandingPage() {
           ],
           [
             "Equipment Library",
-            "Store commonly used fixtures, production equipment, motors and site loads.",
+            "Store commonly used equipment across custom defined categories.",
           ],
           [
             "System Overview",
@@ -45,7 +45,7 @@ export default function LandingPage() {
           ],
           [
             "Exportable Reports",
-            "Produce professional reports for teams, clients and project records.",
+            "Produce professional reports for onsite teams and project records.",
           ],
         ].map(([title, text]) => (
           <div key={title} className="rounded-2xl border border-gray-200 p-6">
