@@ -32,10 +32,26 @@ export default function PlannerPortal() {
   function currentSubdomain() {
     if (typeof window === "undefined") return "";
 
-    const host = window.location.hostname.toLowerCase();
+    const host = window.location.hostname
+      .toLowerCase()
+      .replace(/^https?:\/\//, "")
+      .split(":")[0];
 
     if (host === "localhost" || host === "127.0.0.1") {
       return "demo";
+    }
+
+    const explicitWorkspaces: Record<string, string> = {
+      "demo.lvapowerplanner.com": "demo",
+      "sterling.lvapowerplanner.com": "sterling",
+    };
+
+    if (explicitWorkspaces[host]) {
+      return explicitWorkspaces[host];
+    }
+
+    if (host.endsWith(".lvapowerplanner.com")) {
+      return host.replace(".lvapowerplanner.com", "");
     }
 
     return host.split(".")[0] ?? "";
@@ -51,6 +67,14 @@ export default function PlannerPortal() {
   }
 
   async function checkWorkspaceAccess(currentUser: User) {
+    const currentWorkspace = currentSubdomain();
+
+    if (!currentWorkspace) {
+      await supabase.auth.signOut();
+      clearSessionState("This workspace could not be identified.");
+      return false;
+    }
+
     const { data: profile, error } = await supabase
       .from("user_profiles")
       .select("allowed_subdomain")
@@ -63,14 +87,15 @@ export default function PlannerPortal() {
       return false;
     }
 
-    const currentWorkspace = currentSubdomain();
     const allowedWorkspace = String(profile.allowed_subdomain ?? "")
       .trim()
       .toLowerCase();
 
     if (allowedWorkspace !== currentWorkspace) {
       await supabase.auth.signOut();
-      clearSessionState("This account is not authorised for this workspace.");
+      clearSessionState(
+        `This account is not authorised for this workspace. Current workspace: ${currentWorkspace}. Allowed workspace: ${allowedWorkspace || "none"}.`
+      );
       return false;
     }
 
