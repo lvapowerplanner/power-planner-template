@@ -13,6 +13,22 @@ import {
   type ProjectData,
 } from "@/types/project";
 
+type WorkspaceBranding = {
+  subdomain: string;
+  company_name: string;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  report_footer?: string | null;
+};
+
+const defaultWorkspaceBranding: WorkspaceBranding = {
+  subdomain: "",
+  company_name: "LVA Power Planner",
+  logo_url: "",
+  contact_email: "",
+  report_footer: "",
+};
+
 export default function PlannerPortal() {
   const [user, setUser] = useState<User | null>(null);
 
@@ -31,6 +47,7 @@ export default function PlannerPortal() {
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [workspaceBranding, setWorkspaceBranding] = useState<WorkspaceBranding>(defaultWorkspaceBranding);
 
   function currentSubdomain() {
     if (typeof window === "undefined") return "";
@@ -42,6 +59,37 @@ export default function PlannerPortal() {
     }
 
     return host.split(".")[0] ?? "";
+  }
+
+  async function loadWorkspaceBranding() {
+    const subdomain = currentSubdomain();
+
+    if (!subdomain) {
+      setWorkspaceBranding(defaultWorkspaceBranding);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("workspace_settings")
+      .select("subdomain, company_name, logo_url, contact_email, report_footer")
+      .eq("subdomain", subdomain)
+      .maybeSingle();
+
+    if (error || !data) {
+      setWorkspaceBranding({
+        ...defaultWorkspaceBranding,
+        subdomain,
+      });
+      return;
+    }
+
+    setWorkspaceBranding({
+      subdomain: String(data.subdomain ?? subdomain),
+      company_name: String(data.company_name ?? "LVA Power Planner"),
+      logo_url: data.logo_url ? String(data.logo_url) : "",
+      contact_email: data.contact_email ? String(data.contact_email) : "",
+      report_footer: data.report_footer ? String(data.report_footer) : "",
+    });
   }
 
   function isGlobalAdmin(currentUser: User) {
@@ -392,6 +440,8 @@ export default function PlannerPortal() {
   }, [projectData]);
 
   useEffect(() => {
+    loadWorkspaceBranding();
+
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
         approveAndLoadUser(data.user);
@@ -435,6 +485,7 @@ export default function PlannerPortal() {
           setPassword={setPassword}
           signIn={signIn}
           requestPasswordReset={requestPasswordReset}
+          workspaceBranding={workspaceBranding}
         />
       </>
     );
@@ -446,7 +497,7 @@ export default function PlannerPortal() {
         <section style={styles.passwordCard}>
           <h1>Set New Password</h1>
           <p style={styles.passwordText}>
-            Enter a new password for your LVA Power Planner account.
+            Enter a new password for your {workspaceBranding.company_name || "LVA Power Planner"} account.
           </p>
 
           <label style={styles.passwordLabel}>
@@ -489,6 +540,7 @@ export default function PlannerPortal() {
         backToProjects={() => setActiveProject(null)}
         saveStatus={saveStatus}
         renameProject={renameProject}
+        workspaceBranding={workspaceBranding}
       />
     );
   }
@@ -504,6 +556,7 @@ export default function PlannerPortal() {
       deleteProject={deleteProject}
       renameProject={renameProject}
       signOut={signOut}
+      workspaceBranding={workspaceBranding}
     />
   );
 }
@@ -562,7 +615,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontFamily: "'Outfit', Arial, sans-serif",
     fontSize: "14px",
     lineHeight: 1.45,
-    fontWeight: 700,
+    fontWeight: 400,
     textAlign: "center",
     zIndex: 999999,
     boxShadow: "0 8px 24px rgba(17, 24, 39, 0.14)",

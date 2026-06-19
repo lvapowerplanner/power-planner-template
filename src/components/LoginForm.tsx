@@ -1,3 +1,11 @@
+type WorkspaceBranding = {
+  subdomain: string;
+  company_name: string;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  report_footer?: string | null;
+};
+
 type LoginFormProps = {
   email: string;
   password: string;
@@ -5,7 +13,13 @@ type LoginFormProps = {
   setPassword: (value: string) => void;
   signIn: () => void;
   requestPasswordReset: () => void;
+  workspaceBranding?: WorkspaceBranding;
 };
+
+function isLvaBrand(workspaceBranding?: WorkspaceBranding) {
+  return !workspaceBranding?.company_name ||
+    workspaceBranding.company_name.trim().toLowerCase() === "lva power planner";
+}
 
 export function LoginForm({
   email,
@@ -14,11 +28,24 @@ export function LoginForm({
   setPassword,
   signIn,
   requestPasswordReset,
+  workspaceBranding,
 }: LoginFormProps) {
+  const companyName = workspaceBranding?.company_name?.trim() || "LVA Power Planner";
+  const showPoweredBy = !isLvaBrand(workspaceBranding);
+
   return (
     <main style={styles.page}>
       <section style={styles.card}>
-        <h1>LVA Power Planner</h1>
+        {workspaceBranding?.logo_url && (
+          <img
+            src={workspaceBranding.logo_url}
+            alt={`${companyName} logo`}
+            style={styles.logo}
+          />
+        )}
+
+        <h1>{companyName}</h1>
+        {showPoweredBy && <p style={styles.poweredBy}>Powered by LVA Power Planner</p>}
         <p style={styles.muted}>
           Please sign in using the account provided by your administrator.
         </p>
@@ -74,6 +101,19 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     border: "1px solid #d9e0ea",
   },
+  logo: {
+    maxWidth: "150px",
+    maxHeight: "70px",
+    objectFit: "contain",
+    marginBottom: "16px",
+  },
+  poweredBy: {
+    marginTop: "-8px",
+    marginBottom: "16px",
+    color: "#637083",
+    fontSize: "13px",
+    fontWeight: 400,
+  },
   muted: {
     color: "#000000",
   },
@@ -102,6 +142,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#172033",
     color: "white",
     cursor: "pointer",
+    fontWeight: 500,
   },
   linkButton: {
     padding: "10px 14px",
@@ -110,5 +151,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#172033",
     cursor: "pointer",
+    fontWeight: 500,
   },
 };

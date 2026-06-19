@@ -2,6 +2,14 @@ import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { Project } from "@/types/project";
 
+type WorkspaceBranding = {
+  subdomain: string;
+  company_name: string;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  report_footer?: string | null;
+};
+
 type ProjectDashboardProps = {
   user: User;
   projects: Project[];
@@ -12,6 +20,7 @@ type ProjectDashboardProps = {
   deleteProject: (projectId: string) => void;
   renameProject: (projectId: string, nextName: string) => Promise<boolean>;
   signOut: () => void;
+  workspaceBranding?: WorkspaceBranding;
 };
 
 export function ProjectDashboard({
@@ -24,8 +33,10 @@ export function ProjectDashboard({
   deleteProject,
   renameProject,
   signOut,
+  workspaceBranding,
 }: ProjectDashboardProps) {
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const companyName = workspaceBranding?.company_name?.trim() || "Event Power Planner";
   const [editingProjectName, setEditingProjectName] = useState("");
 
   function startRenameProject(project: Project) {
@@ -51,8 +62,20 @@ export function ProjectDashboard({
       <section style={styles.wideCard}>
         <div style={styles.headerRow}>
           <div>
-            <h1>Event Power Planner</h1>
-            <p style={styles.muted}>Signed in as {user.email}</p>
+            <div style={styles.brandRow}>
+              {workspaceBranding?.logo_url && (
+                <img
+                  src={workspaceBranding.logo_url}
+                  alt={`${companyName} logo`}
+                  style={styles.logo}
+                />
+              )}
+              <div>
+                <h1 style={styles.pageTitle}>{companyName} Workspace</h1>
+                <p style={styles.poweredBy}>Powered by LVA Power Planner</p>
+                <p style={styles.muted}>Signed in as {user.email}</p>
+              </div>
+            </div>
           </div>
 
           <button style={styles.button} onClick={signOut}>
@@ -180,6 +203,25 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "24px",
     borderRadius: "14px",
     border: "1px solid #d9e0ea",
+  },
+  brandRow: {
+    display: "flex",
+    gap: "12px",
+    alignItems: "center",
+  },
+  logo: {
+    maxWidth: "120px",
+    maxHeight: "52px",
+    objectFit: "contain",
+  },
+  pageTitle: {
+    margin: 0,
+  },
+  poweredBy: {
+    margin: "3px 0 0",
+    color: "#637083",
+    fontSize: "13px",
+    fontWeight: 400,
   },
   muted: {
     color: "#000000",

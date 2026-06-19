@@ -10,9 +10,18 @@ import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import { ensureAutoSources } from "@/planner/autoSources";
 import type { PlannerState } from "@/planner/types";
 
+type WorkspaceBranding = {
+  subdomain: string;
+  company_name: string;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  report_footer?: string | null;
+};
+
 type PlannerShellProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
+  workspaceBranding?: WorkspaceBranding;
 };
 
 type PlannerTab =
@@ -76,8 +85,10 @@ function normaliseImportedPlannerState(value: PlannerState): PlannerState {
 export function PlannerShell({
   plannerState,
   setPlannerState,
+  workspaceBranding,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
+  const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
@@ -197,11 +208,21 @@ export function PlannerShell({
       `}</style>
       <section data-power-planner-ui style={styles.shell}>
         <div style={styles.utilityBar}>
-          <div>
-            <h2 style={styles.utilityTitle}>Power Planner</h2>
-            <p style={styles.utilityText}>
-              Export a backup before major edits, or import a planner JSON file to restore or share a system.
-            </p>
+          <div style={styles.brandBlock}>
+            {workspaceBranding?.logo_url && (
+              <img
+                src={workspaceBranding.logo_url}
+                alt={`${companyName} logo`}
+                style={styles.logo}
+              />
+            )}
+            <div>
+              <h2 style={styles.utilityTitle}>{companyName}</h2>
+              <p style={styles.poweredBy}>Powered by LVA Power Planner</p>
+              <p style={styles.utilityText}>
+                Export a backup before major edits, or import a planner JSON file to restore or share a system.
+              </p>
+            </div>
           </div>
 
           <div style={styles.utilityActions}>
@@ -312,10 +333,27 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "20px",
     boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
+  brandBlock: {
+    display: "flex",
+    gap: "12px",
+    alignItems: "center",
+    minWidth: 0,
+  },
+  logo: {
+    maxWidth: "120px",
+    maxHeight: "50px",
+    objectFit: "contain",
+  },
   utilityTitle: {
     margin: 0,
     fontSize: "20px",
     letterSpacing: "-0.02em",
+  },
+  poweredBy: {
+    margin: "2px 0 0",
+    color: "#637083",
+    fontSize: "12px",
+    fontWeight: 500,
   },
   utilityText: {
     margin: "4px 0 0",
@@ -334,7 +372,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #4e4e4e",
     background: "#ececec",
     color: "#000000",
-    fontWeight: 400,
+    fontWeight: 500,
     cursor: "pointer",
   },
   secondaryButton: {
@@ -343,7 +381,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #DCE5EC",
     background: "#FFFFFF",
     color: "#111827",
-    fontWeight: 300,
+    fontWeight: 500,
     cursor: "pointer",
   },
   tabs: {

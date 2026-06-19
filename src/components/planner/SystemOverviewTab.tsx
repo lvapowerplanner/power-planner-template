@@ -552,7 +552,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "block",
     color: "#111827",
     fontSize: "12px",
-    fontWeight: 800,
+    fontWeight: 500,
     letterSpacing: "0.01em",
   },
   input: {
@@ -582,7 +582,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "7px",
     alignItems: "center",
     fontSize: "13px",
-    fontWeight: 800,
+    fontWeight: 500,
     color: "#111827",
   },
   legendLine: {
@@ -651,7 +651,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: 0,
   },
   sourceTotal: {
-    fontWeight: 800,
+    fontWeight: 500,
     color: "#111827",
     whiteSpace: "nowrap",
   },
@@ -687,7 +687,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "5px 9px",
     borderRadius: "999px",
     fontSize: "12px",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   singlePhaseBadge: {
     background: "#E6FBFF",
@@ -732,7 +732,7 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "flex-end",
   },
   distroTotal: {
-    fontWeight: 800,
+    fontWeight: 500,
     color: "#111827",
     whiteSpace: "nowrap",
   },
@@ -745,7 +745,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#FFFBEB",
     color: "#92400E",
     fontSize: "12px",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   phaseGrid: {
     display: "grid",

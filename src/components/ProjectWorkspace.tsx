@@ -2,6 +2,14 @@ import { useEffect, useState } from "react";
 import { PowerPlannerApp } from "@/components/PowerPlannerApp";
 import type { Project, ProjectData } from "@/types/project";
 
+type WorkspaceBranding = {
+  subdomain: string;
+  company_name: string;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  report_footer?: string | null;
+};
+
 type ProjectWorkspaceProps = {
   activeProject: Project;
   projectData: ProjectData;
@@ -10,6 +18,7 @@ type ProjectWorkspaceProps = {
   backToProjects: () => void;
   saveStatus: string;
   renameProject: (projectId: string, nextName: string) => Promise<boolean>;
+  workspaceBranding?: WorkspaceBranding;
 };
 
 export function ProjectWorkspace({
@@ -20,9 +29,11 @@ export function ProjectWorkspace({
   backToProjects,
   saveStatus,
   renameProject,
+  workspaceBranding,
 }: ProjectWorkspaceProps) {
   const [projectName, setProjectName] = useState(activeProject.name);
   const [renaming, setRenaming] = useState(false);
+  const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
 
   useEffect(() => {
     setProjectName(activeProject.name);
@@ -43,6 +54,22 @@ export function ProjectWorkspace({
   return (
     <main style={styles.page}>
       <section style={styles.wideCard}>
+        <div style={styles.workspaceStrip}>
+          <div style={styles.brandRow}>
+            {workspaceBranding?.logo_url && (
+              <img
+                src={workspaceBranding.logo_url}
+                alt={`${companyName} logo`}
+                style={styles.logo}
+              />
+            )}
+            <div>
+              <strong>{companyName}</strong>
+              <p style={styles.brandText}>Powered by LVA Power Planner</p>
+            </div>
+          </div>
+        </div>
+
         <div style={styles.headerRow}>
           <div style={styles.projectTitleBlock}>
             <label style={styles.projectNameLabel}>
@@ -90,6 +117,7 @@ export function ProjectWorkspace({
               plannerState,
             })
           }
+          workspaceBranding={workspaceBranding}
         />
       </section>
     </main>
@@ -110,6 +138,29 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "24px",
     borderRadius: "14px",
     border: "1px solid #d9e0ea",
+  },
+  workspaceStrip: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "14px",
+    padding: "12px 14px",
+    marginBottom: "18px",
+    background: "#F5F7FA",
+  },
+  brandRow: {
+    display: "flex",
+    gap: "12px",
+    alignItems: "center",
+  },
+  logo: {
+    maxWidth: "120px",
+    maxHeight: "48px",
+    objectFit: "contain",
+  },
+  brandText: {
+    margin: "2px 0 0",
+    color: "#637083",
+    fontSize: "13px",
+    fontWeight: 400,
   },
   muted: {
     color: "#000000",
@@ -140,7 +191,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "block",
     color: "#637083",
     fontSize: "12px",
-    fontWeight: 600,
+    fontWeight: 500,
     letterSpacing: "0.01em",
     maxWidth: "520px",
   },
@@ -155,7 +206,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111827",
     font: "inherit",
     fontSize: "30px",
-    fontWeight: 600,
+    fontWeight: 500,
     letterSpacing: "-0.03em",
   },
   button: {
