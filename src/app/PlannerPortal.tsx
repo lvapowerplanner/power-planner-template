@@ -114,6 +114,40 @@ export default function PlannerPortal() {
     await loadProjects(user);
   }
 
+
+  async function renameProject(projectId: string, nextName: string) {
+    const cleanName = nextName.trim();
+
+    if (!cleanName) {
+      alert("Please enter a project name.");
+      return false;
+    }
+
+    const { error } = await supabase
+      .from("projects")
+      .update({ name: cleanName })
+      .eq("id", projectId);
+
+    if (error) {
+      alert(error.message);
+      return false;
+    }
+
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === projectId ? { ...project, name: cleanName } : project
+      )
+    );
+
+    setActiveProject((currentProject) =>
+      currentProject?.id === projectId
+        ? { ...currentProject, name: cleanName }
+        : currentProject
+    );
+
+    return true;
+  }
+
   async function deleteProject(projectId: string) {
     if (!confirm("Delete this project?")) return;
 
@@ -264,6 +298,7 @@ export default function PlannerPortal() {
         saveProject={saveProject}
         backToProjects={() => setActiveProject(null)}
         saveStatus={saveStatus}
+        renameProject={renameProject}
       />
     );
   }
@@ -277,6 +312,7 @@ export default function PlannerPortal() {
       createProject={createProject}
       openProject={openProject}
       deleteProject={deleteProject}
+      renameProject={renameProject}
       signOut={signOut}
     />
   );

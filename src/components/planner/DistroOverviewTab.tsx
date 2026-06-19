@@ -148,6 +148,24 @@ export function DistroOverviewTab({
     });
   }
 
+  function moveDistro(distroId: string, direction: -1 | 1) {
+    const currentIndex = plannerState.distros.findIndex((distro) => distro.id === distroId);
+    const targetIndex = currentIndex + direction;
+
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= plannerState.distros.length) {
+      return;
+    }
+
+    const nextDistros = [...plannerState.distros];
+    const [movedDistro] = nextDistros.splice(currentIndex, 1);
+    nextDistros.splice(targetIndex, 0, movedDistro);
+
+    setPlannerState({
+      ...plannerState,
+      distros: nextDistros,
+    });
+  }
+
   return (
     <section data-lva-surface style={styles.card}>
       <h2>Distro Overview</h2>
@@ -195,7 +213,7 @@ export function DistroOverviewTab({
         <p style={styles.muted}>No distros added yet.</p>
       ) : (
         <div style={styles.list}>
-          {plannerState.distros.map((distro) => {
+          {plannerState.distros.map((distro, index) => {
             const availableSources = allAvailableSources.filter((source) => {
               const compatible =
                 normaliseConnection(source.conn) ===
@@ -229,6 +247,20 @@ export function DistroOverviewTab({
                   </div>
 
                   <div style={styles.row}>
+                    <button
+                      style={styles.secondaryButton}
+                      onClick={() => moveDistro(distro.id, -1)}
+                      disabled={index === 0}
+                    >
+                      Move Up
+                    </button>
+                    <button
+                      style={styles.secondaryButton}
+                      onClick={() => moveDistro(distro.id, 1)}
+                      disabled={index === plannerState.distros.length - 1}
+                    >
+                      Move Down
+                    </button>
                     <button
                       style={styles.secondaryButton}
                       onClick={() => openDistroEditor(distro.id)}

@@ -1,3 +1,4 @@
+import { useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import type { Project } from "@/types/project";
 
@@ -9,6 +10,7 @@ type ProjectDashboardProps = {
   createProject: () => void;
   openProject: (project: Project) => void;
   deleteProject: (projectId: string) => void;
+  renameProject: (projectId: string, nextName: string) => Promise<boolean>;
   signOut: () => void;
 };
 
@@ -20,8 +22,30 @@ export function ProjectDashboard({
   createProject,
   openProject,
   deleteProject,
+  renameProject,
   signOut,
 }: ProjectDashboardProps) {
+  const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
+  const [editingProjectName, setEditingProjectName] = useState("");
+
+  function startRenameProject(project: Project) {
+    setEditingProjectId(project.id);
+    setEditingProjectName(project.name);
+  }
+
+  function cancelRenameProject() {
+    setEditingProjectId(null);
+    setEditingProjectName("");
+  }
+
+  async function saveProjectName(projectId: string) {
+    const saved = await renameProject(projectId, editingProjectName);
+
+    if (saved) {
+      cancelRenameProject();
+    }
+  }
+
   return (
     <main style={styles.page}>
       <section style={styles.wideCard}>
@@ -56,31 +80,85 @@ export function ProjectDashboard({
           {projects.length === 0 ? (
             <p style={styles.muted}>No projects yet.</p>
           ) : (
-            projects.map((project) => (
-              <div key={project.id} style={styles.projectCard}>
-                <div>
-                  <strong>{project.name}</strong>
-                  <p style={styles.muted}>
-                    Created {new Date(project.created_at).toLocaleString()}
-                  </p>
-                </div>
+            projects.map((project) => {
+              const isEditing = editingProjectId === project.id;
 
-                <div style={styles.row}>
-                  <button
-                    style={styles.secondaryButton}
-                    onClick={() => openProject(project)}
-                  >
-                    Open
-                  </button>
-                  <button
-                    style={styles.dangerButton}
-                    onClick={() => deleteProject(project.id)}
-                  >
-                    Delete
-                  </button>
+              return (
+                <div key={project.id} style={styles.projectCard}>
+                  <div style={styles.projectDetails}>
+                    {isEditing ? (
+                      <label style={styles.renameLabel}>
+                        Project Name
+                        <input
+                          style={styles.input}
+                          value={editingProjectName}
+                          onChange={(event) =>
+                            setEditingProjectName(event.target.value)
+                          }
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter") {
+                              saveProjectName(project.id);
+                            }
+
+                            if (event.key === "Escape") {
+                              cancelRenameProject();
+                            }
+                          }}
+                          autoFocus
+                        />
+                      </label>
+                    ) : (
+                      <>
+                        <strong>{project.name}</strong>
+                        <p style={styles.muted}>
+                          Created {new Date(project.created_at).toLocaleString()}
+                        </p>
+                      </>
+                    )}
+                  </div>
+
+                  <div style={styles.row}>
+                    {isEditing ? (
+                      <>
+                        <button
+                          style={styles.secondaryButton}
+                          onClick={() => saveProjectName(project.id)}
+                        >
+                          Save Name
+                        </button>
+                        <button
+                          style={styles.secondaryButton}
+                          onClick={cancelRenameProject}
+                        >
+                          Cancel
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          style={styles.secondaryButton}
+                          onClick={() => openProject(project)}
+                        >
+                          Open
+                        </button>
+                        <button
+                          style={styles.secondaryButton}
+                          onClick={() => startRenameProject(project)}
+                        >
+                          Rename
+                        </button>
+                        <button
+                          style={styles.dangerButton}
+                          onClick={() => deleteProject(project.id)}
+                        >
+                          Delete
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))
+              );
+            })
           )}
         </div>
       </section>
@@ -118,6 +196,7 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "8px",
     alignItems: "center",
     flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
   headerRow: {
     display: "flex",
@@ -138,6 +217,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#172033",
     color: "white",
     cursor: "pointer",
+    fontWeight: 800,
   },
   secondaryButton: {
     padding: "10px 14px",
@@ -146,6 +226,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#172033",
     cursor: "pointer",
+    fontWeight: 800,
   },
   dangerButton: {
     padding: "10px 14px",
@@ -172,5 +253,14 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "center",
     gap: "12px",
+  },
+  projectDetails: {
+    minWidth: 0,
+    flex: 1,
+  },
+  renameLabel: {
+    display: "block",
+    color: "#637083",
+    fontWeight: 700,
   },
 };

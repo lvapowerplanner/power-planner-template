@@ -255,6 +255,24 @@ export function PowerSourcesTab({
     });
   }
 
+  function moveManualPowerSource(sourceId: string, direction: -1 | 1) {
+    const currentIndex = manualSources.findIndex((source) => source.id === sourceId);
+    const targetIndex = currentIndex + direction;
+
+    if (currentIndex < 0 || targetIndex < 0 || targetIndex >= manualSources.length) {
+      return;
+    }
+
+    const nextManualSources = [...manualSources];
+    const [movedSource] = nextManualSources.splice(currentIndex, 1);
+    nextManualSources.splice(targetIndex, 0, movedSource);
+
+    setPlannerState({
+      ...plannerState,
+      sources: [...nextManualSources, ...autoSources],
+    });
+  }
+
   return (
     <section data-lva-surface style={styles.card}>
       <h2>Power Sources</h2>
@@ -343,10 +361,14 @@ export function PowerSourcesTab({
         {manualSourceSummaries.length === 0 ? (
           <p style={styles.muted}>No manual power sources added yet.</p>
         ) : (
-          manualSourceSummaries.map((summary) => (
+          manualSourceSummaries.map((summary, index) => (
             <PowerSourceCard
               key={summary.source.id}
               summary={summary}
+              canMoveUp={index > 0}
+              canMoveDown={index < manualSourceSummaries.length - 1}
+              onMoveUp={() => moveManualPowerSource(summary.source.id, -1)}
+              onMoveDown={() => moveManualPowerSource(summary.source.id, 1)}
               onDelete={() => deletePowerSource(summary.source.id)}
             />
           ))
@@ -374,9 +396,17 @@ export function PowerSourcesTab({
 
 function PowerSourceCard({
   summary,
+  canMoveUp = false,
+  canMoveDown = false,
+  onMoveUp,
+  onMoveDown,
   onDelete,
 }: {
   summary: SourceCardSummary;
+  canMoveUp?: boolean;
+  canMoveDown?: boolean;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
   onDelete?: () => void;
 }) {
   const health = sourceHealth(summary.issues);
@@ -422,6 +452,24 @@ function PowerSourceCard({
         <div style={styles.sourceTotals}>
           <strong>{formatWatts(summary.watts)}</strong>
           <span>{formatAmps(summary.amps)} total draw</span>
+          {(onMoveUp || onMoveDown) && (
+            <div style={styles.reorderActions}>
+              <button
+                style={styles.secondaryButton}
+                onClick={onMoveUp}
+                disabled={!canMoveUp}
+              >
+                Move Up
+              </button>
+              <button
+                style={styles.secondaryButton}
+                onClick={onMoveDown}
+                disabled={!canMoveDown}
+              >
+                Move Down
+              </button>
+            </div>
+          )}
           {onDelete && (
             <button style={styles.dangerButton} onClick={onDelete}>
               Delete
@@ -562,6 +610,15 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: "pointer",
     fontWeight: 800,
   },
+  secondaryButton: {
+    padding: "9px 12px",
+    borderRadius: "10px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 800,
+  },
   dangerButton: {
     padding: "9px 12px",
     borderRadius: "10px",
@@ -617,6 +674,12 @@ const styles: Record<string, React.CSSProperties> = {
     justifyItems: "end",
     color: "#111827",
     minWidth: "160px",
+  },
+  reorderActions: {
+    display: "flex",
+    gap: "6px",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
   healthBadge: {
     padding: "4px 8px",
