@@ -156,8 +156,46 @@ export function PlannerShell({
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
         * { box-sizing: border-box; }
+
+        [data-power-planner-ui] button,
+        [data-power-planner-ui] input,
+        [data-power-planner-ui] select,
+        [data-power-planner-ui] textarea {
+          transition:
+            background-color 140ms ease,
+            border-color 140ms ease,
+            box-shadow 140ms ease,
+            filter 140ms ease,
+            transform 140ms ease;
+        }
+
+        @media (hover: hover) {
+          [data-power-planner-ui] button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            filter: brightness(0.985);
+            box-shadow:
+              inset 0 0 0 999px rgba(11, 227, 255, 0.055),
+              0 1px 4px rgba(17, 24, 39, 0.06);
+          }
+
+          [data-power-planner-ui] input:hover,
+          [data-power-planner-ui] select:hover,
+          [data-power-planner-ui] textarea:hover {
+            box-shadow: 0 0 0 1px rgba(11, 227, 255, 0.28);
+          }
+        }
+
+        [data-power-planner-ui] button:active:not(:disabled) {
+          transform: translateY(0);
+          box-shadow: inset 0 0 0 999px rgba(17, 24, 39, 0.035);
+        }
+
+        [data-power-planner-ui] button:disabled {
+          cursor: not-allowed;
+          opacity: 0.58;
+        }
       `}</style>
-      <section style={styles.shell}>
+      <section data-power-planner-ui style={styles.shell}>
         <div style={styles.utilityBar}>
           <div>
             <h2 style={styles.utilityTitle}>Power Planner</h2>
@@ -272,7 +310,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#FFFFFF",
     border: "1px solid #DCE5EC",
     borderRadius: "20px",
-    boxShadow: "0 10px 30px rgba(17, 24, 39, 0.06)",
+    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
   utilityTitle: {
     margin: 0,
@@ -317,7 +355,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#FFFFFF",
     border: "1px solid #DCE5EC",
     borderRadius: "18px",
-    boxShadow: "0 10px 30px rgba(17, 24, 39, 0.06)",
+    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
   tab: {
     position: "relative",
@@ -333,6 +371,6 @@ const styles: Record<string, React.CSSProperties> = {
   activeTab: {
     background: "#ececec",
     border: "1px solid #242424",
-    boxShadow: "inset 0 -3px 0 #383838",
+    boxShadow: "inset 0 -2px 0 #383838",
   },
 };
