@@ -77,7 +77,7 @@ export function SystemOverviewTab({
   }
 
   return (
-    <section style={styles.card}>
+    <section data-lva-surface style={styles.card}>
       <div style={styles.headerRow}>
         <div>
           <h2>System Overview</h2>
@@ -376,7 +376,7 @@ function PhaseLoadCard({
   const percentage = phasePercentage(amps, rating);
 
   return (
-    <div style={styles.phaseCard}>
+    <div data-lva-card style={styles.phaseCard}>
       <div style={styles.phaseHeader}>
         <strong>{phase}</strong>
         <span>{percentage}%</span>

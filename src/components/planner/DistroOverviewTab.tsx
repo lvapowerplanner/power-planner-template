@@ -149,7 +149,7 @@ export function DistroOverviewTab({
   }
 
   return (
-    <section style={styles.card}>
+    <section data-lva-surface style={styles.card}>
       <h2>Distro Overview</h2>
       <p style={styles.muted}>
         Add distros from the company Supabase library or project custom distros.
@@ -303,6 +303,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "18px",
     padding: "18px",
     background: "white",
+    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
   muted: {
     color: "#667085",
@@ -333,6 +334,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#000000",
     color: "#ffffff",
     cursor: "pointer",
+    fontWeight: 800,
   },
   secondaryButton: {
     padding: "9px 12px",
@@ -341,6 +343,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#111827",
     cursor: "pointer",
+    fontWeight: 800,
   },
   dangerButton: {
     padding: "9px 12px",

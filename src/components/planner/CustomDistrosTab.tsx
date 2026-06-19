@@ -208,7 +208,7 @@ export function CustomDistrosTab({
   }
 
   return (
-    <section style={styles.card}>
+    <section data-lva-surface style={styles.card}>
       <h2>Custom Distros</h2>
       <p style={styles.muted}>
         Build project-specific distro templates. Saved custom distros appear in
@@ -255,7 +255,7 @@ export function CustomDistrosTab({
         <h3>Add Outputs</h3>
 
         <div style={styles.outputControlsGrid}>
-          <div style={styles.outputControlCard}>
+          <div data-lva-card style={styles.outputControlCard}>
             <h4>Single-Phase Output</h4>
 
             <label style={styles.label}>
@@ -292,7 +292,7 @@ export function CustomDistrosTab({
             </button>
           </div>
 
-          <div style={styles.outputControlCard}>
+          <div data-lva-card style={styles.outputControlCard}>
             <h4>Three-Phase Output</h4>
 
             <label style={styles.label}>
@@ -314,7 +314,7 @@ export function CustomDistrosTab({
             </button>
           </div>
 
-          <div style={styles.outputControlCard}>
+          <div data-lva-card style={styles.outputControlCard}>
             <h4>Socapex Output</h4>
             <p style={styles.muted}>
               Adds the default 6-circuit Socapex layout with two 16A sockets per
@@ -419,6 +419,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "18px",
     padding: "18px",
     background: "white",
+    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
   muted: {
     color: "#667085",
@@ -484,6 +485,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#111827",
     cursor: "pointer",
+    fontWeight: 800,
   },
   dangerButton: {
     padding: "8px 10px",

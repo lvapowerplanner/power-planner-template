@@ -88,7 +88,7 @@ export function CustomEquipmentTab({
   }
 
   return (
-    <section style={styles.card}>
+    <section data-lva-surface style={styles.card}>
       <h2>Custom Equipment</h2>
       <p style={styles.muted}>
         Create project-specific equipment. These items will appear in the Distro
@@ -218,6 +218,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "18px",
     padding: "18px",
     background: "white",
+    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
   muted: {
     color: "#667085",
@@ -249,6 +250,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#ececec",
     color: "#000000",
     cursor: "pointer",
+    fontWeight: 800,
   },
   dangerButton: {
     padding: "10px 14px",

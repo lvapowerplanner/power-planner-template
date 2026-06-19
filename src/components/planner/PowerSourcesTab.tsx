@@ -256,7 +256,7 @@ export function PowerSourcesTab({
   }
 
   return (
-    <section style={styles.card}>
+    <section data-lva-surface style={styles.card}>
       <h2>Power Sources</h2>
       <p style={styles.muted}>
         Manual sources are venue supplies or generators. Auto sources are created
@@ -521,6 +521,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "18px",
     padding: "18px",
     background: "white",
+    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
   },
   muted: {
     color: "#667085",
@@ -559,6 +560,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#000000",
     color: "#ffffff",
     cursor: "pointer",
+    fontWeight: 800,
   },
   dangerButton: {
     padding: "9px 12px",
