@@ -1,6 +1,6 @@
 export default function LandingPage() {
   return (
-    <main className="min-h-screen bg-white text-black">
+    <main className="min-h-screen bg-white text-black font-sans">
       <header className="flex justify-center px-6 py-8">
         <img
           src="/lva-logo.png"
@@ -64,6 +64,11 @@ export default function LandingPage() {
         <p className="mx-auto mt-5 max-w-3xl text-gray-300">
           Replace disconnected spreadsheets with a focused planning tool
           designed for real-world event power workflows.
+        </p>
+
+        <p className="mx-auto mt-8 max-w-2xl text-lg text-white"> 
+          To arrange a personalised demonstration and discuss how LVA Power Planner can support your projects, contact us at{" "} 
+          <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4" > hello@lvapowerplanner.com </a> . 
         </p>
       </section>
 
