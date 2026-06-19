@@ -32,29 +32,17 @@ export default function PlannerPortal() {
   function currentSubdomain() {
     if (typeof window === "undefined") return "";
 
-    const host = window.location.hostname
-      .toLowerCase()
-      .replace(/^https?:\/\//, "")
-      .split(":")[0];
+    const host = window.location.hostname.toLowerCase();
 
     if (host === "localhost" || host === "127.0.0.1") {
       return "demo";
     }
 
-    const explicitWorkspaces: Record<string, string> = {
-      "demo.lvapowerplanner.com": "demo",
-      "sterling.lvapowerplanner.com": "sterling",
-    };
-
-    if (explicitWorkspaces[host]) {
-      return explicitWorkspaces[host];
-    }
-
-    if (host.endsWith(".lvapowerplanner.com")) {
-      return host.replace(".lvapowerplanner.com", "");
-    }
-
     return host.split(".")[0] ?? "";
+  }
+
+  function isGlobalAdmin(currentUser: User) {
+    return currentUser.email?.trim().toLowerCase() === "admin@lvapowerplanner.com";
   }
 
   function clearSessionState(message = "") {
@@ -67,12 +55,9 @@ export default function PlannerPortal() {
   }
 
   async function checkWorkspaceAccess(currentUser: User) {
-    const currentWorkspace = currentSubdomain();
-
-    if (!currentWorkspace) {
-      await supabase.auth.signOut();
-      clearSessionState("This workspace could not be identified.");
-      return false;
+    if (isGlobalAdmin(currentUser)) {
+      setAccessMessage("");
+      return true;
     }
 
     const { data: profile, error } = await supabase
@@ -87,15 +72,19 @@ export default function PlannerPortal() {
       return false;
     }
 
+    const currentWorkspace = currentSubdomain();
     const allowedWorkspace = String(profile.allowed_subdomain ?? "")
       .trim()
       .toLowerCase();
 
-    if (allowedWorkspace !== currentWorkspace) {
+    const hasWorkspaceAccess =
+      allowedWorkspace === currentWorkspace ||
+      allowedWorkspace === "*" ||
+      allowedWorkspace === "all";
+
+    if (!hasWorkspaceAccess) {
       await supabase.auth.signOut();
-      clearSessionState(
-        `This account is not authorised for this workspace. Current workspace: ${currentWorkspace}. Allowed workspace: ${allowedWorkspace || "none"}.`
-      );
+      clearSessionState("This account is not authorised for this workspace.");
       return false;
     }
 
@@ -409,15 +398,21 @@ export default function PlannerPortal() {
 
 const styles: Record<string, React.CSSProperties> = {
   accessMessage: {
-    maxWidth: "520px",
-    margin: "20px auto -20px",
-    padding: "12px 14px",
+    position: "fixed",
+    top: "16px",
+    left: "50%",
+    transform: "translateX(-50%)",
+    width: "calc(100% - 32px)",
+    maxWidth: "560px",
+    padding: "12px 16px",
     border: "1px solid #E5484D",
     borderRadius: "12px",
     background: "#FFF1F1",
     color: "#B42318",
     fontFamily: "'Outfit', Arial, sans-serif",
-    fontWeight: 500,
+    fontWeight: 700,
     textAlign: "center",
+    zIndex: 9999,
+    boxShadow: "0 8px 24px rgba(17, 24, 39, 0.14)",
   },
 };
