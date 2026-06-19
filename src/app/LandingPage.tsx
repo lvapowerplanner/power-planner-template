@@ -11,7 +11,7 @@ export default function LandingPage() {
 
       <section className="mx-auto max-w-5xl px-6 pb-20 pt-8 text-center">
         <h1 className="text-5xl font-bold tracking-tight md:text-7xl">
-          Power planning software for live events & temporary power systems..
+          Power planning software for live events & temporary power systems
         </h1>
 
         <p className="mx-auto mt-6 max-w-3xl text-lg text-gray-600 md:text-xl">
