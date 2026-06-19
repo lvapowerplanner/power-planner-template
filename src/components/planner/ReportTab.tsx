@@ -294,7 +294,17 @@ function reportPrintStyles() {
       font-weight: 700;
     }
     .no-print { display: none !important; }
-    .report-brand-logo { display: block; max-height: 42px; max-width: 150px; object-fit: contain; }
+    img { max-width: 100%; }
+    .report-brand-logo {
+      display: block !important;
+      max-height: 42px !important;
+      max-width: 150px !important;
+      width: auto !important;
+      height: auto !important;
+      object-fit: contain !important;
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
     .report-brand-name { font-weight: 700; font-size: 12px; margin-bottom: 3px; }
     .report-brand-subtitle { color: #475467; font-size: 9px; }
     .report-footer {
@@ -339,7 +349,7 @@ async function waitForReportImages(printWindow: Window) {
     images.map(
       (image) =>
         new Promise<void>((resolve) => {
-          if (image.complete) {
+          if (image.complete && image.naturalWidth > 0) {
             resolve();
             return;
           }
@@ -351,7 +361,46 @@ async function waitForReportImages(printWindow: Window) {
   );
 }
 
-async function writePrintWindow(title: string, bodyHtml: string) {
+function escapeRegExp(value: string) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+async function imageUrlToDataUrl(url: string) {
+  if (!url.trim()) return null;
+
+  if (url.startsWith("data:")) return url;
+
+  try {
+    const response = await fetch(url, {
+      cache: "force-cache",
+      mode: "cors",
+    });
+
+    if (!response.ok) return null;
+
+    const blob = await response.blob();
+
+    return await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => resolve(String(reader.result));
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+async function preparePrintableHtml(bodyHtml: string, logoUrl: string) {
+  const dataUrl = await imageUrlToDataUrl(logoUrl);
+
+  if (!dataUrl) return bodyHtml;
+
+  return bodyHtml.replace(new RegExp(escapeRegExp(logoUrl), "g"), dataUrl);
+}
+
+async function writePrintWindow(title: string, bodyHtml: string, logoUrl = "") {
+  const printableBodyHtml = await preparePrintableHtml(bodyHtml, logoUrl);
   const printWindow = window.open("", "_blank");
 
   if (!printWindow) {
@@ -366,7 +415,7 @@ async function writePrintWindow(title: string, bodyHtml: string) {
         <title>${title}</title>
         <style>${reportPrintStyles()}</style>
       </head>
-      <body>${bodyHtml}</body>
+      <body>${printableBodyHtml}</body>
     </html>
   `);
 
@@ -457,7 +506,7 @@ export function ReportTab({
       return;
     }
 
-    await writePrintWindow(reportTitle, reportElement.innerHTML);
+    await writePrintWindow(reportTitle, reportElement.innerHTML, brandLogoUrl);
   }
 
   async function exportIndividualDistroReportsPdf() {
@@ -473,7 +522,7 @@ export function ReportTab({
       return;
     }
 
-    await writePrintWindow(`${reportTitle} - Distro Reports`, reportElement.innerHTML);
+    await writePrintWindow(`${reportTitle} - Distro Reports`, reportElement.innerHTML, brandLogoUrl);
   }
 
   return (
@@ -706,8 +755,6 @@ function ReportHeader({
             className="report-brand-logo"
             src={brandLogoUrl}
             alt={`${brandName} logo`}
-            referrerPolicy="no-referrer"
-            crossOrigin="anonymous"
             style={styles.reportBrandLogo}
             onError={(event) => {
               event.currentTarget.style.display = "none";
