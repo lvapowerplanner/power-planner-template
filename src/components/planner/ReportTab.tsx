@@ -11,10 +11,19 @@ import {
 import type { DistroLoadSummary } from "@/planner/calculations";
 import type { PlannerOutput, PlannerState, ProjectDistro, ProjectInfo } from "@/planner/types";
 
+type WorkspaceBranding = {
+  subdomain: string;
+  company_name: string;
+  logo_url?: string | null;
+  contact_email?: string | null;
+  report_footer?: string | null;
+};
+
 type ReportTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   openDistroEditor: (distroId: string) => void;
+  workspaceBranding?: WorkspaceBranding;
 };
 
 type ReportRow = {
@@ -285,6 +294,19 @@ function reportPrintStyles() {
       font-weight: 700;
     }
     .no-print { display: none !important; }
+    .report-brand-logo { max-height: 42px; max-width: 150px; object-fit: contain; }
+    .report-brand-name { font-weight: 700; font-size: 12px; margin-bottom: 3px; }
+    .report-brand-subtitle { color: #475467; font-size: 9px; }
+    .report-footer {
+      margin-top: 18px;
+      border-top: 1px solid #cbd5e1;
+      padding-top: 8px;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      color: #475467;
+      font-size: 9px;
+    }
     .report-source, .report-distro {
       break-inside: auto;
       page-break-inside: auto;
@@ -336,6 +358,7 @@ export function ReportTab({
   plannerState,
   setPlannerState,
   openDistroEditor,
+  workspaceBranding,
 }: ReportTabProps) {
   const summary = systemLoadSummary(plannerState);
   const hiddenSources = plannerState.reportHiddenSources ?? [];
@@ -344,6 +367,10 @@ export function ReportTab({
     (source) => !hiddenSources.includes(source.sourceId)
   );
   const projectInfo = projectInfoForState(plannerState);
+  const brandName = workspaceBranding?.company_name?.trim() || "LVA Power Planner";
+  const brandLogoUrl = workspaceBranding?.logo_url?.trim() || "";
+  const brandContactEmail = workspaceBranding?.contact_email?.trim() || "";
+  const brandFooter = workspaceBranding?.report_footer?.trim() || "Generated using LVA Power Planner";
   const reportTitle = projectInfo.projectName.trim() || "Power Report";
   const reportMetaItems = [
     ["Project Manager", projectInfo.projectManager],
@@ -495,6 +522,9 @@ export function ReportTab({
           reportTitle={reportTitle}
           projectNumber={projectInfo.projectNumber}
           reportMetaItems={reportMetaItems}
+          brandName={brandName}
+          brandLogoUrl={brandLogoUrl}
+          brandContactEmail={brandContactEmail}
         />
 
         {visibleSourceSummaries.length === 0 ? (
@@ -552,6 +582,7 @@ export function ReportTab({
             );
           })
         )}
+        <ReportFooter brandName={brandName} brandFooter={brandFooter} brandContactEmail={brandContactEmail} />
       </div>
 
       <div id="individual-distro-reports" style={styles.hiddenPrintArea}>
@@ -565,6 +596,9 @@ export function ReportTab({
               reportTitle={`${reportTitle} - ${displayDistroName(item.summary.distro)}`}
               projectNumber={projectInfo.projectNumber}
               reportMetaItems={reportMetaItems}
+              brandName={brandName}
+              brandLogoUrl={brandLogoUrl}
+              brandContactEmail={brandContactEmail}
             />
             <DistroReport
               summary={item.summary}
@@ -577,6 +611,7 @@ export function ReportTab({
               hiddenDistroIds={hiddenDistroIds}
               renderChildren={false}
             />
+            <ReportFooter brandName={brandName} brandFooter={brandFooter} brandContactEmail={brandContactEmail} />
           </section>
         ))}
       </div>
@@ -626,13 +661,39 @@ function ReportHeader({
   reportTitle,
   projectNumber,
   reportMetaItems,
+  brandName,
+  brandLogoUrl,
+  brandContactEmail,
 }: {
   reportTitle: string;
   projectNumber: string;
   reportMetaItems: string[][];
+  brandName: string;
+  brandLogoUrl: string;
+  brandContactEmail: string;
 }) {
   return (
     <header className="report-header" style={styles.reportHeader}>
+      <div style={styles.reportBrandBlock}>
+        {brandLogoUrl ? (
+          <img
+            className="report-brand-logo"
+            src={brandLogoUrl}
+            alt={`${brandName} logo`}
+            style={styles.reportBrandLogo}
+          />
+        ) : null}
+        <div>
+          <div className="report-brand-name" style={styles.reportBrandName}>
+            {brandName}
+          </div>
+          <div className="report-brand-subtitle" style={styles.reportBrandSubtitle}>
+            Powered by LVA Power Planner
+            {brandContactEmail ? ` · ${brandContactEmail}` : ""}
+          </div>
+        </div>
+      </div>
+
       <div>
         <h1 style={styles.reportTitle}>{reportTitle}</h1>
         {projectNumber.trim() && (
@@ -651,6 +712,23 @@ function ReportHeader({
         </div>
       )}
     </header>
+  );
+}
+
+function ReportFooter({
+  brandName,
+  brandFooter,
+  brandContactEmail,
+}: {
+  brandName: string;
+  brandFooter: string;
+  brandContactEmail: string;
+}) {
+  return (
+    <footer className="report-footer" style={styles.reportFooter}>
+      <span>{brandFooter || `Generated for ${brandName}`}</span>
+      <span>{brandContactEmail || "Powered by LVA Power Planner"}</span>
+    </footer>
   );
 }
 
@@ -824,7 +902,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#000000",
     color: "#ffffff",
     cursor: "pointer",
-    fontWeight: 500,
+    fontWeight: 800,
   },
   secondaryButton: {
     padding: "7px 10px",
@@ -885,9 +963,30 @@ const styles: Record<string, CSSProperties> = {
     background: "#F5F7FA",
     marginBottom: "16px",
     display: "grid",
-    gridTemplateColumns: "1fr 1.5fr",
+    gridTemplateColumns: "1fr 1.1fr 1.4fr",
     gap: "12px",
     alignItems: "start",
+  },
+  reportBrandBlock: {
+    display: "flex",
+    gap: "9px",
+    alignItems: "center",
+  },
+  reportBrandLogo: {
+    maxWidth: "150px",
+    maxHeight: "42px",
+    objectFit: "contain",
+  },
+  reportBrandName: {
+    fontWeight: 800,
+    fontSize: "13px",
+    color: "#111827",
+  },
+  reportBrandSubtitle: {
+    marginTop: "3px",
+    color: "#475467",
+    fontSize: "9px",
+    lineHeight: 1.25,
   },
   reportTitle: {
     fontSize: "22px",
@@ -896,7 +995,7 @@ const styles: Record<string, CSSProperties> = {
   reportSubtitle: {
     margin: 0,
     color: "#475467",
-    fontWeight: 500,
+    fontWeight: 800,
   },
   reportMetaGrid: {
     display: "grid",
@@ -910,6 +1009,16 @@ const styles: Record<string, CSSProperties> = {
     borderRadius: "10px",
     padding: "7px",
     background: "#FFFFFF",
+  },
+  reportFooter: {
+    marginTop: "18px",
+    borderTop: "1px solid #cbd5e1",
+    paddingTop: "8px",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    color: "#475467",
+    fontSize: "9px",
   },
   sourceSection: {
     marginBottom: "22px",
@@ -968,7 +1077,7 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     verticalAlign: "top",
     background: "#eaf1f8",
-    fontWeight: 500,
+    fontWeight: 800,
     color: "#111827",
   },
   td: {
