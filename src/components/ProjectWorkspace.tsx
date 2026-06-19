@@ -140,7 +140,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "block",
     color: "#637083",
     fontSize: "12px",
-    fontWeight: 800,
+    fontWeight: 600,
     letterSpacing: "0.01em",
     maxWidth: "520px",
   },
@@ -155,7 +155,7 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111827",
     font: "inherit",
     fontSize: "30px",
-    fontWeight: 800,
+    fontWeight: 600,
     letterSpacing: "-0.03em",
   },
   button: {
@@ -165,7 +165,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#172033",
     color: "white",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   secondaryButton: {
     padding: "10px 14px",
@@ -174,7 +174,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#172033",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   divider: {
     border: 0,

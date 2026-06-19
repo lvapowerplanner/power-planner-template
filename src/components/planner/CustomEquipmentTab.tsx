@@ -233,7 +233,7 @@ const styles: Record<string, React.CSSProperties> = {
   label: {
     display: "block",
     color: "#667085",
-    fontWeight: 700,
+    fontWeight: 400,
   },
   input: {
     width: "100%",
@@ -250,7 +250,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#ececec",
     color: "#000000",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   dangerButton: {
     padding: "10px 14px",

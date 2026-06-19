@@ -334,7 +334,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #4e4e4e",
     background: "#ececec",
     color: "#000000",
-    fontWeight: 800,
+    fontWeight: 400,
     cursor: "pointer",
   },
   secondaryButton: {
@@ -343,7 +343,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #DCE5EC",
     background: "#FFFFFF",
     color: "#111827",
-    fontWeight: 800,
+    fontWeight: 300,
     cursor: "pointer",
   },
   tabs: {
@@ -364,7 +364,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid transparent",
     background: "transparent",
     color: "#111827",
-    fontWeight: 700,
+    fontWeight: 400,
     cursor: "pointer",
     letterSpacing: "0.01em",
   },

@@ -584,7 +584,7 @@ const styles: Record<string, React.CSSProperties> = {
     display: "block",
     marginBottom: "14px",
     color: "#667085",
-    fontWeight: 700,
+    fontWeight: 400,
   },
   input: {
     width: "100%",
@@ -608,7 +608,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#000000",
     color: "#ffffff",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   secondaryButton: {
     padding: "9px 12px",
@@ -617,7 +617,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#111827",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   dangerButton: {
     padding: "9px 12px",
@@ -685,7 +685,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "4px 8px",
     borderRadius: "999px",
     fontSize: "11px",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   healthOk: {
     background: "#EAFBF3",

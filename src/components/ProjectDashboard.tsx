@@ -217,7 +217,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#172033",
     color: "white",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   secondaryButton: {
     padding: "10px 14px",
@@ -226,7 +226,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#172033",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   dangerButton: {
     padding: "10px 14px",
@@ -261,6 +261,6 @@ const styles: Record<string, React.CSSProperties> = {
   renameLabel: {
     display: "block",
     color: "#637083",
-    fontWeight: 700,
+    fontWeight: 400,
   },
 };
