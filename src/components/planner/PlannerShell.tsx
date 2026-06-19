@@ -69,6 +69,7 @@ function normaliseImportedPlannerState(value: PlannerState): PlannerState {
     customEquipment: value.customEquipment ?? [],
     customDistros: value.customDistros ?? [],
     reportHiddenSources: value.reportHiddenSources ?? [],
+    reportHiddenDistros: value.reportHiddenDistros ?? [],
   });
 }
 

@@ -79,4 +79,5 @@ export type PlannerState = {
   customEquipment: EquipmentItem[];
   customDistros: DistroDefinition[];
   reportHiddenSources: string[];
+  reportHiddenDistros?: string[];
 };

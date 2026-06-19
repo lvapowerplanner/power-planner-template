@@ -6,7 +6,6 @@ import {
   outputPhaseLoads,
   outputWatts,
   phaseLoadTotal,
-  socapexOutputPhaseLoads,
   systemLoadSummary,
 } from "@/planner/calculations";
 import type { DistroLoadSummary } from "@/planner/calculations";
@@ -28,6 +27,15 @@ type ReportRow = {
   watts: string;
   amps: string;
   outputNotes: string;
+};
+
+type DistroReportItem = {
+  sourceId: string;
+  sourceName: string;
+  sourceConnection: string;
+  sourceRating: number;
+  sourceNotes: string;
+  summary: DistroLoadSummary;
 };
 
 function sourceConnectionText(connection: string, rating: number) {
@@ -99,11 +107,14 @@ function linkedDistroAmpsText(summary: DistroLoadSummary, output: PlannerOutput)
   return formatAmps(phaseLoadTotal(summary.phaseLoads));
 }
 
-function childByOutputId(summary: DistroLoadSummary) {
+function childByOutputId(
+  summary: DistroLoadSummary,
+  hiddenDistroIds: string[]
+) {
   const map = new Map<string, DistroLoadSummary>();
 
   summary.children.forEach((child) => {
-    if (child.fedFromOutputId) {
+    if (child.fedFromOutputId && !hiddenDistroIds.includes(child.distro.id)) {
       map.set(child.fedFromOutputId, child);
     }
   });
@@ -207,9 +218,10 @@ function buildOutputRows(
 
 function buildDistroRows(
   summary: DistroLoadSummary,
-  plannerState: PlannerState
+  plannerState: PlannerState,
+  hiddenDistroIds: string[]
 ): ReportRow[] {
-  const linkedChildren = childByOutputId(summary);
+  const linkedChildren = childByOutputId(summary, hiddenDistroIds);
 
   return summary.distro.outputs.flatMap((output, outputIndex) =>
     buildOutputRows(
@@ -222,6 +234,104 @@ function buildDistroRows(
   );
 }
 
+function collectVisibleDistroReports(
+  items: DistroReportItem[],
+  hiddenDistroIds: string[]
+): DistroReportItem[] {
+  return items.flatMap((item) => {
+    if (hiddenDistroIds.includes(item.summary.distro.id)) return [];
+
+    const childItems = item.summary.children.map((child) => ({
+      sourceId: item.sourceId,
+      sourceName: displayDistroName(item.summary.distro),
+      sourceConnection: child.distro.input,
+      sourceRating: child.distro.inputA,
+      sourceNotes: "",
+      summary: child,
+    }));
+
+    return [item, ...collectVisibleDistroReports(childItems, hiddenDistroIds)];
+  });
+}
+
+function reportPrintStyles() {
+  return `
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      padding: 10px;
+      font-family: Arial, sans-serif;
+      color: #111827;
+      background: white;
+      font-size: 10.5px;
+    }
+    h1, h2, h3, h4, p { margin-top: 0; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      table-layout: fixed;
+      font-size: 8.8px;
+    }
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 3.5px;
+      text-align: left;
+      vertical-align: top;
+      word-break: normal;
+      overflow-wrap: anywhere;
+    }
+    th {
+      background: #eaf1f8;
+      font-weight: 700;
+    }
+    .no-print { display: none !important; }
+    .report-source, .report-distro {
+      break-inside: auto;
+      page-break-inside: auto;
+    }
+    .individual-distro-report {
+      break-after: page;
+      page-break-after: always;
+    }
+    .individual-distro-report:last-child {
+      break-after: auto;
+      page-break-after: auto;
+    }
+    tr, .distro-summary-box, .source-summary-box, .report-header {
+      break-inside: avoid;
+      page-break-inside: avoid;
+    }
+    @page {
+      size: A4 portrait;
+      margin: 9mm;
+    }
+  `;
+}
+
+function writePrintWindow(title: string, bodyHtml: string) {
+  const printWindow = window.open("", "_blank");
+
+  if (!printWindow) {
+    alert("Popup blocked. Please allow popups and try again.");
+    return;
+  }
+
+  printWindow.document.write(`
+    <!doctype html>
+    <html>
+      <head>
+        <title>${title}</title>
+        <style>${reportPrintStyles()}</style>
+      </head>
+      <body>${bodyHtml}</body>
+    </html>
+  `);
+
+  printWindow.document.close();
+  printWindow.focus();
+  printWindow.print();
+}
+
 export function ReportTab({
   plannerState,
   setPlannerState,
@@ -229,6 +339,7 @@ export function ReportTab({
 }: ReportTabProps) {
   const summary = systemLoadSummary(plannerState);
   const hiddenSources = plannerState.reportHiddenSources ?? [];
+  const hiddenDistroIds = plannerState.reportHiddenDistros ?? [];
   const visibleSourceSummaries = summary.sourceSummaries.filter(
     (source) => !hiddenSources.includes(source.sourceId)
   );
@@ -240,6 +351,26 @@ export function ReportTab({
     ["Event Date", displayDate(projectInfo.eventDate)],
     ["Venue", projectInfo.venue],
   ].filter(([, value]) => String(value).trim());
+
+  const rootDistroReports: DistroReportItem[] = visibleSourceSummaries.flatMap(
+    (source) => {
+      const sourceNotes =
+        plannerState.sources.find((item) => item.id === source.sourceId)?.notes ?? "";
+
+      return source.distros.map((distroSummary) => ({
+        sourceId: source.sourceId,
+        sourceName: source.sourceName,
+        sourceConnection: source.sourceConnection,
+        sourceRating: source.sourceRating,
+        sourceNotes,
+        summary: distroSummary,
+      }));
+    }
+  );
+  const visibleDistroReports = collectVisibleDistroReports(
+    rootDistroReports,
+    hiddenDistroIds
+  );
 
   function toggleSource(sourceId: string) {
     const currentHiddenSources = plannerState.reportHiddenSources ?? [];
@@ -253,6 +384,18 @@ export function ReportTab({
     });
   }
 
+  function toggleDistro(distroId: string) {
+    const currentHiddenDistros = plannerState.reportHiddenDistros ?? [];
+    const nextHiddenDistros = currentHiddenDistros.includes(distroId)
+      ? currentHiddenDistros.filter((id) => id !== distroId)
+      : [...currentHiddenDistros, distroId];
+
+    setPlannerState({
+      ...plannerState,
+      reportHiddenDistros: nextHiddenDistros,
+    });
+  }
+
   function exportReportPdf() {
     const reportElement = document.getElementById("power-planner-report");
 
@@ -261,78 +404,23 @@ export function ReportTab({
       return;
     }
 
-    const printWindow = window.open("", "_blank");
+    writePrintWindow(reportTitle, reportElement.innerHTML);
+  }
 
-    if (!printWindow) {
-      alert("Popup blocked. Please allow popups and try again.");
+  function exportIndividualDistroReportsPdf() {
+    const reportElement = document.getElementById("individual-distro-reports");
+
+    if (!reportElement) {
+      alert("Individual distro reports could not be found.");
       return;
     }
 
-    printWindow.document.write(`
-      <!doctype html>
-      <html>
-        <head>
-          <title>${reportTitle}</title>
-          <style>
-            * { box-sizing: border-box; }
-            body {
-              margin: 0;
-              padding: 10px;
-              font-family: Arial, sans-serif;
-              color: #111827;
-              background: white;
-              font-size: 10.5px;
-            }
-            h1, h2, h3, h4, p { margin-top: 0; }
-            table {
-              width: 100%;
-              border-collapse: collapse;
-              table-layout: fixed;
-              font-size: 8.8px;
-            }
-            th, td {
-              border: 1px solid #cbd5e1;
-              padding: 3.5px;
-              text-align: left;
-              vertical-align: top;
-              word-break: normal;
-              overflow-wrap: anywhere;
-            }
-            th {
-              background: #eaf1f8;
-              font-weight: 700;
-            }
-            .no-print { display: none !important; }
-            .report-source {
-              break-inside: auto;
-              page-break-inside: auto;
-            }
-            .report-distro {
-              break-inside: auto;
-              page-break-inside: auto;
-              margin-top: 12px;
-            }
-            tr {
-              break-inside: avoid;
-              page-break-inside: avoid;
-            }
-            .distro-summary-box, .source-summary-box {
-              break-inside: avoid;
-              page-break-inside: avoid;
-            }
-            @page {
-              size: A4 portrait;
-              margin: 9mm;
-            }
-          </style>
-        </head>
-        <body>${reportElement.innerHTML}</body>
-      </html>
-    `);
+    if (visibleDistroReports.length === 0) {
+      alert("No distros selected for export.");
+      return;
+    }
 
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.print();
+    writePrintWindow(`${reportTitle} - Distro Reports`, reportElement.innerHTML);
   }
 
   return (
@@ -341,109 +429,228 @@ export function ReportTab({
         <div>
           <h2>Report</h2>
           <p style={styles.muted}>
-            Toggle sources for export. The preview below mirrors the report export layout.
+            Toggle sources and distros for export. The preview below mirrors the report export layout.
           </p>
         </div>
 
-        <button style={styles.primaryButton} onClick={exportReportPdf}>
-          Export PDF
-        </button>
+        <div style={styles.buttonRow}>
+          <button style={styles.secondaryButton} onClick={exportIndividualDistroReportsPdf}>
+            Export Distro Reports
+          </button>
+          <button style={styles.primaryButton} onClick={exportReportPdf}>
+            Export PDF
+          </button>
+        </div>
       </div>
 
       <section className="no-print" style={styles.togglePanel}>
-        <h3>Sources included in export</h3>
+        <h3>Sources and distros included in export</h3>
 
         {summary.sourceSummaries.length === 0 ? (
           <p style={styles.muted}>No manual power sources added.</p>
         ) : (
-          <div style={styles.toggleGrid}>
-            {summary.sourceSummaries.map((source) => (
-              <label key={source.sourceId} style={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={!hiddenSources.includes(source.sourceId)}
-                  onChange={() => toggleSource(source.sourceId)}
-                />
-                <span>
-                  <strong>{source.sourceName}</strong> · {source.sourceConnection}
-                </span>
-              </label>
-            ))}
+          <div style={styles.sourceToggleList}>
+            {summary.sourceSummaries.map((source) => {
+              const sourceHidden = hiddenSources.includes(source.sourceId);
+
+              return (
+                <div key={source.sourceId} style={styles.sourceToggleCard}>
+                  <label style={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={!sourceHidden}
+                      onChange={() => toggleSource(source.sourceId)}
+                    />
+                    <span>
+                      <strong>{source.sourceName}</strong> · {source.sourceConnection}
+                    </span>
+                  </label>
+
+                  {!sourceHidden && (
+                    <div style={styles.distroToggleList}>
+                      {source.distros.length === 0 ? (
+                        <p style={styles.mutedSmall}>No distros assigned to this source.</p>
+                      ) : (
+                        source.distros.map((distroSummary) => (
+                          <DistroToggle
+                            key={distroSummary.distro.id}
+                            summary={distroSummary}
+                            hiddenDistroIds={hiddenDistroIds}
+                            toggleDistro={toggleDistro}
+                            level={0}
+                          />
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         )}
       </section>
 
       <div id="power-planner-report" style={styles.reportPage}>
-        <header style={styles.reportHeader}>
-          <div>
-            <h1 style={styles.reportTitle}>{reportTitle}</h1>
-            {projectInfo.projectNumber.trim() && (
-              <p style={styles.reportSubtitle}>
-                Project Number: {projectInfo.projectNumber}
-              </p>
-            )}
-          </div>
-
-          {reportMetaItems.length > 0 && (
-            <div style={styles.reportMetaGrid}>
-              {reportMetaItems.map(([label, value]) => (
-                <div key={label} style={styles.reportMetaItem}>
-                  <strong>{label}</strong>
-                  <span>{value}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </header>
+        <ReportHeader
+          reportTitle={reportTitle}
+          projectNumber={projectInfo.projectNumber}
+          reportMetaItems={reportMetaItems}
+        />
 
         {visibleSourceSummaries.length === 0 ? (
           <p style={styles.muted}>No sources selected for this report.</p>
         ) : (
-          visibleSourceSummaries.map((source) => (
-            <section
-              key={source.sourceId}
-              className="report-source"
-              style={styles.sourceSection}
-            >
-              <h2 style={styles.sourceTitle}>{source.sourceName}</h2>
+          visibleSourceSummaries.map((source) => {
+            const sourceNotes =
+              plannerState.sources.find((item) => item.id === source.sourceId)?.notes ?? "";
+            const visibleDistros = source.distros.filter(
+              (distroSummary) => !hiddenDistroIds.includes(distroSummary.distro.id)
+            );
 
-              <div className="source-summary-box" style={styles.sourceSummaryBox}>
-                <div>
-                  <strong>Source:</strong>{" "}
-                  {sourceConnectionText(source.sourceConnection, source.sourceRating)}
-                </div>
-                <div>
-                  <strong>Phase draw:</strong> {phaseDrawText(source.phaseLoads)}
-                </div>
-                <div>
-                  <strong>Connected load:</strong> {wattsText(source.watts)}
-                </div>
-                <div style={styles.fullWidth}>
-                  <strong>Notes:</strong>{" "}
-                  {plannerState.sources.find((item) => item.id === source.sourceId)?.notes ?? ""}
-                </div>
-              </div>
+            return (
+              <section
+                key={source.sourceId}
+                className="report-source"
+                style={styles.sourceSection}
+              >
+                <h2 style={styles.sourceTitle}>{source.sourceName}</h2>
 
-              {source.distros.map((distroSummary) => (
-                <DistroReport
-                  key={distroSummary.distro.id}
-                  summary={distroSummary}
-                  plannerState={plannerState}
-                  sourceName={source.sourceName}
-                  sourceConnection={source.sourceConnection}
-                  sourceRating={source.sourceRating}
-                  sourceNotes={
-                    plannerState.sources.find((item) => item.id === source.sourceId)
-                      ?.notes ?? ""
-                  }
-                  openDistroEditor={openDistroEditor}
-                />
-              ))}
-            </section>
-          ))
+                <div className="source-summary-box" style={styles.sourceSummaryBox}>
+                  <div>
+                    <strong>Source:</strong>{" "}
+                    {sourceConnectionText(source.sourceConnection, source.sourceRating)}
+                  </div>
+                  <div>
+                    <strong>Phase draw:</strong> {phaseDrawText(source.phaseLoads)}
+                  </div>
+                  <div>
+                    <strong>Connected load:</strong> {wattsText(source.watts)}
+                  </div>
+                  <div style={styles.fullWidth}>
+                    <strong>Notes:</strong> {sourceNotes}
+                  </div>
+                </div>
+
+                {visibleDistros.length === 0 ? (
+                  <p style={styles.muted}>No distros selected for this source.</p>
+                ) : (
+                  visibleDistros.map((distroSummary) => (
+                    <DistroReport
+                      key={distroSummary.distro.id}
+                      summary={distroSummary}
+                      plannerState={plannerState}
+                      sourceName={source.sourceName}
+                      sourceConnection={source.sourceConnection}
+                      sourceRating={source.sourceRating}
+                      sourceNotes={sourceNotes}
+                      openDistroEditor={openDistroEditor}
+                      hiddenDistroIds={hiddenDistroIds}
+                    />
+                  ))
+                )}
+              </section>
+            );
+          })
         )}
       </div>
+
+      <div id="individual-distro-reports" style={styles.hiddenPrintArea}>
+        {visibleDistroReports.map((item) => (
+          <section
+            key={`${item.sourceId}-${item.summary.distro.id}`}
+            className="individual-distro-report"
+            style={styles.reportPage}
+          >
+            <ReportHeader
+              reportTitle={`${reportTitle} - ${displayDistroName(item.summary.distro)}`}
+              projectNumber={projectInfo.projectNumber}
+              reportMetaItems={reportMetaItems}
+            />
+            <DistroReport
+              summary={item.summary}
+              plannerState={plannerState}
+              sourceName={item.sourceName}
+              sourceConnection={item.sourceConnection}
+              sourceRating={item.sourceRating}
+              sourceNotes={item.sourceNotes}
+              openDistroEditor={openDistroEditor}
+              hiddenDistroIds={hiddenDistroIds}
+              renderChildren={false}
+            />
+          </section>
+        ))}
+      </div>
     </section>
+  );
+}
+
+function DistroToggle({
+  summary,
+  hiddenDistroIds,
+  toggleDistro,
+  level,
+}: {
+  summary: DistroLoadSummary;
+  hiddenDistroIds: string[];
+  toggleDistro: (distroId: string) => void;
+  level: number;
+}) {
+  const hidden = hiddenDistroIds.includes(summary.distro.id);
+
+  return (
+    <div style={{ ...styles.distroToggleItem, marginLeft: level * 18 }}>
+      <label style={styles.checkboxLabel}>
+        <input
+          type="checkbox"
+          checked={!hidden}
+          onChange={() => toggleDistro(summary.distro.id)}
+        />
+        <span>{displayDistroName(summary.distro)}</span>
+      </label>
+
+      {!hidden &&
+        summary.children.map((child) => (
+          <DistroToggle
+            key={child.distro.id}
+            summary={child}
+            hiddenDistroIds={hiddenDistroIds}
+            toggleDistro={toggleDistro}
+            level={level + 1}
+          />
+        ))}
+    </div>
+  );
+}
+
+function ReportHeader({
+  reportTitle,
+  projectNumber,
+  reportMetaItems,
+}: {
+  reportTitle: string;
+  projectNumber: string;
+  reportMetaItems: string[][];
+}) {
+  return (
+    <header className="report-header" style={styles.reportHeader}>
+      <div>
+        <h1 style={styles.reportTitle}>{reportTitle}</h1>
+        {projectNumber.trim() && (
+          <p style={styles.reportSubtitle}>Project Number: {projectNumber}</p>
+        )}
+      </div>
+
+      {reportMetaItems.length > 0 && (
+        <div style={styles.reportMetaGrid}>
+          {reportMetaItems.map(([label, value]) => (
+            <div key={label} style={styles.reportMetaItem}>
+              <strong>{label}</strong>
+              <span>{value}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </header>
   );
 }
 
@@ -455,6 +662,8 @@ function DistroReport({
   sourceRating,
   sourceNotes,
   openDistroEditor,
+  hiddenDistroIds,
+  renderChildren = true,
 }: {
   summary: DistroLoadSummary;
   plannerState: PlannerState;
@@ -463,14 +672,19 @@ function DistroReport({
   sourceRating: number;
   sourceNotes: string;
   openDistroEditor: (distroId: string) => void;
+  hiddenDistroIds: string[];
+  renderChildren?: boolean;
 }) {
-  const rows = buildDistroRows(summary, plannerState);
+  const rows = buildDistroRows(summary, plannerState, hiddenDistroIds);
   const sourceLabel = summary.fedFromOutputLabel
     ? `${sourceName} - ${summary.fedFromOutputLabel}`
     : sourceName;
   const sourceNotesText = summary.fedFromOutputLabel
     ? `Auto source from ${sourceName} output ${summary.fedFromOutputLabel}`
     : sourceNotes;
+  const visibleChildren = summary.children.filter(
+    (child) => !hiddenDistroIds.includes(child.distro.id)
+  );
 
   return (
     <section className="report-distro" style={styles.distroSection}>
@@ -556,18 +770,20 @@ function DistroReport({
         </tbody>
       </table>
 
-      {summary.children.map((child) => (
-        <DistroReport
-          key={child.distro.id}
-          summary={child}
-          plannerState={plannerState}
-          sourceName={displayDistroName(summary.distro)}
-          sourceConnection={child.distro.input}
-          sourceRating={child.distro.inputA}
-          sourceNotes=""
-          openDistroEditor={openDistroEditor}
-        />
-      ))}
+      {renderChildren &&
+        visibleChildren.map((child) => (
+          <DistroReport
+            key={child.distro.id}
+            summary={child}
+            plannerState={plannerState}
+            sourceName={displayDistroName(summary.distro)}
+            sourceConnection={child.distro.input}
+            sourceRating={child.distro.inputA}
+            sourceNotes=""
+            openDistroEditor={openDistroEditor}
+            hiddenDistroIds={hiddenDistroIds}
+          />
+        ))}
     </section>
   );
 }
@@ -589,6 +805,17 @@ const styles: Record<string, CSSProperties> = {
   },
   muted: {
     color: "#667085",
+  },
+  mutedSmall: {
+    color: "#667085",
+    fontSize: "13px",
+    margin: 0,
+  },
+  buttonRow: {
+    display: "flex",
+    gap: "8px",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
   },
   primaryButton: {
     padding: "10px 14px",
@@ -613,14 +840,33 @@ const styles: Record<string, CSSProperties> = {
     padding: "18px",
     background: "white",
   },
-  toggleGrid: {
+  sourceToggleList: {
     display: "grid",
-    gap: "10px",
+    gap: "12px",
+  },
+  sourceToggleCard: {
+    border: "1px solid #DCE5EC",
+    borderRadius: "14px",
+    padding: "12px",
+    background: "#FFFFFF",
+  },
+  distroToggleList: {
+    display: "grid",
+    gap: "8px",
+    marginTop: "10px",
+    paddingLeft: "24px",
+  },
+  distroToggleItem: {
+    display: "grid",
+    gap: "6px",
   },
   checkboxLabel: {
     display: "flex",
     gap: "8px",
     alignItems: "center",
+  },
+  hiddenPrintArea: {
+    display: "none",
   },
   reportPage: {
     border: "1px solid #e5e7eb",
