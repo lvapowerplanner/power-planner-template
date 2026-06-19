@@ -22,7 +22,7 @@ export default async function Home() {
     host === "demo.lvapowerplanner.com" ||
     host === "sterling.lvapowerplanner.com";
     host === "app.lvapowerplanner.com";
-
+    
   const isLocalDevelopment =
     host === "localhost" || host === "127.0.0.1";
 
