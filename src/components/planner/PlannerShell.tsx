@@ -308,6 +308,7 @@ export function PlannerShell({
             plannerState={plannerState}
             setPlannerState={setPlannerState}
             openDistroEditor={openDistroEditor}
+            workspaceBranding={workspaceBranding}
           />
         )}
       </section>
@@ -353,7 +354,7 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "2px 0 0",
     color: "#637083",
     fontSize: "12px",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   utilityText: {
     margin: "4px 0 0",
@@ -372,7 +373,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #4e4e4e",
     background: "#ececec",
     color: "#000000",
-    fontWeight: 800,
+    fontWeight: 500,
     cursor: "pointer",
   },
   secondaryButton: {
@@ -381,7 +382,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #DCE5EC",
     background: "#FFFFFF",
     color: "#111827",
-    fontWeight: 800,
+    fontWeight: 500,
     cursor: "pointer",
   },
   tabs: {
@@ -402,7 +403,7 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid transparent",
     background: "transparent",
     color: "#111827",
-    fontWeight: 700,
+    fontWeight: 400,
     cursor: "pointer",
     letterSpacing: "0.01em",
   },
