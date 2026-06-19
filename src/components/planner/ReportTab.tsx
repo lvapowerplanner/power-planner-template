@@ -824,7 +824,7 @@ const styles: Record<string, CSSProperties> = {
     background: "#000000",
     color: "#ffffff",
     cursor: "pointer",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   secondaryButton: {
     padding: "7px 10px",
@@ -896,7 +896,7 @@ const styles: Record<string, CSSProperties> = {
   reportSubtitle: {
     margin: 0,
     color: "#475467",
-    fontWeight: 800,
+    fontWeight: 500,
   },
   reportMetaGrid: {
     display: "grid",
@@ -968,7 +968,7 @@ const styles: Record<string, CSSProperties> = {
     textAlign: "left",
     verticalAlign: "top",
     background: "#eaf1f8",
-    fontWeight: 800,
+    fontWeight: 500,
     color: "#111827",
   },
   td: {

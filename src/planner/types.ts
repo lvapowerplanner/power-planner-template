@@ -17,6 +17,8 @@ export type PlannerOutputItem = {
 
 export type PlannerPhase = "L1" | "L2" | "L3" | "3Φ" | "Socapex";
 
+export type ConnectorStyle = "ceeform" | "powerlock" | "soca";
+
 export type PlannerOutput = {
   id: string;
   label: string;
@@ -30,6 +32,7 @@ export type PlannerOutput = {
   circuitNo?: number;
   breakerPair?: string | null;
   detail?: string;
+  connectorStyle?: ConnectorStyle;
   socaCircuits?: PlannerOutput[];
 };
 
@@ -56,6 +59,7 @@ export type PowerSource = {
   rating: number;
   notes: string;
   phaseType?: "Single-Phase" | "Three-Phase";
+  connectorStyle?: ConnectorStyle;
   auto?: boolean;
   parentDistroId?: string;
   parentOutputId?: string;

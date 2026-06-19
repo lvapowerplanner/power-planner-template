@@ -61,7 +61,11 @@ function autoSourceId(parentDistroId: string, outputId: string): string {
 }
 
 export function isThreePhaseConnection(connection: string): boolean {
-  return connection.includes("/ 3") || connection.includes("/3");
+  return (
+    connection.includes("/ 3") ||
+    connection.includes("/3") ||
+    connection.toLowerCase().includes("powerlock")
+  );
 }
 
 export function wattsToAmps(watts: number): number {
@@ -124,6 +128,7 @@ export function socapexOutputWatts(output: PlannerOutput): number {
 export function outputDisplayName(output: PlannerOutput, index: number): string {
   if (output.displayName) return output.displayName;
   if (output.phase === "Socapex") return `Soca ${output.outputNumber ?? index + 1}`;
+  if (output.connectorStyle === "powerlock") return `${index + 1} - ${output.rating}A Powerlock`;
   if (output.phase === "3Φ") return `${index + 1} - ${output.rating}/3`;
   return `${index + 1} - ${output.rating}a`;
 }

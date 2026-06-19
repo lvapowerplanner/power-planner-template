@@ -43,8 +43,18 @@ function isThreePhaseConnector(connector: string) {
     normalised.includes("/ 3") ||
     normalised.includes("/3") ||
     normalised.includes("3 phase") ||
-    normalised.includes("three phase")
+    normalised.includes("three phase") ||
+    normalised.includes("powerlock")
   );
+}
+
+function isPowerlockConnector(connector: string) {
+  return connector.toLowerCase().includes("powerlock");
+}
+
+function powerlockConnectorLabel(connector: string) {
+  const rating = connectorRating(connector, 400);
+  return `${rating}A Powerlock`;
 }
 
 function isSocapexConnector(connector: string) {
@@ -96,6 +106,7 @@ function createSocapexOutput(index: number, connector: string): PlannerOutput {
     breakerPair,
     socaCircuits: circuits,
     detail: "2 × 16A sockets per phase · L1 1 & 4 · L2 2 & 5 · L3 3 & 6",
+    connectorStyle: "soca",
   };
 }
 
@@ -109,16 +120,22 @@ function outputFromConnector(
   }
 
   const isThreePhase = isThreePhaseConnector(connector);
+  const isPowerlock = isPowerlockConnector(connector);
   const rating = connectorRating(connector, 16);
+  const type = isPowerlock
+    ? powerlockConnectorLabel(connector)
+    : `${rating}A / ${isThreePhase ? "3" : "1"}`;
 
   return {
     id: `out${index + 1}`,
     label: String(index + 1),
+    displayName: isPowerlock ? powerlockConnectorLabel(connector) : undefined,
     phase: isThreePhase ? "3Φ" : phase,
-    type: `${rating}A / ${isThreePhase ? "3" : "1"}`,
+    type,
     rating,
     items: [],
     notes: "",
+    connectorStyle: isPowerlock ? "powerlock" : "ceeform",
   };
 }
 
