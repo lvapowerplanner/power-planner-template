@@ -28,6 +28,9 @@ export default function PlannerPortal() {
 
   const [saveStatus, setSaveStatus] = useState("Not saved yet");
   const [accessMessage, setAccessMessage] = useState("");
+  const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
 
   function currentSubdomain() {
     if (typeof window === "undefined") return "";
@@ -51,6 +54,9 @@ export default function PlannerPortal() {
     setActiveProject(null);
     setProjectData(emptyProjectData);
     setSaveStatus("Not saved yet");
+    setIsPasswordRecovery(false);
+    setNewPassword("");
+    setConfirmPassword("");
     setAccessMessage(message);
   }
 
@@ -128,6 +134,65 @@ export default function PlannerPortal() {
     if (data.user) {
       await approveAndLoadUser(data.user);
     }
+  }
+
+  async function requestPasswordReset() {
+    const cleanEmail = email.trim();
+
+    if (!cleanEmail) {
+      alert("Please enter your email address first.");
+      return;
+    }
+
+    const redirectTo =
+      typeof window === "undefined" ? undefined : window.location.origin;
+
+    const { error } = await supabase.auth.resetPasswordForEmail(cleanEmail, {
+      redirectTo,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    alert("Password reset email sent. Please check your inbox.");
+  }
+
+  async function completePasswordReset() {
+    const cleanPassword = newPassword.trim();
+
+    if (cleanPassword.length < 8) {
+      alert("Please enter a password with at least 8 characters.");
+      return;
+    }
+
+    if (cleanPassword !== confirmPassword.trim()) {
+      alert("The passwords do not match.");
+      return;
+    }
+
+    const { data, error } = await supabase.auth.updateUser({
+      password: cleanPassword,
+    });
+
+    if (error) {
+      alert(error.message);
+      return;
+    }
+
+    setIsPasswordRecovery(false);
+    setNewPassword("");
+    setConfirmPassword("");
+    setAccessMessage("");
+
+    const currentUser = data.user ?? user;
+
+    if (currentUser) {
+      await approveAndLoadUser(currentUser);
+    }
+
+    alert("Password updated successfully.");
   }
 
   async function signOut() {
@@ -336,7 +401,14 @@ export default function PlannerPortal() {
     });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setUser(session?.user ?? null);
+          setIsPasswordRecovery(true);
+          setAccessMessage("");
+          return;
+        }
+
         if (session?.user) {
           approveAndLoadUser(session.user);
         } else {
@@ -362,8 +434,48 @@ export default function PlannerPortal() {
           setEmail={setEmail}
           setPassword={setPassword}
           signIn={signIn}
+          requestPasswordReset={requestPasswordReset}
         />
       </>
+    );
+  }
+
+  if (isPasswordRecovery) {
+    return (
+      <main style={styles.passwordPage}>
+        <section style={styles.passwordCard}>
+          <h1>Set New Password</h1>
+          <p style={styles.passwordText}>
+            Enter a new password for your LVA Power Planner account.
+          </p>
+
+          <label style={styles.passwordLabel}>
+            New Password
+            <input
+              style={styles.passwordInput}
+              type="password"
+              value={newPassword}
+              onChange={(event) => setNewPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+
+          <label style={styles.passwordLabel}>
+            Confirm New Password
+            <input
+              style={styles.passwordInput}
+              type="password"
+              value={confirmPassword}
+              onChange={(event) => setConfirmPassword(event.target.value)}
+              autoComplete="new-password"
+            />
+          </label>
+
+          <button style={styles.passwordButton} onClick={completePasswordReset}>
+            Update Password
+          </button>
+        </section>
+      </main>
     );
   }
 
@@ -397,6 +509,44 @@ export default function PlannerPortal() {
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  passwordPage: {
+    minHeight: "100vh",
+    padding: "40px",
+    fontFamily: "'Outfit', Arial, sans-serif",
+    color: "#000000",
+    background: "#f5f7fb",
+  },
+  passwordCard: {
+    maxWidth: "420px",
+    margin: "0 auto",
+    background: "white",
+    padding: "24px",
+    borderRadius: "14px",
+    border: "1px solid #d9e0ea",
+  },
+  passwordText: {
+    color: "#000000",
+  },
+  passwordLabel: {
+    display: "block",
+    marginTop: "12px",
+    marginBottom: "12px",
+  },
+  passwordInput: {
+    width: "100%",
+    padding: "10px",
+    marginTop: "6px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+  },
+  passwordButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #172033",
+    background: "#172033",
+    color: "white",
+    cursor: "pointer",
+  },
   accessMessage: {
     position: "fixed",
     top: "96px",

@@ -4,6 +4,7 @@ type LoginFormProps = {
   setEmail: (value: string) => void;
   setPassword: (value: string) => void;
   signIn: () => void;
+  requestPasswordReset: () => void;
 };
 
 export function LoginForm({
@@ -12,6 +13,7 @@ export function LoginForm({
   setEmail,
   setPassword,
   signIn,
+  requestPasswordReset,
 }: LoginFormProps) {
   return (
     <main style={styles.page}>
@@ -28,6 +30,7 @@ export function LoginForm({
             value={email}
             onChange={(event) => setEmail(event.target.value)}
             type="email"
+            autoComplete="email"
           />
         </label>
 
@@ -38,12 +41,16 @@ export function LoginForm({
             value={password}
             onChange={(event) => setPassword(event.target.value)}
             type="password"
+            autoComplete="current-password"
           />
         </label>
 
         <div style={styles.row}>
           <button style={styles.button} onClick={signIn}>
             Sign In
+          </button>
+          <button style={styles.linkButton} onClick={requestPasswordReset}>
+            Reset Password
           </button>
         </div>
       </section>
@@ -85,6 +92,8 @@ const styles: Record<string, React.CSSProperties> = {
   row: {
     display: "flex",
     gap: "8px",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   button: {
     padding: "10px 14px",
@@ -94,5 +103,12 @@ const styles: Record<string, React.CSSProperties> = {
     color: "white",
     cursor: "pointer",
   },
+  linkButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    color: "#172033",
+    cursor: "pointer",
+  },
 };
-
