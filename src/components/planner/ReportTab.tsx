@@ -17,6 +17,8 @@ type WorkspaceBranding = {
   logo_url?: string | null;
   contact_email?: string | null;
   report_footer?: string | null;
+  font_family?: string | null;
+  highlight_colour?: string | null;
 };
 
 type ReportTabProps = {
@@ -446,6 +448,8 @@ export function ReportTab({
   const brandLogoUrl = workspaceBranding?.logo_url?.trim() || "";
   const brandContactEmail = workspaceBranding?.contact_email?.trim() || "";
   const brandFooter = workspaceBranding?.report_footer?.trim() || "Generated using LVA Power Planner";
+  const brandFontFamily = workspaceBranding?.font_family?.trim() || "Arial, sans-serif";
+  const brandHighlightColour = workspaceBranding?.highlight_colour?.trim() || "#eaf1f8";
   const reportTitle = projectInfo.projectName.trim() || "Power Report";
   const reportMetaItems = [
     ["Project Manager", projectInfo.projectManager],
@@ -526,7 +530,7 @@ export function ReportTab({
   }
 
   return (
-    <section style={styles.pageShell}>
+    <section style={{ ...styles.pageShell, fontFamily: brandFontFamily, "--lva-report-highlight": brandHighlightColour } as CSSProperties}>
       <div className="no-print" style={styles.toolbar}>
         <div>
           <h2>Report</h2>
@@ -1038,7 +1042,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #cbd5e1",
     borderRadius: "14px",
     padding: "12px",
-    background: "#F5F7FA",
+    background: "var(--lva-report-highlight, #F5F7FA)",
     marginBottom: "16px",
     display: "grid",
     gridTemplateColumns: "1fr 1.1fr 1.4fr",

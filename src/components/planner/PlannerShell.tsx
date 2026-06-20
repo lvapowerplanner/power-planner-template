@@ -16,6 +16,8 @@ type WorkspaceBranding = {
   logo_url?: string | null;
   contact_email?: string | null;
   report_footer?: string | null;
+  font_family?: string | null;
+  highlight_colour?: string | null;
 };
 
 type PlannerShellProps = {
@@ -32,6 +34,37 @@ type PlannerTab =
   | "Custom Equipment"
   | "Custom Distros"
   | "Report";
+
+
+const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
+const defaultPlannerHighlight = "#ececec";
+const defaultPlannerHighlightBorder = "#242424";
+
+function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
+}
+
+function workspaceHighlightColour(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.highlight_colour?.trim() || defaultPlannerHighlight;
+}
+
+function plannerThemeStyle(workspaceBranding?: WorkspaceBranding): React.CSSProperties {
+  const highlight = workspaceHighlightColour(workspaceBranding);
+
+  return {
+    fontFamily: workspaceFontFamily(workspaceBranding),
+    "--lva-workspace-highlight": highlight,
+    "--lva-workspace-highlight-border": workspaceBranding?.highlight_colour?.trim()
+      ? highlight
+      : defaultPlannerHighlightBorder,
+    "--lva-ui-hover": workspaceBranding?.highlight_colour?.trim()
+      ? `${highlight}14`
+      : "rgba(158, 158, 158, 0.07)",
+    "--lva-ui-border-hover": workspaceBranding?.highlight_colour?.trim()
+      ? highlight
+      : "#5c5c5c",
+  } as React.CSSProperties;
+}
 
 const tabs: PlannerTab[] = [
   "System Overview",
@@ -206,7 +239,7 @@ export function PlannerShell({
           opacity: 0.58;
         }
       `}</style>
-      <section data-power-planner-ui style={styles.shell}>
+      <section data-power-planner-ui style={{ ...styles.shell, ...plannerThemeStyle(workspaceBranding) }}>
         <div style={styles.utilityBar}>
           <div style={styles.brandBlock}>
             {workspaceBranding?.logo_url && (
@@ -319,7 +352,6 @@ export function PlannerShell({
 const styles: Record<string, React.CSSProperties> = {
   shell: {
     marginTop: "20px",
-    fontFamily: "'Outfit', Arial, sans-serif",
     color: "#111827",
   },
   utilityBar: {
@@ -408,8 +440,8 @@ const styles: Record<string, React.CSSProperties> = {
     letterSpacing: "0.01em",
   },
   activeTab: {
-    background: "#ececec",
-    border: "1px solid #242424",
-    boxShadow: "inset 0 -2px 0 #383838",
+    background: "var(--lva-workspace-highlight, #ececec)",
+    border: "1px solid var(--lva-workspace-highlight-border, #242424)",
+    boxShadow: "inset 0 -2px 0 var(--lva-workspace-highlight-border, #383838)",
   },
 };

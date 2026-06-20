@@ -19,7 +19,15 @@ type WorkspaceBranding = {
   logo_url?: string | null;
   contact_email?: string | null;
   report_footer?: string | null;
+  font_family?: string | null;
+  highlight_colour?: string | null;
 };
+
+const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
+
+function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
+}
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
   subdomain: "",
@@ -27,6 +35,8 @@ const defaultWorkspaceBranding: WorkspaceBranding = {
   logo_url: "",
   contact_email: "",
   report_footer: "",
+  font_family: "",
+  highlight_colour: "",
 };
 
 export default function PlannerPortal() {
@@ -71,7 +81,7 @@ export default function PlannerPortal() {
 
     const { data, error } = await supabase
       .from("workspace_settings")
-      .select("subdomain, company_name, logo_url, contact_email, report_footer")
+      .select("*")
       .eq("subdomain", subdomain)
       .maybeSingle();
 
@@ -89,6 +99,11 @@ export default function PlannerPortal() {
       logo_url: data.logo_url ? String(data.logo_url) : "",
       contact_email: data.contact_email ? String(data.contact_email) : "",
       report_footer: data.report_footer ? String(data.report_footer) : "",
+      font_family: data.font_family || data.font ? String(data.font_family ?? data.font) : "",
+      highlight_colour:
+        data.highlight_colour || data.highlight_color || data.accent_colour || data.accent_color
+          ? String(data.highlight_colour ?? data.highlight_color ?? data.accent_colour ?? data.accent_color)
+          : "",
     });
   }
 
@@ -493,7 +508,7 @@ export default function PlannerPortal() {
 
   if (isPasswordRecovery) {
     return (
-      <main style={styles.passwordPage}>
+      <main style={{ ...styles.passwordPage, fontFamily: workspaceFontFamily(workspaceBranding) }}>
         <section style={styles.passwordCard}>
           <h1>Set New Password</h1>
           <p style={styles.passwordText}>

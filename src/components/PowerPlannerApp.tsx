@@ -7,6 +7,8 @@ type WorkspaceBranding = {
   logo_url?: string | null;
   contact_email?: string | null;
   report_footer?: string | null;
+  font_family?: string | null;
+  highlight_colour?: string | null;
 };
 
 type PowerPlannerAppProps = {

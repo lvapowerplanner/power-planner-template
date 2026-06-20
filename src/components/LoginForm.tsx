@@ -4,6 +4,8 @@ type WorkspaceBranding = {
   logo_url?: string | null;
   contact_email?: string | null;
   report_footer?: string | null;
+  font_family?: string | null;
+  highlight_colour?: string | null;
 };
 
 type LoginFormProps = {
@@ -15,6 +17,29 @@ type LoginFormProps = {
   requestPasswordReset: () => void;
   workspaceBranding?: WorkspaceBranding;
 };
+
+
+const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
+const defaultWorkspaceHighlight = "#172033";
+
+function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
+}
+
+function workspaceHighlightColour(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.highlight_colour?.trim() || defaultWorkspaceHighlight;
+}
+
+function workspaceThemeStyle(workspaceBranding?: WorkspaceBranding): React.CSSProperties {
+  return {
+    fontFamily: workspaceFontFamily(workspaceBranding),
+    "--lva-workspace-highlight": workspaceHighlightColour(workspaceBranding),
+    "--lva-ui-hover": workspaceBranding?.highlight_colour?.trim()
+      ? `${workspaceHighlightColour(workspaceBranding)}14`
+      : "rgba(158, 158, 158, 0.07)",
+    "--lva-ui-border-hover": workspaceHighlightColour(workspaceBranding),
+  } as React.CSSProperties;
+}
 
 function isLvaBrand(workspaceBranding?: WorkspaceBranding) {
   return !workspaceBranding?.company_name ||
@@ -34,7 +59,7 @@ export function LoginForm({
   const showPoweredBy = !isLvaBrand(workspaceBranding);
 
   return (
-    <main style={styles.page}>
+    <main style={{ ...styles.page, ...workspaceThemeStyle(workspaceBranding) }}>
       <section style={styles.card}>
         {workspaceBranding?.logo_url && (
           <img
@@ -89,7 +114,6 @@ const styles: Record<string, React.CSSProperties> = {
   page: {
     minHeight: "100vh",
     padding: "40px",
-    fontFamily: "'Outfit', Arial, sans-serif",
     color: "#000000",
     background: "#f5f7fb",
   },
@@ -138,8 +162,8 @@ const styles: Record<string, React.CSSProperties> = {
   button: {
     padding: "10px 14px",
     borderRadius: "10px",
-    border: "1px solid #172033",
-    background: "#172033",
+    border: "1px solid var(--lva-workspace-highlight, #172033)",
+    background: "var(--lva-workspace-highlight, #172033)",
     color: "white",
     cursor: "pointer",
     fontWeight: 500,
