@@ -68,7 +68,7 @@ function sourceIsInUse(plannerState: PlannerState, sourceId: string) {
 
 function sourceIssues(
   source: PowerSource,
-  phaseLoads: PhaseLoads
+  phaseLoads: PhaseLoads,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
   const phases = isThreePhaseConnection(source.conn)
@@ -84,7 +84,7 @@ function sourceIssues(
         severity: "critical",
         context: source.name,
         message: `${source.name} ${phase} overloaded: ${formatAmps(
-          amps
+          amps,
         )} / ${formatAmps(source.rating)}.`,
       });
     } else if (amps > source.rating * 0.95) {
@@ -93,7 +93,7 @@ function sourceIssues(
         severity: "warning",
         context: source.name,
         message: `${source.name} ${phase} above 95% capacity: ${formatAmps(
-          amps
+          amps,
         )} / ${formatAmps(source.rating)}.`,
       });
     }
@@ -109,7 +109,7 @@ function sourceIssues(
         severity: "critical",
         context: source.name,
         message: `Severe phase imbalance on ${source.name}: ${Math.round(
-          imbalance
+          imbalance,
         )}%.`,
       });
     } else if (imbalance >= 30 && maxPhaseLoad > 5) {
@@ -133,7 +133,7 @@ function sourceHealth(issues: ValidationIssue[]) {
 
 function buildAutoSourceSummary(
   plannerState: PlannerState,
-  source: PowerSource
+  source: PowerSource,
 ): SourceCardSummary {
   const assignedDistros = plannerState.distros
     .filter((distro) => distro.sourceId === source.id)
@@ -141,12 +141,12 @@ function buildAutoSourceSummary(
 
   const phaseLoads = assignedDistros.reduce<PhaseLoads>(
     (total, distro) => addPhaseLoads(total, distro.phaseLoads),
-    createEmptyPhaseLoads()
+    createEmptyPhaseLoads(),
   );
 
   const watts = assignedDistros.reduce(
     (total, distro) => total + distro.watts,
-    0
+    0,
   );
 
   const issues = [
@@ -178,13 +178,13 @@ export function PowerSourcesTab({
   const manualSources = plannerState.sources.filter((source) => !source.auto);
 
   const autoSources = plannerState.distros.flatMap((distro) =>
-    autoSourcesForDistro(distro)
+    autoSourcesForDistro(distro),
   );
 
   const manualSourceSummaries = useMemo<SourceCardSummary[]>(() => {
     return manualSources.map((source) => {
       const summary = systemSummary.sourceSummaries.find(
-        (item) => item.sourceId === source.id
+        (item) => item.sourceId === source.id,
       );
 
       const phaseLoads = summary?.phaseLoads ?? createEmptyPhaseLoads();
@@ -206,15 +206,23 @@ export function PowerSourcesTab({
   }, [manualSources, systemSummary.sourceSummaries]);
 
   const autoSourceSummaries = useMemo<SourceCardSummary[]>(() => {
-    return autoSources.map((source) => buildAutoSourceSummary(plannerState, source));
+    return autoSources.map((source) =>
+      buildAutoSourceSummary(plannerState, source),
+    );
   }, [autoSources, plannerState]);
 
   const allIssues = [
     ...manualSourceSummaries.flatMap((summary) =>
-      summary.issues.map((issue) => ({ ...issue, sourceId: summary.source.id }))
+      summary.issues.map((issue) => ({
+        ...issue,
+        sourceId: summary.source.id,
+      })),
     ),
     ...autoSourceSummaries.flatMap((summary) =>
-      summary.issues.map((issue) => ({ ...issue, sourceId: summary.source.id }))
+      summary.issues.map((issue) => ({
+        ...issue,
+        sourceId: summary.source.id,
+      })),
     ),
   ];
 
@@ -241,7 +249,9 @@ export function PowerSourcesTab({
   function deletePowerSource(sourceId: string) {
     if (
       sourceIsInUse(plannerState, sourceId) &&
-      !confirm("This source is currently assigned to one or more distros. Delete it and unassign those distros?")
+      !confirm(
+        "This source is currently assigned to one or more distros. Delete it and unassign those distros?",
+      )
     ) {
       return;
     }
@@ -250,8 +260,32 @@ export function PowerSourcesTab({
       ...plannerState,
       sources: manualSources.filter((source) => source.id !== sourceId),
       distros: plannerState.distros.map((distro) =>
-        distro.sourceId === sourceId ? { ...distro, sourceId: "" } : distro
+        distro.sourceId === sourceId ? { ...distro, sourceId: "" } : distro,
       ),
+    });
+  }
+
+  function movePowerSource(sourceId: string, direction: -1 | 1) {
+    const currentIndex = manualSources.findIndex(
+      (source) => source.id === sourceId,
+    );
+    const targetIndex = currentIndex + direction;
+
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= manualSources.length
+    ) {
+      return;
+    }
+
+    const nextManualSources = [...manualSources];
+    const [movedSource] = nextManualSources.splice(currentIndex, 1);
+    nextManualSources.splice(targetIndex, 0, movedSource);
+
+    setPlannerState({
+      ...plannerState,
+      sources: [...nextManualSources, ...autoSources],
     });
   }
 
@@ -259,8 +293,9 @@ export function PowerSourcesTab({
     <section data-lva-surface style={styles.card}>
       <h2>Power Sources</h2>
       <p style={styles.muted}>
-        Manual Power Sources are venue power supplies or generators. Auto sources are created
-        from distro outputs and show downstream distro loads.
+        Manual Power Sources are venue power supplies or generators. Auto
+        sources are created from distro outputs and show downstream distro
+        loads.
       </p>
 
       <div style={styles.formGrid}>
@@ -327,7 +362,9 @@ export function PowerSourcesTab({
                     : styles.issueWarning),
                 }}
               >
-                <strong>{issue.severity === "critical" ? "Critical" : "Warning"}</strong>
+                <strong>
+                  {issue.severity === "critical" ? "Critical" : "Warning"}
+                </strong>
                 <span>{issue.message}</span>
               </div>
             ))}
@@ -343,10 +380,14 @@ export function PowerSourcesTab({
         {manualSourceSummaries.length === 0 ? (
           <p style={styles.muted}>No manual power sources added yet.</p>
         ) : (
-          manualSourceSummaries.map((summary) => (
+          manualSourceSummaries.map((summary, index) => (
             <PowerSourceCard
               key={summary.source.id}
               summary={summary}
+              onMoveUp={() => movePowerSource(summary.source.id, -1)}
+              onMoveDown={() => movePowerSource(summary.source.id, 1)}
+              moveUpDisabled={index === 0}
+              moveDownDisabled={index === manualSourceSummaries.length - 1}
               onDelete={() => deletePowerSource(summary.source.id)}
             />
           ))
@@ -375,9 +416,17 @@ export function PowerSourcesTab({
 function PowerSourceCard({
   summary,
   onDelete,
+  onMoveUp,
+  onMoveDown,
+  moveUpDisabled = false,
+  moveDownDisabled = false,
 }: {
   summary: SourceCardSummary;
   onDelete?: () => void;
+  onMoveUp?: () => void;
+  onMoveDown?: () => void;
+  moveUpDisabled?: boolean;
+  moveDownDisabled?: boolean;
 }) {
   const health = sourceHealth(summary.issues);
   const imbalance = isThreePhaseConnection(summary.source.conn)
@@ -386,15 +435,15 @@ function PowerSourceCard({
 
   return (
     <div
-  style={{
-    ...styles.sourceCard,
-    ...(health === "critical"
-      ? styles.cardCritical
-      : health === "warning"
-        ? styles.cardWarning
-        : {}),
-  }}
->
+      style={{
+        ...styles.sourceCard,
+        ...(health === "critical"
+          ? styles.cardCritical
+          : health === "warning"
+            ? styles.cardWarning
+            : {}),
+      }}
+    >
       <div style={styles.sourceHeader}>
         <div>
           <div style={styles.titleRow}>
@@ -409,23 +458,49 @@ function PowerSourceCard({
                     : styles.healthOk),
               }}
             >
-              {health === "critical" ? "Critical" : health === "warning" ? "Warning" : "OK"}
+              {health === "critical"
+                ? "Critical"
+                : health === "warning"
+                  ? "Warning"
+                  : "OK"}
             </span>
           </div>
           <p style={styles.muted}>
             {displaySourceConnection(summary.source)}
             {summary.isAuto ? " · Auto-created" : ""}
           </p>
-          {summary.source.notes && <p style={styles.notes}>{summary.source.notes}</p>}
+          {summary.source.notes && (
+            <p style={styles.notes}>{summary.source.notes}</p>
+          )}
         </div>
 
         <div style={styles.sourceTotals}>
           <strong>{formatWatts(summary.watts)}</strong>
           <span>{formatAmps(summary.amps)} total draw</span>
           {onDelete && (
-            <button style={styles.dangerButton} onClick={onDelete}>
-              Delete
-            </button>
+            <div style={styles.actionRow}>
+              <button
+                style={styles.arrowButton}
+                onClick={onMoveUp}
+                disabled={moveUpDisabled}
+                aria-label={`Move ${summary.source.name} up`}
+                title="Move up"
+              >
+                ↑
+              </button>
+              <button
+                style={styles.arrowButton}
+                onClick={onMoveDown}
+                disabled={moveDownDisabled}
+                aria-label={`Move ${summary.source.name} down`}
+                title="Move down"
+              >
+                ↓
+              </button>
+              <button style={styles.dangerButton} onClick={onDelete}>
+                Delete
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -488,7 +563,11 @@ function PhaseCard({
     <div
       style={{
         ...styles.phaseCard,
-        ...(overloaded ? styles.phaseCritical : nearLimit ? styles.phaseWarning : {}),
+        ...(overloaded
+          ? styles.phaseCritical
+          : nearLimit
+            ? styles.phaseWarning
+            : {}),
       }}
     >
       <div style={styles.phaseHeader}>
@@ -611,6 +690,25 @@ const styles: Record<string, React.CSSProperties> = {
     justifyItems: "end",
     color: "#111827",
     minWidth: "160px",
+  },
+  actionRow: {
+    display: "flex",
+    gap: "6px",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    flexWrap: "wrap",
+  },
+  arrowButton: {
+    width: "34px",
+    height: "34px",
+    padding: 0,
+    borderRadius: "10px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 600,
+    lineHeight: 1,
   },
   healthBadge: {
     padding: "4px 8px",

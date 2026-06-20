@@ -71,7 +71,10 @@ function normaliseConnection(value: string) {
   };
 }
 
-function connectionsAreCompatible(sourceConnection: string, distroInput: string) {
+function connectionsAreCompatible(
+  sourceConnection: string,
+  distroInput: string,
+) {
   const source = normaliseConnection(sourceConnection);
   const distro = normaliseConnection(distroInput);
 
@@ -89,7 +92,7 @@ function connectionsAreCompatible(sourceConnection: string, distroInput: string)
 
 function allDistroDefinitions(
   plannerState: PlannerState,
-  companyDistroLibrary: DistroDefinition[]
+  companyDistroLibrary: DistroDefinition[],
 ): DistroDefinition[] {
   return [
     ...companyDistroLibrary,
@@ -104,10 +107,10 @@ function allDistroDefinitions(
 function sourceIsUsedByOtherDistro(
   plannerState: PlannerState,
   sourceId: string,
-  currentDistroId: string
+  currentDistroId: string,
 ) {
   return plannerState.distros.some(
-    (distro) => distro.id !== currentDistroId && distro.sourceId === sourceId
+    (distro) => distro.id !== currentDistroId && distro.sourceId === sourceId,
   );
 }
 
@@ -170,9 +173,33 @@ export function DistroOverviewTab({
       distros: plannerState.distros.filter((distro) => distro.id !== distroId),
       active:
         plannerState.active === distroId
-          ? plannerState.distros.find((distro) => distro.id !== distroId)?.id ??
-            null
+          ? (plannerState.distros.find((distro) => distro.id !== distroId)
+              ?.id ?? null)
           : plannerState.active,
+    });
+  }
+
+  function moveDistro(distroId: string, direction: -1 | 1) {
+    const currentIndex = plannerState.distros.findIndex(
+      (distro) => distro.id === distroId,
+    );
+    const targetIndex = currentIndex + direction;
+
+    if (
+      currentIndex < 0 ||
+      targetIndex < 0 ||
+      targetIndex >= plannerState.distros.length
+    ) {
+      return;
+    }
+
+    const nextDistros = [...plannerState.distros];
+    const [movedDistro] = nextDistros.splice(currentIndex, 1);
+    nextDistros.splice(targetIndex, 0, movedDistro);
+
+    setPlannerState({
+      ...plannerState,
+      distros: nextDistros,
     });
   }
 
@@ -180,7 +207,7 @@ export function DistroOverviewTab({
     setPlannerState({
       ...plannerState,
       distros: plannerState.distros.map((distro) =>
-        distro.id === distroId ? { ...distro, instanceName: value } : distro
+        distro.id === distroId ? { ...distro, instanceName: value } : distro,
       ),
     });
   }
@@ -189,7 +216,7 @@ export function DistroOverviewTab({
     setPlannerState({
       ...plannerState,
       distros: plannerState.distros.map((distro) =>
-        distro.id === distroId ? { ...distro, location: value } : distro
+        distro.id === distroId ? { ...distro, location: value } : distro,
       ),
     });
   }
@@ -198,7 +225,7 @@ export function DistroOverviewTab({
     setPlannerState({
       ...plannerState,
       distros: plannerState.distros.map((distro) =>
-        distro.id === distroId ? { ...distro, sourceId: value } : distro
+        distro.id === distroId ? { ...distro, sourceId: value } : distro,
       ),
     });
   }
@@ -207,7 +234,8 @@ export function DistroOverviewTab({
     <section data-lva-surface style={styles.card}>
       <h2>Distro Overview</h2>
       <p style={styles.muted}>
-        Add distros from the company library or custom distros built in this project.
+        Add distros from the company library or custom distros built in this
+        project.
       </p>
 
       <div style={styles.addPanel}>
@@ -250,9 +278,12 @@ export function DistroOverviewTab({
         <p style={styles.muted}>No distros added yet.</p>
       ) : (
         <div style={styles.list}>
-          {plannerState.distros.map((distro) => {
+          {plannerState.distros.map((distro, distroIndex) => {
             const availableSources = allAvailableSources.filter((source) => {
-              const compatible = connectionsAreCompatible(source.conn, distro.input);
+              const compatible = connectionsAreCompatible(
+                source.conn,
+                distro.input,
+              );
 
               if (!compatible) return false;
 
@@ -282,6 +313,24 @@ export function DistroOverviewTab({
                   </div>
 
                   <div style={styles.row}>
+                    <button
+                      style={styles.arrowButton}
+                      onClick={() => moveDistro(distro.id, -1)}
+                      disabled={distroIndex === 0}
+                      aria-label={`Move ${displayDistroName(distro)} up`}
+                      title="Move up"
+                    >
+                      ↑
+                    </button>
+                    <button
+                      style={styles.arrowButton}
+                      onClick={() => moveDistro(distro.id, 1)}
+                      disabled={distroIndex === plannerState.distros.length - 1}
+                      aria-label={`Move ${displayDistroName(distro)} down`}
+                      title="Move down"
+                    >
+                      ↓
+                    </button>
                     <button
                       style={styles.secondaryButton}
                       onClick={() => openDistroEditor(distro.id)}
@@ -397,6 +446,18 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#111827",
     cursor: "pointer",
     fontWeight: 500,
+  },
+  arrowButton: {
+    width: "34px",
+    height: "34px",
+    padding: 0,
+    borderRadius: "10px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 600,
+    lineHeight: 1,
   },
   dangerButton: {
     padding: "9px 12px",
