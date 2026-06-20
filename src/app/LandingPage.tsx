@@ -73,7 +73,10 @@ export default function LandingPage() {
       </section>
 
       <footer className="px-6 py-8 text-center text-sm text-gray-500">
-        © {new Date().getFullYear()} LVA Power Planner
+        <p className="mx-auto max-w-4xl">
+          LVA Power Planner is an indicative planning tool. It may support BS 7909 documentation workflows, but it does not verify, certify or guarantee compliance with BS 7909, BS 7671 or any other standard. Responsibility remains with the user and competent duty holder.
+        </p>
+        <p className="mt-4">© {new Date().getFullYear()} LVA Power Planner</p>
       </footer>
     </main>
   );

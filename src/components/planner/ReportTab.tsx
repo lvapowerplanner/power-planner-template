@@ -50,6 +50,9 @@ type DistroReportItem = {
   summary: DistroLoadSummary;
 };
 
+const reportDisclaimerText =
+  "Disclaimer: LVA Power Planner is an indicative planning tool only. This report is generated from user-entered information and may support BS 7909 documentation workflows, but it does not verify, certify or guarantee compliance with BS 7909, BS 7671, venue requirements or any other statutory or industry standard. Responsibility for verification, suitability, installation, inspection, testing and compliance remains entirely with the user and competent duty holder. LVA Power Planner and its operators accept no responsibility for loss, damage, injury, interruption, cost, claim or consequential loss arising from use of, or reliance upon, this software or report.";
+
 function sourceConnectionText(connection: string, rating: number) {
   return `${connection} · ${rating}A per phase`;
 }
@@ -314,11 +317,19 @@ function reportPrintStyles() {
       margin-top: 18px;
       border-top: 1px solid #cbd5e1;
       padding-top: 8px;
+      color: #475467;
+      font-size: 9px;
+    }
+    .report-footer-row {
       display: flex;
       justify-content: space-between;
       gap: 12px;
+    }
+    .report-disclaimer {
+      margin: 8px 0 0;
       color: #475467;
-      font-size: 9px;
+      font-size: 8.5px;
+      line-height: 1.35;
     }
     .report-source, .report-distro {
       break-inside: auto;
@@ -809,8 +820,13 @@ function ReportFooter({
 }) {
   return (
     <footer className="report-footer" style={styles.reportFooter}>
-      <span>{brandFooter || `Generated for ${brandName}`}</span>
-      <span>{brandContactEmail || "Powered by LVA Power Planner"}</span>
+      <div className="report-footer-row" style={styles.reportFooterRow}>
+        <span>{brandFooter || `Generated for ${brandName}`}</span>
+        <span>{brandContactEmail || "Powered by LVA Power Planner"}</span>
+      </div>
+      <p className="report-disclaimer" style={styles.reportDisclaimer}>
+        {reportDisclaimerText}
+      </p>
     </footer>
   );
 }
@@ -1099,11 +1115,19 @@ const styles: Record<string, CSSProperties> = {
     marginTop: "18px",
     borderTop: "1px solid #cbd5e1",
     paddingTop: "8px",
+    color: "#475467",
+    fontSize: "9px",
+  },
+  reportFooterRow: {
     display: "flex",
     justifyContent: "space-between",
     gap: "12px",
+  },
+  reportDisclaimer: {
+    margin: "8px 0 0",
     color: "#475467",
-    fontSize: "9px",
+    fontSize: "8.5px",
+    lineHeight: 1.35,
   },
   sourceSection: {
     marginBottom: "22px",

@@ -53,6 +53,9 @@ function isLvaBrand(workspaceBranding?: WorkspaceBranding) {
     workspaceBranding.company_name.trim().toLowerCase() === "lva power planner";
 }
 
+const disclaimerText =
+  "LVA Power Planner is an indicative planning tool. Calculations and reports are based on user-entered information and must be checked by a competent person. The software may support BS 7909 documentation workflows, but it does not verify, certify or guarantee compliance with BS 7909, BS 7671 or any other standard.";
+
 export function LoginForm({
   email,
   password,
@@ -112,6 +115,8 @@ export function LoginForm({
             Reset Password
           </button>
         </div>
+
+        <p style={styles.disclaimerText}>{disclaimerText}</p>
       </section>
     </main>
   );
@@ -183,5 +188,13 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#172033",
     cursor: "pointer",
     fontWeight: 500,
+  },
+  disclaimerText: {
+    marginTop: "18px",
+    paddingTop: "14px",
+    borderTop: "1px solid #d9e0ea",
+    color: "#637083",
+    fontSize: "12px",
+    lineHeight: 1.45,
   },
 };
