@@ -2237,7 +2237,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   pairedSocapexOutputs: {
     display: "grid",
-    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gridTemplateColumns: "1fr",
     gap: "12px",
   },
   socapexCard: {
