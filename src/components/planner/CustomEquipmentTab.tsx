@@ -247,7 +247,7 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "10px 14px",
     borderRadius: "10px",
     border: "1px solid #000000",
-    background: "#ececec",
+    background: "var(--lva-workspace-highlight, #ececec)",
     color: "#000000",
     cursor: "pointer",
     fontWeight: 500,

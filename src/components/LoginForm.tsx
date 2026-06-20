@@ -6,6 +6,7 @@ type WorkspaceBranding = {
   report_footer?: string | null;
   font_family?: string | null;
   highlight_colour?: string | null;
+  dark_button_colour?: string | null;
 };
 
 type LoginFormProps = {
@@ -21,6 +22,7 @@ type LoginFormProps = {
 
 const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
 const defaultWorkspaceHighlight = "#172033";
+const defaultWorkspaceDarkButton = "#172033";
 
 function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
   return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
@@ -30,10 +32,15 @@ function workspaceHighlightColour(workspaceBranding?: WorkspaceBranding) {
   return workspaceBranding?.highlight_colour?.trim() || defaultWorkspaceHighlight;
 }
 
+function workspaceDarkButtonColour(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.dark_button_colour?.trim() || defaultWorkspaceDarkButton;
+}
+
 function workspaceThemeStyle(workspaceBranding?: WorkspaceBranding): React.CSSProperties {
   return {
     fontFamily: workspaceFontFamily(workspaceBranding),
     "--lva-workspace-highlight": workspaceHighlightColour(workspaceBranding),
+    "--lva-workspace-dark-button": workspaceDarkButtonColour(workspaceBranding),
     "--lva-ui-hover": workspaceBranding?.highlight_colour?.trim()
       ? `${workspaceHighlightColour(workspaceBranding)}14`
       : "rgba(158, 158, 158, 0.07)",
@@ -162,8 +169,8 @@ const styles: Record<string, React.CSSProperties> = {
   button: {
     padding: "10px 14px",
     borderRadius: "10px",
-    border: "1px solid var(--lva-workspace-highlight, #172033)",
-    background: "var(--lva-workspace-highlight, #172033)",
+    border: "1px solid var(--lva-workspace-dark-button, #172033)",
+    background: "var(--lva-workspace-dark-button, #172033)",
     color: "white",
     cursor: "pointer",
     fontWeight: 500,

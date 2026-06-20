@@ -556,8 +556,8 @@ const styles: Record<string, React.CSSProperties> = {
   button: {
     padding: "10px 14px",
     borderRadius: "10px",
-    border: "1px solid #000000",
-    background: "#000000",
+    border: "1px solid var(--lva-workspace-dark-button, #000000)",
+    background: "var(--lva-workspace-dark-button, #000000)",
     color: "#ffffff",
     cursor: "pointer",
     fontWeight: 500,

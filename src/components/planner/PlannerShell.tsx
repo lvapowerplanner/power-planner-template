@@ -18,6 +18,7 @@ type WorkspaceBranding = {
   report_footer?: string | null;
   font_family?: string | null;
   highlight_colour?: string | null;
+  dark_button_colour?: string | null;
 };
 
 type PlannerShellProps = {
@@ -39,6 +40,7 @@ type PlannerTab =
 const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
 const defaultPlannerHighlight = "#ececec";
 const defaultPlannerHighlightBorder = "#242424";
+const defaultWorkspaceDarkButton = "#000000";
 
 function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
   return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
@@ -48,12 +50,17 @@ function workspaceHighlightColour(workspaceBranding?: WorkspaceBranding) {
   return workspaceBranding?.highlight_colour?.trim() || defaultPlannerHighlight;
 }
 
+function workspaceDarkButtonColour(workspaceBranding?: WorkspaceBranding) {
+  return workspaceBranding?.dark_button_colour?.trim() || defaultWorkspaceDarkButton;
+}
+
 function plannerThemeStyle(workspaceBranding?: WorkspaceBranding): React.CSSProperties {
   const highlight = workspaceHighlightColour(workspaceBranding);
 
   return {
     fontFamily: workspaceFontFamily(workspaceBranding),
     "--lva-workspace-highlight": highlight,
+    "--lva-workspace-dark-button": workspaceDarkButtonColour(workspaceBranding),
     "--lva-workspace-highlight-border": workspaceBranding?.highlight_colour?.trim()
       ? highlight
       : defaultPlannerHighlightBorder,

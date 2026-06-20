@@ -19,6 +19,7 @@ type WorkspaceBranding = {
   report_footer?: string | null;
   font_family?: string | null;
   highlight_colour?: string | null;
+  dark_button_colour?: string | null;
 };
 
 type ReportTabProps = {
@@ -449,7 +450,7 @@ export function ReportTab({
   const brandContactEmail = workspaceBranding?.contact_email?.trim() || "";
   const brandFooter = workspaceBranding?.report_footer?.trim() || "Generated using LVA Power Planner";
   const brandFontFamily = workspaceBranding?.font_family?.trim() || "Arial, sans-serif";
-  const brandHighlightColour = workspaceBranding?.highlight_colour?.trim() || "#eaf1f8";
+  const brandDarkButtonColour = workspaceBranding?.dark_button_colour?.trim() || "#000000";
   const reportTitle = projectInfo.projectName.trim() || "Power Report";
   const reportMetaItems = [
     ["Project Manager", projectInfo.projectManager],
@@ -530,7 +531,7 @@ export function ReportTab({
   }
 
   return (
-    <section style={{ ...styles.pageShell, fontFamily: brandFontFamily, "--lva-report-highlight": brandHighlightColour } as CSSProperties}>
+    <section style={{ ...styles.pageShell, fontFamily: brandFontFamily, "--lva-workspace-dark-button": brandDarkButtonColour } as CSSProperties}>
       <div className="no-print" style={styles.toolbar}>
         <div>
           <h2>Report</h2>
@@ -980,8 +981,8 @@ const styles: Record<string, CSSProperties> = {
   primaryButton: {
     padding: "10px 14px",
     borderRadius: "10px",
-    border: "1px solid #000000",
-    background: "#000000",
+    border: "1px solid var(--lva-workspace-dark-button, #000000)",
+    background: "var(--lva-workspace-dark-button, #000000)",
     color: "#ffffff",
     cursor: "pointer",
     fontWeight: 500,

@@ -9,6 +9,7 @@ type WorkspaceBranding = {
   report_footer?: string | null;
   font_family?: string | null;
   highlight_colour?: string | null;
+  dark_button_colour?: string | null;
 };
 
 type PowerPlannerAppProps = {

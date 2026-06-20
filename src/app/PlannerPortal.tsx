@@ -21,6 +21,7 @@ type WorkspaceBranding = {
   report_footer?: string | null;
   font_family?: string | null;
   highlight_colour?: string | null;
+  dark_button_colour?: string | null;
 };
 
 const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
@@ -37,6 +38,7 @@ const defaultWorkspaceBranding: WorkspaceBranding = {
   report_footer: "",
   font_family: "",
   highlight_colour: "",
+  dark_button_colour: "",
 };
 
 export default function PlannerPortal() {
@@ -103,6 +105,10 @@ export default function PlannerPortal() {
       highlight_colour:
         data.highlight_colour || data.highlight_color || data.accent_colour || data.accent_color
           ? String(data.highlight_colour ?? data.highlight_color ?? data.accent_colour ?? data.accent_color)
+          : "",
+      dark_button_colour:
+        data.dark_button_colour || data.dark_button_color || data.button_colour || data.button_color
+          ? String(data.dark_button_colour ?? data.dark_button_color ?? data.button_colour ?? data.button_color)
           : "",
     });
   }
