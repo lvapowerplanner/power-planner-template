@@ -386,15 +386,15 @@ function PowerSourceCard({
 
   return (
     <div
-      style={{
-        ...(summary.isAuto ? styles.autoSourceCard : styles.sourceCard),
-        ...(health === "critical"
-          ? styles.cardCritical
-          : health === "warning"
-            ? styles.cardWarning
-            : {}),
-      }}
-    >
+  style={{
+    ...styles.sourceCard,
+    ...(health === "critical"
+      ? styles.cardCritical
+      : health === "warning"
+        ? styles.cardWarning
+        : {}),
+  }}
+>
       <div style={styles.sourceHeader}>
         <div>
           <div style={styles.titleRow}>
@@ -584,12 +584,6 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "16px",
     padding: "16px",
     background: "#F5F7FA",
-  },
-  autoSourceCard: {
-    border: "1px dashed #0BE3FF",
-    borderRadius: "16px",
-    padding: "16px",
-    background: "#E6FBFF",
   },
   cardWarning: {
     borderColor: "#f59e0b",
