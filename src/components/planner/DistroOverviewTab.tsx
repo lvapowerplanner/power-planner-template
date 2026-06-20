@@ -207,7 +207,7 @@ export function DistroOverviewTab({
     <section data-lva-surface style={styles.card}>
       <h2>Distro Overview</h2>
       <p style={styles.muted}>
-        Add distros from the company Supabase library or project custom distros.
+        Add distros from the company library or custom distros built in this project.
       </p>
 
       <div style={styles.addPanel}>

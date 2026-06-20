@@ -154,8 +154,7 @@ export function SystemOverviewTab({
         <div>
           <h2>System Overview</h2>
           <p style={styles.muted}>
-            Power source and distro hierarchy. Three-phase links are red;
-            single-phase links are blue.
+            Overview of the system configuration and project details.
           </p>
         </div>
 
@@ -175,7 +174,7 @@ export function SystemOverviewTab({
         <div>
           <h3 style={styles.projectInfoTitle}>Project Information</h3>
           <p style={styles.projectInfoText}>
-            These details are used in report headers and JSON exports.
+            These details are used in report headers and project exports.
           </p>
         </div>
 

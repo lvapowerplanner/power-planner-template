@@ -260,17 +260,17 @@ export function PlannerShell({
               <h2 style={styles.utilityTitle}>{companyName}</h2>
               <p style={styles.poweredBy}>Powered by LVA Power Planner</p>
               <p style={styles.utilityText}>
-                Export a backup before major edits, or import a planner JSON file to restore or share a system.
+                Export a backup before major edits, or import a planner file to restore or share a system.
               </p>
             </div>
           </div>
 
           <div style={styles.utilityActions}>
             <button style={styles.secondaryButton} onClick={requestImportPlannerJson}>
-              Import JSON
+              Import Project
             </button>
             <button style={styles.primaryButton} onClick={exportPlannerJson}>
-              Export JSON
+              Export Project
             </button>
           </div>
 

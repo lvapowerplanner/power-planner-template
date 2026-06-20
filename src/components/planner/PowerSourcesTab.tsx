@@ -259,7 +259,7 @@ export function PowerSourcesTab({
     <section data-lva-surface style={styles.card}>
       <h2>Power Sources</h2>
       <p style={styles.muted}>
-        Manual sources are venue supplies or generators. Auto sources are created
+        Manual Power Sources are venue power supplies or generators. Auto sources are created
         from distro outputs and show downstream distro loads.
       </p>
 
