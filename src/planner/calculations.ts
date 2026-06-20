@@ -1,4 +1,8 @@
-import type { PlannerOutput, PlannerState, ProjectDistro } from "@/planner/types";
+import type {
+  PlannerOutput,
+  PlannerState,
+  ProjectDistro,
+} from "@/planner/types";
 
 export type PhaseLoads = {
   L1: number;
@@ -91,7 +95,7 @@ export function phaseLoadTotal(loads: PhaseLoads): number {
 export function outputOwnWatts(output: PlannerOutput): number {
   return output.items.reduce(
     (total, item) => total + item.watts * item.quantity,
-    0
+    0,
   );
 }
 
@@ -114,25 +118,32 @@ export function outputOwnPhaseLoads(output: PlannerOutput): PhaseLoads {
 export function socapexOutputPhaseLoads(output: PlannerOutput): PhaseLoads {
   return (output.socaCircuits ?? []).reduce<PhaseLoads>(
     (total, socket) => addPhaseLoads(total, outputOwnPhaseLoads(socket)),
-    createEmptyPhaseLoads()
+    createEmptyPhaseLoads(),
   );
 }
 
 export function socapexOutputWatts(output: PlannerOutput): number {
   return (output.socaCircuits ?? []).reduce<number>(
     (total, socket) => total + outputOwnWatts(socket),
-    0
+    0,
   );
 }
 
-export function outputDisplayName(output: PlannerOutput, index: number): string {
+export function outputDisplayName(
+  output: PlannerOutput,
+  index: number,
+): string {
   if (output.displayName) return output.displayName;
-  if (output.phase === "Socapex") return `Soca ${output.outputNumber ?? index + 1}`;
+  if (output.phase === "Socapex")
+    return `Soca ${output.outputNumber ?? index + 1}`;
   if (output.phase === "3Φ") return `${index + 1} - ${output.rating}/3`;
   return `${index + 1} - ${output.rating}a`;
 }
 
-export function displayDistroName(distro: { instanceName: string; name: string }): string {
+export function displayDistroName(distro: {
+  instanceName: string;
+  name: string;
+}): string {
   return distro.instanceName.trim()
     ? `${distro.instanceName} - ${distro.name}`
     : distro.name;
@@ -141,7 +152,7 @@ export function displayDistroName(distro: { instanceName: string; name: string }
 export function childDistroFedFromOutput(
   plannerState: PlannerState,
   parentDistroId: string,
-  outputId: string
+  outputId: string,
 ): ProjectDistro | undefined {
   const sourceId = autoSourceId(parentDistroId, outputId);
 
@@ -150,10 +161,12 @@ export function childDistroFedFromOutput(
 
 export function childDistrosForDistro(
   plannerState: PlannerState,
-  distro: ProjectDistro
+  distro: ProjectDistro,
 ): ProjectDistro[] {
   return distro.outputs
-    .map((output) => childDistroFedFromOutput(plannerState, distro.id, output.id))
+    .map((output) =>
+      childDistroFedFromOutput(plannerState, distro.id, output.id),
+    )
     .filter((distro): distro is ProjectDistro => Boolean(distro));
 }
 
@@ -162,9 +175,13 @@ function childSummaryForOutput(
   parentDistro: ProjectDistro,
   output: PlannerOutput,
   outputIndex: number,
-  visited: Set<string>
+  visited: Set<string>,
 ): DistroLoadSummary | null {
-  const child = childDistroFedFromOutput(plannerState, parentDistro.id, output.id);
+  const child = childDistroFedFromOutput(
+    plannerState,
+    parentDistro.id,
+    output.id,
+  );
 
   if (!child || visited.has(child.id)) return null;
 
@@ -177,7 +194,7 @@ function childSummaryForOutput(
 
 function mapChildLoadsOntoParentOutput(
   output: PlannerOutput,
-  childLoads: PhaseLoads
+  childLoads: PhaseLoads,
 ): PhaseLoads {
   if (output.phase === "3Φ") return childLoads;
 
@@ -190,10 +207,9 @@ function mapChildLoadsOntoParentOutput(
   return createEmptyPhaseLoads();
 }
 
-
 function mapSinglePhaseDistroLoadsToFeedPhase(
   feedPhase: PlannerOutput["phase"] | undefined,
-  loads: PhaseLoads
+  loads: PhaseLoads,
 ): PhaseLoads {
   if (feedPhase !== "L1" && feedPhase !== "L2" && feedPhase !== "L3") {
     return loads;
@@ -208,17 +224,19 @@ function mapSinglePhaseDistroLoadsToFeedPhase(
 
 function shouldMapDistroSummaryToFeedPhase(
   distro: ProjectDistro,
-  feedPhase: PlannerOutput["phase"] | undefined
+  feedPhase: PlannerOutput["phase"] | undefined,
 ): boolean {
-  return !isThreePhaseConnection(distro.input) &&
-    (feedPhase === "L1" || feedPhase === "L2" || feedPhase === "L3");
+  return (
+    !isThreePhaseConnection(distro.input) &&
+    (feedPhase === "L1" || feedPhase === "L2" || feedPhase === "L3")
+  );
 }
 
 export function outputPhaseLoads(
   output: PlannerOutput,
   plannerState?: PlannerState,
   parentDistro?: ProjectDistro,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
 ): PhaseLoads {
   let loads = outputOwnPhaseLoads(output);
 
@@ -226,21 +244,28 @@ export function outputPhaseLoads(
     return loads;
   }
 
-  const child = childDistroFedFromOutput(plannerState, parentDistro.id, output.id);
+  const child = childDistroFedFromOutput(
+    plannerState,
+    parentDistro.id,
+    output.id,
+  );
 
   if (!child || visited.has(child.id)) {
     return loads;
   }
 
   const childLoads = distroPhaseLoads(child, plannerState, new Set(visited));
-  return addPhaseLoads(loads, mapChildLoadsOntoParentOutput(output, childLoads));
+  return addPhaseLoads(
+    loads,
+    mapChildLoadsOntoParentOutput(output, childLoads),
+  );
 }
 
 export function outputWatts(
   output: PlannerOutput,
   plannerState?: PlannerState,
   parentDistro?: ProjectDistro,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
 ): number {
   const ownWatts = outputOwnWatts(output);
 
@@ -248,7 +273,11 @@ export function outputWatts(
     return ownWatts;
   }
 
-  const child = childDistroFedFromOutput(plannerState, parentDistro.id, output.id);
+  const child = childDistroFedFromOutput(
+    plannerState,
+    parentDistro.id,
+    output.id,
+  );
 
   if (!child || visited.has(child.id)) {
     return ownWatts;
@@ -270,7 +299,7 @@ export function distroOwnPhaseLoads(distro: ProjectDistro): PhaseLoads {
 export function distroPhaseLoads(
   distro: ProjectDistro,
   plannerState?: PlannerState,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
 ): PhaseLoads {
   if (visited.has(distro.id)) return createEmptyPhaseLoads();
 
@@ -284,7 +313,7 @@ export function distroPhaseLoads(
 
     return addPhaseLoads(
       total,
-      outputPhaseLoads(output, plannerState, distro, nextVisited)
+      outputPhaseLoads(output, plannerState, distro, nextVisited),
     );
   }, createEmptyPhaseLoads());
 }
@@ -302,7 +331,7 @@ export function distroOwnWatts(distro: ProjectDistro): number {
 export function distroWatts(
   distro: ProjectDistro,
   plannerState?: PlannerState,
-  visited: Set<string> = new Set()
+  visited: Set<string> = new Set(),
 ): number {
   if (visited.has(distro.id)) return 0;
 
@@ -339,7 +368,7 @@ export function validateOutput(
   output: PlannerOutput,
   context: string,
   plannerState?: PlannerState,
-  parentDistro?: ProjectDistro
+  parentDistro?: ProjectDistro,
 ): ValidationIssue[] {
   if (output.phase === "Socapex") return [];
 
@@ -358,9 +387,9 @@ export function validateOutput(
   }
 
   const warningThreshold =
-  output.phase !== "3Φ" && output.rating <= 32 ? 0.95 : 0.8;
+    output.phase !== "3Φ" && output.rating <= 32 ? 0.95 : 0.8;
 
-if (amps > output.rating * warningThreshold) {
+  if (amps > output.rating * warningThreshold) {
     return [
       {
         id: `${output.id}-near-limit`,
@@ -374,22 +403,102 @@ if (amps > output.rating * warningThreshold) {
   return [];
 }
 
+function socapexBreakerPairIssues(
+  distro: ProjectDistro,
+  outputIndexById: Map<string, number>,
+): ValidationIssue[] {
+  const pairedSocapexOutputs = distro.outputs.filter(
+    (output) =>
+      output.phase === "Socapex" && Boolean(output.breakerPair?.trim()),
+  );
+
+  if (pairedSocapexOutputs.length === 0) return [];
+
+  const outputsByBreakerPair = new Map<string, PlannerOutput[]>();
+
+  pairedSocapexOutputs.forEach((output) => {
+    const breakerPair = output.breakerPair?.trim();
+
+    if (!breakerPair) return;
+
+    outputsByBreakerPair.set(breakerPair, [
+      ...(outputsByBreakerPair.get(breakerPair) ?? []),
+      output,
+    ]);
+  });
+
+  const issues: ValidationIssue[] = [];
+
+  outputsByBreakerPair.forEach((outputs, breakerPair) => {
+    if (outputs.length < 2) return;
+
+    const socketsByCircuit = new Map<number, PlannerOutput[]>();
+
+    outputs.forEach((output) => {
+      (output.socaCircuits ?? []).forEach((socket) => {
+        if (typeof socket.circuitNo !== "number") return;
+
+        socketsByCircuit.set(socket.circuitNo, [
+          ...(socketsByCircuit.get(socket.circuitNo) ?? []),
+          socket,
+        ]);
+      });
+    });
+
+    socketsByCircuit.forEach((sockets, circuitNo) => {
+      if (sockets.length < 2) return;
+
+      const amps = wattsToAmps(
+        sockets.reduce((total, socket) => total + outputOwnWatts(socket), 0),
+      );
+      const rating = Math.min(...sockets.map((socket) => socket.rating || 16));
+      const outputNames = outputs
+        .map((output) =>
+          outputDisplayName(output, outputIndexById.get(output.id) ?? 0),
+        )
+        .join(" + ");
+      const context = `${displayDistroName(distro)} / ${outputNames} / shared circuit ${circuitNo}`;
+
+      if (amps > rating) {
+        issues.push({
+          id: `${distro.id}-soca-breaker-${breakerPair}-${circuitNo}-overload`,
+          severity: "critical",
+          context,
+          message: `${context} shared breaker is overloaded: ${formatAmps(amps)} / ${formatAmps(rating)}.`,
+        });
+      } else if (amps > rating * 0.95) {
+        issues.push({
+          id: `${distro.id}-soca-breaker-${breakerPair}-${circuitNo}-near-limit`,
+          severity: "warning",
+          context,
+          message: `${context} shared breaker is near capacity: ${formatAmps(amps)} / ${formatAmps(rating)}.`,
+        });
+      }
+    });
+  });
+
+  return issues;
+}
+
 export function validateDistro(
   distro: ProjectDistro,
-  plannerState?: PlannerState
+  plannerState?: PlannerState,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
+  const outputIndexById = new Map(
+    distro.outputs.map((output, outputIndex) => [output.id, outputIndex]),
+  );
 
   distro.outputs.forEach((output, outputIndex) => {
     const outputContext = `${displayDistroName(distro)} / ${outputDisplayName(
       output,
-      outputIndex
+      outputIndex,
     )}`;
 
     if (output.phase === "Socapex") {
       (output.socaCircuits ?? []).forEach((socket) => {
         issues.push(
-          ...validateOutput(socket, `${outputContext} / ${socket.label}`)
+          ...validateOutput(socket, `${outputContext} / ${socket.label}`),
         );
       });
       return;
@@ -398,7 +507,7 @@ export function validateDistro(
     issues.push(...validateOutput(output, outputContext, plannerState, distro));
   });
 
-  
+  issues.push(...socapexBreakerPairIssues(distro, outputIndexById));
 
   return issues;
 }
@@ -408,7 +517,7 @@ export function validateSource(
   sourceName: string,
   sourceConnection: string,
   sourceRating: number,
-  loads: PhaseLoads
+  loads: PhaseLoads,
 ): ValidationIssue[] {
   const issues: ValidationIssue[] = [];
 
@@ -425,7 +534,7 @@ export function validateSource(
         severity: "critical",
         context: sourceName,
         message: `${sourceName} ${phase} overloaded: ${formatAmps(
-          amps
+          amps,
         )} / ${formatAmps(sourceRating)}.`,
       });
     } else if (amps > sourceRating * 0.8) {
@@ -434,7 +543,7 @@ export function validateSource(
         severity: "warning",
         context: sourceName,
         message: `${sourceName} ${phase} above 80% capacity: ${formatAmps(
-          amps
+          amps,
         )} / ${formatAmps(sourceRating)}.`,
       });
     }
@@ -449,7 +558,7 @@ export function validateSource(
         severity: "critical",
         context: sourceName,
         message: `Severe phase imbalance on ${sourceName}: ${Math.round(
-          imbalance
+          imbalance,
         )}%.`,
       });
     } else if (imbalance >= 30 && maxPhase(loads) > 5) {
@@ -473,7 +582,7 @@ export function distroLoadSummary(
     outputId: string;
     outputLabel: string;
     outputPhase?: PlannerOutput["phase"];
-  }
+  },
 ): DistroLoadSummary {
   if (visited.has(distro.id)) {
     return {
@@ -504,8 +613,8 @@ export function distroLoadSummary(
             distro,
             output,
             outputIndex,
-            nextVisited
-          )
+            nextVisited,
+          ),
         )
         .filter((child): child is DistroLoadSummary => Boolean(child))
     : [];
@@ -514,13 +623,19 @@ export function distroLoadSummary(
   const localPhaseLoads = distroPhaseLoads(distro, plannerState, visited);
   const shouldMapToFeedPhase = shouldMapDistroSummaryToFeedPhase(
     distro,
-    feedInfo?.outputPhase
+    feedInfo?.outputPhase,
   );
   const ownPhaseLoads = shouldMapToFeedPhase
-    ? mapSinglePhaseDistroLoadsToFeedPhase(feedInfo?.outputPhase, localOwnPhaseLoads)
+    ? mapSinglePhaseDistroLoadsToFeedPhase(
+        feedInfo?.outputPhase,
+        localOwnPhaseLoads,
+      )
     : localOwnPhaseLoads;
   const phaseLoads = shouldMapToFeedPhase
-    ? mapSinglePhaseDistroLoadsToFeedPhase(feedInfo?.outputPhase, localPhaseLoads)
+    ? mapSinglePhaseDistroLoadsToFeedPhase(
+        feedInfo?.outputPhase,
+        localPhaseLoads,
+      )
     : localPhaseLoads;
   const ownWatts = distroOwnWatts(distro);
   const watts = distroWatts(distro, plannerState, visited);
@@ -546,7 +661,9 @@ export function distroLoadSummary(
   };
 }
 
-export function flattenDistroIssues(summary: DistroLoadSummary): ValidationIssue[] {
+export function flattenDistroIssues(
+  summary: DistroLoadSummary,
+): ValidationIssue[] {
   return [
     ...summary.issues,
     ...summary.children.flatMap((child) => flattenDistroIssues(child)),
@@ -557,15 +674,20 @@ function hasManualOrAutoSource(distro: ProjectDistro): boolean {
   return Boolean(distro.sourceId);
 }
 
-function isFedByAnotherDistro(plannerState: PlannerState, distro: ProjectDistro): boolean {
+function isFedByAnotherDistro(
+  plannerState: PlannerState,
+  distro: ProjectDistro,
+): boolean {
   return plannerState.distros.some((parent) =>
     parent.outputs.some(
-      (output) => autoSourceId(parent.id, output.id) === distro.sourceId
-    )
+      (output) => autoSourceId(parent.id, output.id) === distro.sourceId,
+    ),
   );
 }
 
-export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary {
+export function systemLoadSummary(
+  plannerState: PlannerState,
+): SystemLoadSummary {
   const manualSources = plannerState.sources.filter((source) => !source.auto);
 
   const sourceSummaries: SourceLoadSummary[] = manualSources.map((source) => {
@@ -575,12 +697,12 @@ export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary
 
     const phaseLoads = distros.reduce<PhaseLoads>(
       (total, distro) => addPhaseLoads(total, distro.phaseLoads),
-      createEmptyPhaseLoads()
+      createEmptyPhaseLoads(),
     );
 
     const watts = distros.reduce<number>(
       (total, distro) => total + distro.watts,
-      0
+      0,
     );
 
     const sourceIssues = validateSource(
@@ -588,7 +710,7 @@ export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary
       source.name,
       source.conn,
       source.rating,
-      phaseLoads
+      phaseLoads,
     );
 
     return {
@@ -607,7 +729,8 @@ export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary
   const unassignedDistros = plannerState.distros
     .filter(
       (distro) =>
-        !hasManualOrAutoSource(distro) && !isFedByAnotherDistro(plannerState, distro)
+        !hasManualOrAutoSource(distro) &&
+        !isFedByAnotherDistro(plannerState, distro),
     )
     .map((distro) => distroLoadSummary(distro, plannerState));
 
@@ -619,17 +742,17 @@ export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary
       severity: "warning" as const,
       context: displayDistroName(distro.distro),
       message: `${displayDistroName(
-        distro.distro
+        distro.distro,
       )} has no assigned power source.`,
     })),
   ];
 
   const warningCount = issues.filter(
-    (issue) => issue.severity === "warning"
+    (issue) => issue.severity === "warning",
   ).length;
 
   const criticalCount = issues.filter(
-    (issue) => issue.severity === "critical"
+    (issue) => issue.severity === "critical",
   ).length;
 
   return {
@@ -637,18 +760,19 @@ export function systemLoadSummary(plannerState: PlannerState): SystemLoadSummary
     manualPowerSources: manualSources.length,
     connectedWatts: sourceSummaries.reduce<number>(
       (total, source) => total + source.watts,
-      0
+      0,
     ),
     connectedAmps: sourceSummaries.reduce<number>(
       (total, source) => total + source.amps,
-      0
+      0,
     ),
     sourceSummaries,
     unassignedDistros,
     issues,
     warningCount,
     criticalCount,
-    health: criticalCount > 0 ? "critical" : warningCount > 0 ? "warning" : "ok",
+    health:
+      criticalCount > 0 ? "critical" : warningCount > 0 ? "warning" : "ok",
   };
 }
 
