@@ -1042,7 +1042,7 @@ const styles: Record<string, CSSProperties> = {
     border: "1px solid #cbd5e1",
     borderRadius: "14px",
     padding: "12px",
-    background: "var(--lva-report-highlight, #F5F7FA)",
+    background: "#F5F7FA)",
     marginBottom: "16px",
     display: "grid",
     gridTemplateColumns: "1fr 1.1fr 1.4fr",
