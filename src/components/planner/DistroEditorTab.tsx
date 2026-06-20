@@ -77,6 +77,68 @@ function outputUsagePercent(output: PlannerOutput, threePhase = false) {
   return Math.round((amps / output.rating) * 100);
 }
 
+type OutputCapacityOverride = {
+  watts: number;
+  amps: number;
+  rating: number;
+  percent: number;
+  label: string;
+};
+
+function groupedSocapexBreakerOutputs(outputs: PlannerOutput[]) {
+  const groups = new Map<string, PlannerOutput[]>();
+
+  outputs.forEach((output) => {
+    const breakerPair = output.breakerPair?.trim();
+
+    if (!breakerPair) return;
+
+    groups.set(breakerPair, [...(groups.get(breakerPair) ?? []), output]);
+  });
+
+  return Array.from(groups.entries())
+    .map(([breakerPair, pairedOutputs]) => ({
+      breakerPair,
+      outputs: pairedOutputs.sort(
+        (a, b) => (a.outputNumber ?? 0) - (b.outputNumber ?? 0)
+      ),
+    }))
+    .filter((group) => group.outputs.length > 1);
+}
+
+function sharedSocapexBreakerCapacity(
+  breakerPair: string,
+  pairedOutputs: PlannerOutput[],
+  socket: PlannerOutput
+): OutputCapacityOverride | undefined {
+  if (!socket.circuitNo) return undefined;
+
+  const pairedSockets = pairedOutputs.flatMap((output) =>
+    (output.socaCircuits ?? []).filter(
+      (candidate) =>
+        candidate.phase === socket.phase &&
+        candidate.circuitNo === socket.circuitNo
+    )
+  );
+
+  if (pairedSockets.length < 2) return undefined;
+
+  const watts = pairedSockets.reduce(
+    (total, pairedSocket) => total + outputWatts(pairedSocket),
+    0
+  );
+  const amps = watts / 230;
+  const rating = socket.rating || 16;
+
+  return {
+    watts,
+    amps,
+    rating,
+    percent: rating ? Math.round((amps / rating) * 100) : 0,
+    label: `Shared breaker ${breakerPair} · Circuit ${socket.circuitNo}`,
+  };
+}
+
 function formatWatts(value: number) {
   return `${Math.round(value).toLocaleString()} W`;
 }
@@ -938,6 +1000,16 @@ function moveAssignedItemToSocapexSocket(
     (output) => output.phase === "Socapex"
   );
 
+  const pairedSocapexGroups = groupedSocapexBreakerOutputs(socapexOutputs);
+  const pairedSocapexOutputIds = new Set(
+    pairedSocapexGroups.flatMap((group) =>
+      group.outputs.map((output) => output.id)
+    )
+  );
+  const standardSocapexOutputs = socapexOutputs.filter(
+    (output) => !pairedSocapexOutputIds.has(output.id)
+  );
+
   const threePhaseOutputs = activeDistro.outputs.filter(
     (output) => output.phase === "3Φ"
   );
@@ -1224,7 +1296,139 @@ function moveAssignedItemToSocapexSocket(
             <h3 style={styles.sectionTitle}>Socapex Outputs</h3>
 
             <div style={styles.socapexList}>
-              {socapexOutputs.map((output) => {
+              {pairedSocapexGroups.map((group) => (
+                <div key={group.breakerPair} style={styles.pairedSocapexGroup}>
+                  <div style={styles.pairedSocapexHeader}>
+                    <div>
+                      <strong>Shared Breaker Pair {group.breakerPair}</strong>
+                      <p style={styles.muted}>
+                        Matching Socapex circuit numbers in this pair share one 16A breaker.
+                      </p>
+                    </div>
+                    <span style={styles.pill}>Linked capacity</span>
+                  </div>
+
+                  <div style={styles.pairedSocapexOutputs}>
+                    {group.outputs.map((output) => {
+                      const outputIndex = activeDistro.outputs.findIndex(
+                        (item) => item.id === output.id
+                      );
+
+                      return (
+                        <div key={output.id} style={styles.socapexCard}>
+                          <div style={styles.outputHeader}>
+                            <strong>{outputTitle(output, outputIndex)}</strong>
+                            <span style={styles.pill}>Socapex</span>
+                          </div>
+
+                          {output.detail && <p style={styles.muted}>{output.detail}</p>}
+
+                          <label style={styles.smallLabel}>
+                            Socapex Output Notes
+                            <textarea
+                              style={styles.smallTextarea}
+                              value={output.notes ?? ""}
+                              onChange={(event) =>
+                                updateOutputNotes(output.id, event.target.value)
+                              }
+                            />
+                          </label>
+
+                          <div style={styles.socapexSocketGrid}>
+                            {(["L1", "L2", "L3"] as const).map((phase) => {
+                              const sockets = (output.socaCircuits ?? [])
+                                .filter((socket) => socket.phase === phase)
+                                .sort(
+                                  (a, b) => (a.circuitNo ?? 0) - (b.circuitNo ?? 0)
+                                );
+
+                              return (
+                                <div key={phase} style={styles.socapexPhaseColumn}>
+                                  <h4 style={styles.phaseTitle}>{phase}</h4>
+
+                                  <div style={styles.outputList}>
+                                    {sockets.map((socket) => (
+                                      <OutputCard
+                                        key={socket.id}
+                                        output={socket}
+                                        title={socapexSocketTitle(socket)}
+                                        equipmentOptions={equipmentOptions}
+                                        compatibleDownstreamDistros={[]}
+                                        currentFedDistroId=""
+                                        capacityOverride={sharedSocapexBreakerCapacity(
+                                          group.breakerPair,
+                                          group.outputs,
+                                          socket
+                                        )}
+                                        onFeedDistro={() => undefined}
+                                        onDrop={(event) =>
+                                          handleSocapexSocketDrop(
+                                            event,
+                                            output.id,
+                                            socket.id
+                                          )
+                                        }
+                                        addEquipment={(equipmentId) =>
+                                          addEquipmentToSocapexSocket(
+                                            output.id,
+                                            socket.id,
+                                            equipmentId
+                                          )
+                                        }
+                                        updateQuantity={(itemId, quantity) =>
+                                          updateSocapexSocketItemQuantity(
+                                            output.id,
+                                            socket.id,
+                                            itemId,
+                                            quantity
+                                          )
+                                        }
+                                        updateItemNotes={(itemId, notes) =>
+                                          updateSocapexSocketItemNotes(
+                                            output.id,
+                                            socket.id,
+                                            itemId,
+                                            notes
+                                          )
+                                        }
+                                        onAssignedItemDragStart={(event, itemId) =>
+                                          handleAssignedItemDragStart(
+                                            event,
+                                            itemId,
+                                            socket.id,
+                                            output.id
+                                          )
+                                        }
+                                        onAssignedItemDragEnd={handleDragEnd}
+                                        removeItem={(itemId) =>
+                                          removeSocapexSocketItem(
+                                            output.id,
+                                            socket.id,
+                                            itemId
+                                          )
+                                        }
+                                        updateNotes={(notes) =>
+                                          updateSocapexSocketNotes(
+                                            output.id,
+                                            socket.id,
+                                            notes
+                                          )
+                                        }
+                                      />
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+
+              {standardSocapexOutputs.map((output) => {
                 const outputIndex = activeDistro.outputs.findIndex(
                   (item) => item.id === output.id
                 );
@@ -1295,10 +1499,10 @@ function moveAssignedItemToSocapexSocket(
                                   }
                                   updateItemNotes={(itemId, notes) =>
                                     updateSocapexSocketItemNotes(
-                                        output.id,
-                                        socket.id,
-                                        itemId,
-                                        notes
+                                      output.id,
+                                      socket.id,
+                                      itemId,
+                                      notes
                                     )
                                   }
                                   onAssignedItemDragStart={(event, itemId) =>
@@ -1457,6 +1661,7 @@ type OutputCardProps = {
   compatibleDownstreamDistros: ProjectDistro[];
   currentFedDistroId: string;
   threePhase?: boolean;
+  capacityOverride?: OutputCapacityOverride;
   onFeedDistro: (distroId: string) => void;
   onDrop: (event: DragEvent) => void;
   addEquipment: (equipmentId: string) => void;
@@ -1475,6 +1680,7 @@ function OutputCard({
   compatibleDownstreamDistros,
   currentFedDistroId,
   threePhase = false,
+  capacityOverride,
   onFeedDistro,
   onDrop,
   addEquipment,
@@ -1488,9 +1694,12 @@ function OutputCard({
   const watts = outputWatts(output);
   const amps = outputAmps(output);
   const phaseAmps = threePhaseAmps(output);
-  const usagePercent = outputUsagePercent(output, threePhase);
-  const overloaded = usagePercent > 100;
-  const nearLimit = usagePercent >= 95;
+  const ownUsagePercent = outputUsagePercent(output, threePhase);
+  const capacityPercent = capacityOverride?.percent ?? ownUsagePercent;
+  const capacityAmps = capacityOverride?.amps ?? (threePhase ? phaseAmps : amps);
+  const capacityRating = capacityOverride?.rating ?? output.rating;
+  const overloaded = capacityPercent > 100;
+  const nearLimit = capacityPercent >= 95;
 
   return (
     <div
@@ -1513,13 +1722,15 @@ function OutputCard({
         Load {formatWatts(watts)} ·{" "}
         {threePhase
           ? `${formatAmps(phaseAmps)} per phase`
-          : `${formatAmps(amps)}`}{" "}
-        / {output.rating}A
+          : `${formatAmps(amps)}`}
+        {capacityOverride
+          ? ` · Shared ${formatAmps(capacityAmps)} / ${capacityRating}A`
+          : ` / ${output.rating}A`}
       </p>
 
       <div style={styles.capacityBlock}>
         <div style={styles.capacityHeader}>
-          <strong>{usagePercent}%</strong>
+          <strong>{capacityPercent}%</strong>
           <span>
             {overloaded
               ? "Overloaded"
@@ -1529,11 +1740,15 @@ function OutputCard({
           </span>
         </div>
 
+        {capacityOverride && (
+          <p style={styles.sharedCapacityLabel}>{capacityOverride.label}</p>
+        )}
+
         <div style={styles.capacityMeter}>
           <div
             style={{
               ...styles.capacityFill,
-              width: `${Math.min(usagePercent, 100)}%`,
+              width: `${Math.min(capacityPercent, 100)}%`,
               background: overloaded
                 ? "#E5484D"
                 : nearLimit
@@ -1946,6 +2161,11 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: "12px",
     marginBottom: "5px",
   },
+  sharedCapacityLabel: {
+    margin: "0 0 5px",
+    color: "#667085",
+    fontSize: "11px",
+  },
   capacityMeter: {
     height: "9px",
     borderRadius: "999px",
@@ -2001,6 +2221,24 @@ const styles: Record<string, React.CSSProperties> = {
   socapexList: {
     display: "grid",
     gap: "14px",
+  },
+  pairedSocapexGroup: {
+    border: "1px solid #DCE5EC",
+    borderRadius: "16px",
+    padding: "14px",
+    background: "#F5F7FA",
+  },
+  pairedSocapexHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    alignItems: "flex-start",
+    marginBottom: "12px",
+  },
+  pairedSocapexOutputs: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "12px",
   },
   socapexCard: {
     border: "1px solid #DCE5EC",
