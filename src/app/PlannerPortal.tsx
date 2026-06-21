@@ -24,10 +24,22 @@ type WorkspaceBranding = {
   dark_button_colour?: string | null;
 };
 
+type MfaMode = "none" | "enroll" | "challenge";
+
+type MfaEnrollment = {
+  factorId: string;
+  qrCode: string;
+  secret: string;
+};
+
 const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
 
 function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
   return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
+}
+
+function qrCodeDataUrl(qrCode: string) {
+  return `data:image/svg+xml;utf8,${encodeURIComponent(qrCode)}`;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -60,6 +72,12 @@ export default function PlannerPortal() {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [workspaceBranding, setWorkspaceBranding] = useState<WorkspaceBranding>(defaultWorkspaceBranding);
+  const [mfaMode, setMfaMode] = useState<MfaMode>("none");
+  const [mfaCode, setMfaCode] = useState("");
+  const [mfaFactorId, setMfaFactorId] = useState("");
+  const [mfaEnrollment, setMfaEnrollment] = useState<MfaEnrollment | null>(null);
+  const [mfaMessage, setMfaMessage] = useState("");
+  const [mfaLoading, setMfaLoading] = useState(false);
 
   function currentSubdomain() {
     if (typeof window === "undefined") return "";
@@ -71,6 +89,10 @@ export default function PlannerPortal() {
     }
 
     return host.split(".")[0] ?? "";
+  }
+
+  function mfaRequiredForCurrentWorkspace() {
+    return currentSubdomain() === "demo";
   }
 
   async function loadWorkspaceBranding() {
@@ -126,6 +148,12 @@ export default function PlannerPortal() {
     setIsPasswordRecovery(false);
     setNewPassword("");
     setConfirmPassword("");
+    setMfaMode("none");
+    setMfaCode("");
+    setMfaFactorId("");
+    setMfaEnrollment(null);
+    setMfaMessage("");
+    setMfaLoading(false);
     setAccessMessage(message);
   }
 
@@ -167,10 +195,95 @@ export default function PlannerPortal() {
     return true;
   }
 
+  async function beginMfaEnrollment() {
+    setMfaLoading(true);
+    setMfaMessage("");
+    setMfaCode("");
+
+    const { data, error } = await supabase.auth.mfa.enroll({
+      factorType: "totp",
+      friendlyName: "LVA Power Planner",
+    });
+
+    setMfaLoading(false);
+
+    if (error) {
+      setMfaMessage(error.message);
+      return false;
+    }
+
+    setMfaEnrollment({
+      factorId: data.id,
+      qrCode: data.totp.qr_code,
+      secret: data.totp.secret,
+    });
+    setMfaFactorId(data.id);
+    setMfaMode("enroll");
+    return true;
+  }
+
+  async function prepareMandatoryMfa(currentUser: User) {
+    if (!mfaRequiredForCurrentWorkspace()) {
+      setMfaMode("none");
+      return true;
+    }
+
+    const { data: aal, error: aalError } =
+      await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
+
+    if (aalError) {
+      setUser(currentUser);
+      setMfaMode("challenge");
+      setMfaMessage(aalError.message);
+      return false;
+    }
+
+    if (aal.currentLevel === "aal2") {
+      setMfaMode("none");
+      setMfaCode("");
+      setMfaFactorId("");
+      setMfaEnrollment(null);
+      setMfaMessage("");
+      return true;
+    }
+
+    const { data: factors, error: factorsError } =
+      await supabase.auth.mfa.listFactors();
+
+    if (factorsError) {
+      setUser(currentUser);
+      setMfaMode("challenge");
+      setMfaMessage(factorsError.message);
+      return false;
+    }
+
+    const verifiedTotpFactors = (factors.totp ?? []).filter(
+      (factor) => factor.status === "verified",
+    );
+
+    setUser(currentUser);
+
+    if (verifiedTotpFactors.length > 0) {
+      setMfaFactorId(verifiedTotpFactors[0].id);
+      setMfaEnrollment(null);
+      setMfaMode("challenge");
+      setMfaCode("");
+      setMfaMessage("Enter the 6-digit code from your authenticator app.");
+      return false;
+    }
+
+    await beginMfaEnrollment();
+    return false;
+  }
+
   async function approveAndLoadUser(currentUser: User) {
     const allowed = await checkWorkspaceAccess(currentUser);
 
     if (!allowed) return;
+
+    const mfaApproved = await prepareMandatoryMfa(currentUser);
+
+    if (!mfaApproved) return;
 
     setUser(currentUser);
     await loadProjects(currentUser);
@@ -262,6 +375,60 @@ export default function PlannerPortal() {
     }
 
     alert("Password updated successfully.");
+  }
+
+  async function verifyMfaCode() {
+    const cleanCode = mfaCode.trim().replace(/\s+/g, "");
+
+    if (!cleanCode) {
+      setMfaMessage("Please enter the 6-digit authenticator code.");
+      return;
+    }
+
+    const factorId = mfaMode === "enroll" ? mfaEnrollment?.factorId : mfaFactorId;
+
+    if (!factorId) {
+      setMfaMessage("No MFA factor was found. Please sign in again.");
+      return;
+    }
+
+    setMfaLoading(true);
+    setMfaMessage("");
+
+    const { data: challengeData, error: challengeError } =
+      await supabase.auth.mfa.challenge({ factorId });
+
+    if (challengeError) {
+      setMfaLoading(false);
+      setMfaMessage(challengeError.message);
+      return;
+    }
+
+    const { error: verifyError } = await supabase.auth.mfa.verify({
+      factorId,
+      challengeId: challengeData.id,
+      code: cleanCode,
+    });
+
+    setMfaLoading(false);
+
+    if (verifyError) {
+      setMfaMessage(verifyError.message);
+      return;
+    }
+
+    setMfaCode("");
+    setMfaMode("none");
+    setMfaEnrollment(null);
+    setMfaFactorId("");
+    setMfaMessage("");
+
+    const { data } = await supabase.auth.getUser();
+    const currentUser = data.user ?? user;
+
+    if (currentUser) {
+      await approveAndLoadUser(currentUser);
+    }
   }
 
   async function signOut() {
@@ -512,6 +679,23 @@ export default function PlannerPortal() {
     );
   }
 
+  if (mfaMode !== "none") {
+    return (
+      <MfaGate
+        mode={mfaMode}
+        code={mfaCode}
+        setCode={setMfaCode}
+        enrollment={mfaEnrollment}
+        message={mfaMessage}
+        loading={mfaLoading}
+        verifyCode={verifyMfaCode}
+        restartEnrollment={beginMfaEnrollment}
+        signOut={signOut}
+        workspaceBranding={workspaceBranding}
+      />
+    );
+  }
+
   if (isPasswordRecovery) {
     return (
       <main style={{ ...styles.passwordPage, fontFamily: workspaceFontFamily(workspaceBranding) }}>
@@ -582,7 +766,221 @@ export default function PlannerPortal() {
   );
 }
 
+function MfaGate({
+  mode,
+  code,
+  setCode,
+  enrollment,
+  message,
+  loading,
+  verifyCode,
+  restartEnrollment,
+  signOut,
+  workspaceBranding,
+}: {
+  mode: MfaMode;
+  code: string;
+  setCode: (value: string) => void;
+  enrollment: MfaEnrollment | null;
+  message: string;
+  loading: boolean;
+  verifyCode: () => void;
+  restartEnrollment: () => void;
+  signOut: () => void;
+  workspaceBranding: WorkspaceBranding;
+}) {
+  const companyName = workspaceBranding.company_name || "LVA Power Planner";
+  const isEnrollment = mode === "enroll";
+
+  return (
+    <main style={{ ...styles.mfaPage, fontFamily: workspaceFontFamily(workspaceBranding) }}>
+      <section style={styles.mfaCard}>
+        {workspaceBranding.logo_url && (
+          <img
+            src={workspaceBranding.logo_url}
+            alt={`${companyName} logo`}
+            style={styles.mfaLogo}
+          />
+        )}
+
+        <h1 style={styles.mfaTitle}>
+          {isEnrollment ? "Set Up 2FA" : "Two-Factor Authentication"}
+        </h1>
+        <p style={styles.mfaText}>
+          {isEnrollment
+            ? "Two-factor authentication is required on the demo workspace while this feature is being tested. Scan the QR code using Google Authenticator, Microsoft Authenticator or another TOTP app, then enter the 6-digit code."
+            : "Two-factor authentication is required on the demo workspace. Enter the 6-digit code from your authenticator app to continue."}
+        </p>
+
+        {isEnrollment && enrollment?.qrCode && (
+          <div style={styles.qrPanel}>
+            <img
+              src={qrCodeDataUrl(enrollment.qrCode)}
+              alt="Authenticator app QR code"
+              style={styles.qrCode}
+            />
+            <p style={styles.mfaSmallText}>Manual setup key:</p>
+            <code style={styles.secretCode}>{enrollment.secret}</code>
+          </div>
+        )}
+
+        {isEnrollment && !enrollment && (
+          <div style={styles.qrPanel}>
+            <p style={styles.mfaText}>Preparing authenticator setup…</p>
+            <button
+              style={styles.mfaSecondaryButton}
+              onClick={restartEnrollment}
+              disabled={loading}
+            >
+              Retry Setup
+            </button>
+          </div>
+        )}
+
+        <label style={styles.mfaLabel}>
+          Authenticator Code
+          <input
+            style={styles.mfaInput}
+            value={code}
+            onChange={(event) => setCode(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") verifyCode();
+            }}
+            inputMode="numeric"
+            autoComplete="one-time-code"
+            placeholder="123456"
+          />
+        </label>
+
+        {message && <p style={styles.mfaMessage}>{message}</p>}
+
+        <div style={styles.mfaActions}>
+          <button style={styles.mfaButton} onClick={verifyCode} disabled={loading}>
+            {loading ? "Checking…" : isEnrollment ? "Enable 2FA" : "Verify Code"}
+          </button>
+          <button style={styles.mfaLinkButton} onClick={signOut} disabled={loading}>
+            Sign Out
+          </button>
+        </div>
+      </section>
+    </main>
+  );
+}
+
 const styles: Record<string, React.CSSProperties> = {
+  mfaPage: {
+    minHeight: "100vh",
+    padding: "40px",
+    color: "#000000",
+    background: "#f5f7fb",
+  },
+  mfaCard: {
+    maxWidth: "480px",
+    margin: "0 auto",
+    background: "white",
+    padding: "24px",
+    borderRadius: "14px",
+    border: "1px solid #d9e0ea",
+  },
+  mfaLogo: {
+    maxWidth: "150px",
+    maxHeight: "70px",
+    objectFit: "contain",
+    marginBottom: "16px",
+  },
+  mfaTitle: {
+    marginTop: 0,
+  },
+  mfaText: {
+    color: "#000000",
+    lineHeight: 1.5,
+  },
+  mfaSmallText: {
+    margin: "12px 0 6px",
+    color: "#637083",
+    fontSize: "13px",
+  },
+  qrPanel: {
+    margin: "18px 0",
+    padding: "16px",
+    border: "1px solid #d9e0ea",
+    borderRadius: "14px",
+    background: "#F5F7FA",
+    textAlign: "center",
+  },
+  qrCode: {
+    width: "220px",
+    maxWidth: "100%",
+    height: "auto",
+    background: "white",
+    padding: "10px",
+    borderRadius: "10px",
+  },
+  secretCode: {
+    display: "block",
+    padding: "10px",
+    borderRadius: "10px",
+    background: "white",
+    color: "#111827",
+    wordBreak: "break-all",
+    fontSize: "13px",
+  },
+  mfaLabel: {
+    display: "block",
+    marginTop: "12px",
+    marginBottom: "12px",
+  },
+  mfaInput: {
+    width: "100%",
+    padding: "10px",
+    marginTop: "6px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+    fontSize: "18px",
+    letterSpacing: "0.08em",
+  },
+  mfaMessage: {
+    color: "#B42318",
+    background: "#FFF1F1",
+    border: "1px solid #FECACA",
+    borderRadius: "10px",
+    padding: "10px",
+    fontSize: "14px",
+  },
+  mfaActions: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    flexWrap: "wrap",
+    marginTop: "16px",
+  },
+  mfaButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid var(--lva-workspace-dark-button, #172033)",
+    background: "var(--lva-workspace-dark-button, #172033)",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
+  mfaSecondaryButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    color: "#172033",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
+  mfaLinkButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    color: "#172033",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
   passwordPage: {
     minHeight: "100vh",
     padding: "40px",
