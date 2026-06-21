@@ -40,13 +40,32 @@ function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
   return workspaceBranding?.font_family?.trim() || defaultWorkspaceFont;
 }
 
-function cleanMfaLabel(value: string) {
-  return value.trim().replace(/[:?&=#/\\]/g, " ");
+function qrCodeDataUrl(qrCode: string) {
+  const cleanQrCode = qrCode.trim();
+
+  if (cleanQrCode.startsWith("data:")) {
+    return cleanQrCode;
+  }
+
+  if (cleanQrCode.startsWith("<svg")) {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanQrCode)}`;
+  }
+
+  return cleanQrCode;
 }
 
-function mfaFriendlyName() {
-  const randomPart = Math.random().toString(36).slice(2, 10);
-  return `lva-mfa-${Date.now().toString(36)}-${randomPart}`;
+function cleanMfaLabel(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[^a-zA-Z0-9 ._&@:+-]/g, "")
+    .slice(0, 70);
+}
+
+function mfaFriendlyName(userEmail?: string | null) {
+  const cleanEmail = cleanMfaLabel(userEmail ?? "");
+
+  return cleanEmail ? `LVA: ${cleanEmail}` : "LVA Power Planner";
 }
 
 function mfaOtpAuthUri(secret: string, userEmail?: string | null) {
@@ -127,22 +146,25 @@ export default function PlannerPortal() {
 
     if (!host) return false;
 
+    if (host === "localhost" || host === "127.0.0.1") {
+      return true;
+    }
+
     const { data, error } = await supabase
       .from("planner_workspaces")
       .select("require_mfa")
       .eq("host", host)
+      .eq("active", true)
       .maybeSingle();
 
     if (error) {
       console.error("Could not load workspace MFA setting:", error);
-      return true;
-    }
 
-    if (!data) {
+      // Safe fallback while the require_mfa column is being rolled out.
       return currentSubdomain() === "demo";
     }
 
-    return Boolean(data.require_mfa);
+    return Boolean(data?.require_mfa);
   }
 
   async function loadWorkspaceBranding() {
@@ -324,7 +346,7 @@ export default function PlannerPortal() {
     const enrollWithFreshName = () =>
       supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: mfaFriendlyName(),
+        friendlyName: mfaFriendlyName(user?.email),
       });
 
     let enrollmentResult = await enrollWithFreshName();
@@ -373,11 +395,15 @@ export default function PlannerPortal() {
       return false;
     }
 
+    const { data: currentAuthUser } = await supabase.auth.getUser();
+    const mfaAccountEmail =
+      currentAuthUser.user?.email?.trim() || user?.email?.trim() || email.trim();
+
     setMfaEnrollment({
       factorId: enrolledFactor.id,
       qrCode: enrolledFactor.totp.qr_code,
       secret: enrolledFactor.totp.secret,
-      otpAuthUri: mfaOtpAuthUri(enrolledFactor.totp.secret, user?.email),
+      otpAuthUri: mfaOtpAuthUri(enrolledFactor.totp.secret, mfaAccountEmail),
     });
     setMfaFactorId(enrolledFactor.id);
     setMfaMode("enroll");
@@ -954,11 +980,10 @@ export default function PlannerPortal() {
 }
 
 function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
-  const [qrSource, setQrSource] = useState("");
+  const [qrSource, setQrSource] = useState(() => qrCodeDataUrl(enrollment.qrCode));
 
   useEffect(() => {
     let active = true;
-    setQrSource("");
 
     async function buildQrCode() {
       try {
@@ -973,7 +998,7 @@ function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
         }
       } catch {
         if (active) {
-          setQrSource("");
+          setQrSource(qrCodeDataUrl(enrollment.qrCode));
         }
       }
     }
@@ -983,11 +1008,7 @@ function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
     return () => {
       active = false;
     };
-  }, [enrollment.otpAuthUri]);
-
-  if (!qrSource) {
-    return <p style={styles.mfaText}>Preparing QR code…</p>;
-  }
+  }, [enrollment.otpAuthUri, enrollment.qrCode]);
 
   return (
     <img
@@ -1056,7 +1077,7 @@ function MfaGate({
               : "Two-factor authentication is required for this workspace. Enter the 6-digit code from your authenticator app to continue."}
         </p>
 
-        {!isChecking && isEnrollment && enrollment?.otpAuthUri && (
+        {!isChecking && isEnrollment && enrollment?.qrCode && (
           <div style={styles.qrPanel}>
             <MfaQrImage enrollment={enrollment} />
             <p style={styles.mfaSmallText}>Manual setup key:</p>
