@@ -52,9 +52,29 @@ function qrCodeDataUrl(qrCode: string) {
   return cleanQrCode;
 }
 
-function mfaFriendlyName() {
-  const randomPart = Math.random().toString(36).slice(2, 10);
-  return `lva-power-planner-mfa-${Date.now().toString(36)}-${randomPart}`;
+function cleanMfaLabel(value: string) {
+  return value
+    .trim()
+    .replace(/\s+/g, " ")
+    .replace(/[^a-zA-Z0-9 ._&-]/g, "")
+    .slice(0, 42);
+}
+
+function mfaFriendlyName(
+  workspaceBranding?: WorkspaceBranding,
+  subdomain = "",
+) {
+  const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase();
+  const workspaceName = cleanMfaLabel(workspaceBranding?.company_name ?? "");
+  const workspaceSubdomain = cleanMfaLabel(subdomain);
+  const labelBase =
+    workspaceName && workspaceName.toLowerCase() !== "lva power planner"
+      ? workspaceName
+      : workspaceSubdomain
+        ? `${workspaceSubdomain}.lvapowerplanner.com`
+        : "LVA Power Planner";
+
+  return `${labelBase} MFA ${randomPart}`;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -320,7 +340,7 @@ export default function PlannerPortal() {
     const enrollWithFreshName = () =>
       supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: mfaFriendlyName(),
+        friendlyName: mfaFriendlyName(workspaceBranding, currentSubdomain()),
       });
 
     let enrollmentResult = await enrollWithFreshName();
