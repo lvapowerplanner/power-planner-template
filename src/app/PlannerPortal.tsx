@@ -54,7 +54,7 @@ function qrCodeDataUrl(qrCode: string) {
 
 function mfaFriendlyName() {
   const randomPart = Math.random().toString(36).slice(2, 10);
-  return `lva-demo-mfa-${Date.now().toString(36)}-${randomPart}`;
+  return `lva-power-planner-mfa-${Date.now().toString(36)}-${randomPart}`;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -109,8 +109,36 @@ export default function PlannerPortal() {
     return host.split(".")[0] ?? "";
   }
 
-  function mfaRequiredForCurrentWorkspace() {
-    return currentSubdomain() === "demo";
+  function currentHost() {
+    if (typeof window === "undefined") return "";
+
+    return window.location.hostname.toLowerCase();
+  }
+
+  async function mfaRequiredForCurrentWorkspace() {
+    const host = currentHost();
+
+    if (!host) return false;
+
+    if (host === "localhost" || host === "127.0.0.1") {
+      return true;
+    }
+
+    const { data, error } = await supabase
+      .from("planner_workspaces")
+      .select("require_mfa")
+      .eq("host", host)
+      .eq("active", true)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Could not load workspace MFA setting:", error);
+
+      // Safe fallback while the require_mfa column is being rolled out.
+      return currentSubdomain() === "demo";
+    }
+
+    return Boolean(data?.require_mfa);
   }
 
   async function loadWorkspaceBranding() {
@@ -357,7 +385,9 @@ export default function PlannerPortal() {
   }
 
   async function prepareMandatoryMfa(currentUser: User) {
-    if (!mfaRequiredForCurrentWorkspace()) {
+    const mfaRequired = await mfaRequiredForCurrentWorkspace();
+
+    if (!mfaRequired) {
       setMfaMode("none");
       setMfaLoading(false);
       return true;
@@ -970,10 +1000,10 @@ function MfaGate({
         </h1>
         <p style={styles.mfaText}>
           {isChecking
-            ? "Two-factor authentication is required on the demo workspace. Please wait while we check your account status."
+            ? "Two-factor authentication is required for this workspace. Please wait while we check your account status."
             : isEnrollment
-              ? "Two-factor authentication is required on the demo workspace while this feature is being tested. Scan the QR code using Google Authenticator, Microsoft Authenticator or another TOTP app, then enter the 6-digit code."
-              : "Two-factor authentication is required on the demo workspace. Enter the 6-digit code from your authenticator app to continue."}
+              ? "Two-factor authentication is required for this workspace. Scan the QR code using Google Authenticator, Microsoft Authenticator or another TOTP app, then enter the 6-digit code."
+              : "Two-factor authentication is required for this workspace. Enter the 6-digit code from your authenticator app to continue."}
         </p>
 
         {!isChecking && isEnrollment && enrollment?.qrCode && (
