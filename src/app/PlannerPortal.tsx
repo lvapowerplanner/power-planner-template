@@ -52,6 +52,10 @@ function qrCodeDataUrl(qrCode: string) {
   return cleanQrCode;
 }
 
+function mfaFriendlyName() {
+  return `LVA Power Planner ${Date.now().toString(36)}`;
+}
+
 const defaultWorkspaceBranding: WorkspaceBranding = {
   subdomain: "",
   company_name: "LVA Power Planner",
@@ -240,17 +244,22 @@ export default function PlannerPortal() {
       (factor) => factor.status !== "verified",
     );
 
+    const cleanupErrors: string[] = [];
+
     for (const factor of unverifiedTotpFactors) {
       const { error: unenrollError } = await supabase.auth.mfa.unenroll({
         factorId: factor.id,
       });
 
       if (unenrollError) {
-        return { error: unenrollError };
+        cleanupErrors.push(unenrollError.message);
       }
     }
 
-    return { error: null };
+    return {
+      error: null,
+      cleanupErrors,
+    };
   }
 
   async function beginMfaEnrollment() {
@@ -266,10 +275,21 @@ export default function PlannerPortal() {
       return false;
     }
 
-    const { data, error } = await supabase.auth.mfa.enroll({
-      factorType: "totp",
-      friendlyName: "LVA Power Planner",
-    });
+    const enrollWithFreshName = () =>
+      supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: mfaFriendlyName(),
+      });
+
+    let { data, error } = await enrollWithFreshName();
+
+    if (error && error.message.toLowerCase().includes("already exists")) {
+      // An interrupted setup can leave an unverified factor behind. Use a fresh
+      // friendly name rather than blocking the user on the stale factor.
+      const retry = await enrollWithFreshName();
+      data = retry.data;
+      error = retry.error;
+    }
 
     setMfaLoading(false);
 
@@ -303,6 +323,11 @@ export default function PlannerPortal() {
       return false;
     }
 
+    if (!data?.id || !data.totp?.qr_code || !data.totp?.secret) {
+      setMfaMessage("Could not create a 2FA setup. Please try again.");
+      return false;
+    }
+
     setMfaEnrollment({
       factorId: data.id,
       qrCode: data.totp.qr_code,
@@ -310,6 +335,11 @@ export default function PlannerPortal() {
     });
     setMfaFactorId(data.id);
     setMfaMode("enroll");
+    setMfaMessage(
+      cleanup.cleanupErrors?.length
+        ? "A previous incomplete setup was found. Scan this new QR code to continue."
+        : "",
+    );
     return true;
   }
 
