@@ -53,7 +53,8 @@ function qrCodeDataUrl(qrCode: string) {
 }
 
 function mfaFriendlyName() {
-  return `LVA Power Planner ${Date.now().toString(36)}`;
+  const randomPart = Math.random().toString(36).slice(2, 10);
+  return `lva-demo-mfa-${Date.now().toString(36)}-${randomPart}`;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -262,10 +263,23 @@ export default function PlannerPortal() {
     };
   }
 
+  async function abandonPendingMfaEnrollment() {
+    const pendingFactorId =
+      mfaMode === "enroll" ? mfaEnrollment?.factorId || mfaFactorId : "";
+
+    if (pendingFactorId) {
+      await supabase.auth.mfa.unenroll({ factorId: pendingFactorId });
+    }
+
+    await clearUnverifiedTotpFactors();
+  }
+
   async function beginMfaEnrollment() {
     setMfaLoading(true);
     setMfaMessage("");
     setMfaCode("");
+
+    await abandonPendingMfaEnrollment();
 
     const cleanup = await clearUnverifiedTotpFactors();
 
@@ -281,20 +295,17 @@ export default function PlannerPortal() {
         friendlyName: mfaFriendlyName(),
       });
 
-    let { data, error } = await enrollWithFreshName();
+    let enrollmentResult = await enrollWithFreshName();
 
-    if (error && error.message.toLowerCase().includes("already exists")) {
-      // An interrupted setup can leave an unverified factor behind. Use a fresh
-      // friendly name rather than blocking the user on the stale factor.
-      const retry = await enrollWithFreshName();
-      data = retry.data;
-      error = retry.error;
+    if (enrollmentResult.error) {
+      await clearUnverifiedTotpFactors();
+      enrollmentResult = await enrollWithFreshName();
     }
 
     setMfaLoading(false);
 
-    if (error) {
-      const message = error.message.toLowerCase();
+    if (enrollmentResult.error) {
+      const message = enrollmentResult.error.message.toLowerCase();
 
       if (message.includes("already exists")) {
         const { data: factors, error: factorsError } =
@@ -319,21 +330,23 @@ export default function PlannerPortal() {
         }
       }
 
-      setMfaMessage(error.message);
+      setMfaMessage(enrollmentResult.error.message);
       return false;
     }
 
-    if (!data?.id || !data.totp?.qr_code || !data.totp?.secret) {
-      setMfaMessage("Could not create a 2FA setup. Please try again.");
+    const enrolledFactor = enrollmentResult.data;
+
+    if (!enrolledFactor?.id || !enrolledFactor.totp?.qr_code || !enrolledFactor.totp?.secret) {
+      setMfaMessage("Could not prepare 2FA setup. Please sign out and try again.");
       return false;
     }
 
     setMfaEnrollment({
-      factorId: data.id,
-      qrCode: data.totp.qr_code,
-      secret: data.totp.secret,
+      factorId: enrolledFactor.id,
+      qrCode: enrolledFactor.totp.qr_code,
+      secret: enrolledFactor.totp.secret,
     });
-    setMfaFactorId(data.id);
+    setMfaFactorId(enrolledFactor.id);
     setMfaMode("enroll");
     setMfaMessage(
       cleanup.cleanupErrors?.length
@@ -561,6 +574,10 @@ export default function PlannerPortal() {
   }
 
   async function signOut() {
+    if (mfaMode === "enroll") {
+      await abandonPendingMfaEnrollment();
+    }
+
     await supabase.auth.signOut();
     clearSessionState();
   }
