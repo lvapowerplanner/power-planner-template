@@ -229,10 +229,42 @@ export default function PlannerPortal() {
     return true;
   }
 
+  async function clearUnverifiedTotpFactors() {
+    const { data: factors, error } = await supabase.auth.mfa.listFactors();
+
+    if (error) {
+      return { error };
+    }
+
+    const unverifiedTotpFactors = (factors.totp ?? []).filter(
+      (factor) => factor.status !== "verified",
+    );
+
+    for (const factor of unverifiedTotpFactors) {
+      const { error: unenrollError } = await supabase.auth.mfa.unenroll({
+        factorId: factor.id,
+      });
+
+      if (unenrollError) {
+        return { error: unenrollError };
+      }
+    }
+
+    return { error: null };
+  }
+
   async function beginMfaEnrollment() {
     setMfaLoading(true);
     setMfaMessage("");
     setMfaCode("");
+
+    const cleanup = await clearUnverifiedTotpFactors();
+
+    if (cleanup.error) {
+      setMfaLoading(false);
+      setMfaMessage(cleanup.error.message);
+      return false;
+    }
 
     const { data, error } = await supabase.auth.mfa.enroll({
       factorType: "totp",
@@ -242,6 +274,31 @@ export default function PlannerPortal() {
     setMfaLoading(false);
 
     if (error) {
+      const message = error.message.toLowerCase();
+
+      if (message.includes("already exists")) {
+        const { data: factors, error: factorsError } =
+          await supabase.auth.mfa.listFactors();
+
+        if (factorsError) {
+          setMfaMessage(factorsError.message);
+          return false;
+        }
+
+        const verifiedTotpFactor = (factors.totp ?? []).find(
+          (factor) => factor.status === "verified",
+        );
+
+        if (verifiedTotpFactor) {
+          setMfaFactorId(verifiedTotpFactor.id);
+          setMfaEnrollment(null);
+          setMfaMode("challenge");
+          setMfaCode("");
+          setMfaMessage("Enter the 6-digit code from your authenticator app.");
+          return false;
+        }
+      }
+
       setMfaMessage(error.message);
       return false;
     }
