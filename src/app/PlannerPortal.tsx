@@ -71,7 +71,7 @@ function mfaFriendlyName(userEmail?: string | null) {
 function mfaOtpAuthUri(secret: string, userEmail?: string | null) {
   const cleanSecret = secret.replace(/\s+/g, "").trim();
   const cleanEmail = cleanMfaLabel(userEmail ?? "");
-  const accountLabel = cleanEmail ? `LVA: ${cleanEmail}` : "LVA: account";
+  const accountName = cleanEmail || "account";
   const params = new URLSearchParams({
     secret: cleanSecret,
     issuer: "LVA",
@@ -80,7 +80,7 @@ function mfaOtpAuthUri(secret: string, userEmail?: string | null) {
     period: "30",
   });
 
-  return `otpauth://totp/${encodeURIComponent(accountLabel)}?${params.toString()}`;
+  return `otpauth://totp/${encodeURIComponent(`LVA:${accountName}`)}?${params.toString()}`;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -976,10 +976,13 @@ export default function PlannerPortal() {
 }
 
 function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
-  const [qrSource, setQrSource] = useState(() => qrCodeDataUrl(enrollment.qrCode));
+  const [qrSource, setQrSource] = useState("");
+  const [qrError, setQrError] = useState("");
 
   useEffect(() => {
     let active = true;
+    setQrSource("");
+    setQrError("");
 
     async function buildQrCode() {
       try {
@@ -994,7 +997,9 @@ function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
         }
       } catch {
         if (active) {
-          setQrSource(qrCodeDataUrl(enrollment.qrCode));
+          setQrError(
+            "Could not generate the QR code. Use the manual setup key below.",
+          );
         }
       }
     }
@@ -1004,7 +1009,15 @@ function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
     return () => {
       active = false;
     };
-  }, [enrollment.otpAuthUri, enrollment.qrCode]);
+  }, [enrollment.otpAuthUri]);
+
+  if (qrError) {
+    return <p style={styles.mfaSmallText}>{qrError}</p>;
+  }
+
+  if (!qrSource) {
+    return <p style={styles.mfaSmallText}>Preparing QR code…</p>;
+  }
 
   return (
     <img
