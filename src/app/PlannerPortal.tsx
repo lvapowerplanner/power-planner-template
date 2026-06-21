@@ -24,7 +24,7 @@ type WorkspaceBranding = {
   dark_button_colour?: string | null;
 };
 
-type MfaMode = "none" | "enroll" | "challenge";
+type MfaMode = "none" | "checking" | "enroll" | "challenge";
 
 type MfaEnrollment = {
   factorId: string;
@@ -39,7 +39,17 @@ function workspaceFontFamily(workspaceBranding?: WorkspaceBranding) {
 }
 
 function qrCodeDataUrl(qrCode: string) {
-  return `data:image/svg+xml;utf8,${encodeURIComponent(qrCode)}`;
+  const cleanQrCode = qrCode.trim();
+
+  if (cleanQrCode.startsWith("data:")) {
+    return cleanQrCode;
+  }
+
+  if (cleanQrCode.startsWith("<svg")) {
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(cleanQrCode)}`;
+  }
+
+  return cleanQrCode;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -63,19 +73,22 @@ export default function PlannerPortal() {
   const [newProjectName, setNewProjectName] = useState("");
 
   const [activeProject, setActiveProject] = useState<Project | null>(null);
-  const [projectData, setProjectData] =
-    useState<ProjectData>(emptyProjectData);
+  const [projectData, setProjectData] = useState<ProjectData>(emptyProjectData);
 
   const [saveStatus, setSaveStatus] = useState("Not saved yet");
   const [accessMessage, setAccessMessage] = useState("");
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
-  const [workspaceBranding, setWorkspaceBranding] = useState<WorkspaceBranding>(defaultWorkspaceBranding);
+  const [workspaceBranding, setWorkspaceBranding] = useState<WorkspaceBranding>(
+    defaultWorkspaceBranding,
+  );
   const [mfaMode, setMfaMode] = useState<MfaMode>("none");
   const [mfaCode, setMfaCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState("");
-  const [mfaEnrollment, setMfaEnrollment] = useState<MfaEnrollment | null>(null);
+  const [mfaEnrollment, setMfaEnrollment] = useState<MfaEnrollment | null>(
+    null,
+  );
   const [mfaMessage, setMfaMessage] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
 
@@ -123,20 +136,41 @@ export default function PlannerPortal() {
       logo_url: data.logo_url ? String(data.logo_url) : "",
       contact_email: data.contact_email ? String(data.contact_email) : "",
       report_footer: data.report_footer ? String(data.report_footer) : "",
-      font_family: data.font_family || data.font ? String(data.font_family ?? data.font) : "",
+      font_family:
+        data.font_family || data.font
+          ? String(data.font_family ?? data.font)
+          : "",
       highlight_colour:
-        data.highlight_colour || data.highlight_color || data.accent_colour || data.accent_color
-          ? String(data.highlight_colour ?? data.highlight_color ?? data.accent_colour ?? data.accent_color)
+        data.highlight_colour ||
+        data.highlight_color ||
+        data.accent_colour ||
+        data.accent_color
+          ? String(
+              data.highlight_colour ??
+                data.highlight_color ??
+                data.accent_colour ??
+                data.accent_color,
+            )
           : "",
       dark_button_colour:
-        data.dark_button_colour || data.dark_button_color || data.button_colour || data.button_color
-          ? String(data.dark_button_colour ?? data.dark_button_color ?? data.button_colour ?? data.button_color)
+        data.dark_button_colour ||
+        data.dark_button_color ||
+        data.button_colour ||
+        data.button_color
+          ? String(
+              data.dark_button_colour ??
+                data.dark_button_color ??
+                data.button_colour ??
+                data.button_color,
+            )
           : "",
     });
   }
 
   function isGlobalAdmin(currentUser: User) {
-    return currentUser.email?.trim().toLowerCase() === "admin@lvapowerplanner.com";
+    return (
+      currentUser.email?.trim().toLowerCase() === "admin@lvapowerplanner.com"
+    );
   }
 
   function clearSessionState(message = "") {
@@ -225,14 +259,20 @@ export default function PlannerPortal() {
   async function prepareMandatoryMfa(currentUser: User) {
     if (!mfaRequiredForCurrentWorkspace()) {
       setMfaMode("none");
+      setMfaLoading(false);
       return true;
     }
+
+    setUser(currentUser);
+    setMfaMode("checking");
+    setMfaLoading(true);
+    setMfaMessage("Checking two-factor authentication status…");
 
     const { data: aal, error: aalError } =
       await supabase.auth.mfa.getAuthenticatorAssuranceLevel();
 
     if (aalError) {
-      setUser(currentUser);
+      setMfaLoading(false);
       setMfaMode("challenge");
       setMfaMessage(aalError.message);
       return false;
@@ -244,6 +284,7 @@ export default function PlannerPortal() {
       setMfaFactorId("");
       setMfaEnrollment(null);
       setMfaMessage("");
+      setMfaLoading(false);
       return true;
     }
 
@@ -251,7 +292,7 @@ export default function PlannerPortal() {
       await supabase.auth.mfa.listFactors();
 
     if (factorsError) {
-      setUser(currentUser);
+      setMfaLoading(false);
       setMfaMode("challenge");
       setMfaMessage(factorsError.message);
       return false;
@@ -261,7 +302,7 @@ export default function PlannerPortal() {
       (factor) => factor.status === "verified",
     );
 
-    setUser(currentUser);
+    setMfaLoading(false);
 
     if (verifiedTotpFactors.length > 0) {
       setMfaFactorId(verifiedTotpFactors[0].id);
@@ -385,7 +426,8 @@ export default function PlannerPortal() {
       return;
     }
 
-    const factorId = mfaMode === "enroll" ? mfaEnrollment?.factorId : mfaFactorId;
+    const factorId =
+      mfaMode === "enroll" ? mfaEnrollment?.factorId : mfaFactorId;
 
     if (!factorId) {
       setMfaMessage("No MFA factor was found. Please sign in again.");
@@ -511,14 +553,14 @@ export default function PlannerPortal() {
 
     setProjects((currentProjects) =>
       currentProjects.map((project) =>
-        project.id === projectId ? { ...project, name: cleanName } : project
-      )
+        project.id === projectId ? { ...project, name: cleanName } : project,
+      ),
     );
 
     setActiveProject((currentProject) =>
       currentProject?.id === projectId
         ? { ...currentProject, name: cleanName }
-        : currentProject
+        : currentProject,
     );
 
     return true;
@@ -652,7 +694,7 @@ export default function PlannerPortal() {
         } else {
           clearSessionState();
         }
-      }
+      },
     );
 
     return () => {
@@ -698,11 +740,17 @@ export default function PlannerPortal() {
 
   if (isPasswordRecovery) {
     return (
-      <main style={{ ...styles.passwordPage, fontFamily: workspaceFontFamily(workspaceBranding) }}>
+      <main
+        style={{
+          ...styles.passwordPage,
+          fontFamily: workspaceFontFamily(workspaceBranding),
+        }}
+      >
         <section style={styles.passwordCard}>
           <h1>Set New Password</h1>
           <p style={styles.passwordText}>
-            Enter a new password for your {workspaceBranding.company_name || "LVA Power Planner"} account.
+            Enter a new password for your{" "}
+            {workspaceBranding.company_name || "LVA Power Planner"} account.
           </p>
 
           <label style={styles.passwordLabel}>
@@ -790,10 +838,16 @@ function MfaGate({
   workspaceBranding: WorkspaceBranding;
 }) {
   const companyName = workspaceBranding.company_name || "LVA Power Planner";
+  const isChecking = mode === "checking";
   const isEnrollment = mode === "enroll";
 
   return (
-    <main style={{ ...styles.mfaPage, fontFamily: workspaceFontFamily(workspaceBranding) }}>
+    <main
+      style={{
+        ...styles.mfaPage,
+        fontFamily: workspaceFontFamily(workspaceBranding),
+      }}
+    >
       <section style={styles.mfaCard}>
         {workspaceBranding.logo_url && (
           <img
@@ -804,15 +858,21 @@ function MfaGate({
         )}
 
         <h1 style={styles.mfaTitle}>
-          {isEnrollment ? "Set Up 2FA" : "Two-Factor Authentication"}
+          {isChecking
+            ? "Checking 2FA"
+            : isEnrollment
+              ? "Set Up 2FA"
+              : "Two-Factor Authentication"}
         </h1>
         <p style={styles.mfaText}>
-          {isEnrollment
-            ? "Two-factor authentication is required on the demo workspace while this feature is being tested. Scan the QR code using Google Authenticator, Microsoft Authenticator or another TOTP app, then enter the 6-digit code."
-            : "Two-factor authentication is required on the demo workspace. Enter the 6-digit code from your authenticator app to continue."}
+          {isChecking
+            ? "Two-factor authentication is required on the demo workspace. Please wait while we check your account status."
+            : isEnrollment
+              ? "Two-factor authentication is required on the demo workspace while this feature is being tested. Scan the QR code using Google Authenticator, Microsoft Authenticator or another TOTP app, then enter the 6-digit code."
+              : "Two-factor authentication is required on the demo workspace. Enter the 6-digit code from your authenticator app to continue."}
         </p>
 
-        {isEnrollment && enrollment?.qrCode && (
+        {!isChecking && isEnrollment && enrollment?.qrCode && (
           <div style={styles.qrPanel}>
             <img
               src={qrCodeDataUrl(enrollment.qrCode)}
@@ -824,7 +884,7 @@ function MfaGate({
           </div>
         )}
 
-        {isEnrollment && !enrollment && (
+        {!isChecking && isEnrollment && !enrollment && (
           <div style={styles.qrPanel}>
             <p style={styles.mfaText}>Preparing authenticator setup…</p>
             <button
@@ -837,31 +897,47 @@ function MfaGate({
           </div>
         )}
 
-        <label style={styles.mfaLabel}>
-          Authenticator Code
-          <input
-            style={styles.mfaInput}
-            value={code}
-            onChange={(event) => setCode(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key === "Enter") verifyCode();
-            }}
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            placeholder="123456"
-          />
-        </label>
+        {!isChecking && (
+          <label style={styles.mfaLabel}>
+            Authenticator Code
+            <input
+              style={styles.mfaInput}
+              value={code}
+              onChange={(event) => setCode(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") verifyCode();
+              }}
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="123456"
+            />
+          </label>
+        )}
 
         {message && <p style={styles.mfaMessage}>{message}</p>}
 
-        <div style={styles.mfaActions}>
-          <button style={styles.mfaButton} onClick={verifyCode} disabled={loading}>
-            {loading ? "Checking…" : isEnrollment ? "Enable 2FA" : "Verify Code"}
-          </button>
-          <button style={styles.mfaLinkButton} onClick={signOut} disabled={loading}>
-            Sign Out
-          </button>
-        </div>
+        {!isChecking && (
+          <div style={styles.mfaActions}>
+            <button
+              style={styles.mfaButton}
+              onClick={verifyCode}
+              disabled={loading}
+            >
+              {loading
+                ? "Checking…"
+                : isEnrollment
+                  ? "Enable 2FA"
+                  : "Verify Code"}
+            </button>
+            <button
+              style={styles.mfaLinkButton}
+              onClick={signOut}
+              disabled={loading}
+            >
+              Sign Out
+            </button>
+          </div>
+        )}
       </section>
     </main>
   );
