@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import type { User } from "@supabase/supabase-js";
 
 import { LoginForm } from "@/components/LoginForm";
@@ -30,6 +31,7 @@ type MfaEnrollment = {
   factorId: string;
   qrCode: string;
   secret: string;
+  otpAuthUri: string;
 };
 
 const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
@@ -64,6 +66,21 @@ function mfaFriendlyName(userEmail?: string | null) {
   const cleanEmail = cleanMfaLabel(userEmail ?? "");
 
   return cleanEmail ? `LVA: ${cleanEmail}` : "LVA Power Planner";
+}
+
+function mfaOtpAuthUri(secret: string, userEmail?: string | null) {
+  const cleanSecret = secret.replace(/\s+/g, "").trim();
+  const cleanEmail = cleanMfaLabel(userEmail ?? "");
+  const accountLabel = cleanEmail ? `LVA: ${cleanEmail}` : "LVA: account";
+  const params = new URLSearchParams({
+    secret: cleanSecret,
+    issuer: "LVA",
+    algorithm: "SHA1",
+    digits: "6",
+    period: "30",
+  });
+
+  return `otpauth://totp/${encodeURIComponent(accountLabel)}?${params.toString()}`;
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -382,6 +399,7 @@ export default function PlannerPortal() {
       factorId: enrolledFactor.id,
       qrCode: enrolledFactor.totp.qr_code,
       secret: enrolledFactor.totp.secret,
+      otpAuthUri: mfaOtpAuthUri(enrolledFactor.totp.secret, user?.email),
     });
     setMfaFactorId(enrolledFactor.id);
     setMfaMode("enroll");
@@ -957,6 +975,46 @@ export default function PlannerPortal() {
   );
 }
 
+function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
+  const [qrSource, setQrSource] = useState(() => qrCodeDataUrl(enrollment.qrCode));
+
+  useEffect(() => {
+    let active = true;
+
+    async function buildQrCode() {
+      try {
+        const dataUrl = await QRCode.toDataURL(enrollment.otpAuthUri, {
+          width: 220,
+          margin: 2,
+          errorCorrectionLevel: "M",
+        });
+
+        if (active) {
+          setQrSource(dataUrl);
+        }
+      } catch {
+        if (active) {
+          setQrSource(qrCodeDataUrl(enrollment.qrCode));
+        }
+      }
+    }
+
+    buildQrCode();
+
+    return () => {
+      active = false;
+    };
+  }, [enrollment.otpAuthUri, enrollment.qrCode]);
+
+  return (
+    <img
+      src={qrSource}
+      alt="Authenticator app QR code"
+      style={styles.qrCode}
+    />
+  );
+}
+
 function MfaGate({
   mode,
   code,
@@ -1017,11 +1075,7 @@ function MfaGate({
 
         {!isChecking && isEnrollment && enrollment?.qrCode && (
           <div style={styles.qrPanel}>
-            <img
-              src={qrCodeDataUrl(enrollment.qrCode)}
-              alt="Authenticator app QR code"
-              style={styles.qrCode}
-            />
+            <MfaQrImage enrollment={enrollment} />
             <p style={styles.mfaSmallText}>Manual setup key:</p>
             <code style={styles.secretCode}>{enrollment.secret}</code>
           </div>
