@@ -56,25 +56,14 @@ function cleanMfaLabel(value: string) {
   return value
     .trim()
     .replace(/\s+/g, " ")
-    .replace(/[^a-zA-Z0-9 ._&-]/g, "")
-    .slice(0, 42);
+    .replace(/[^a-zA-Z0-9 ._&@:+-]/g, "")
+    .slice(0, 70);
 }
 
-function mfaFriendlyName(
-  workspaceBranding?: WorkspaceBranding,
-  subdomain = "",
-) {
-  const randomPart = Math.random().toString(36).slice(2, 6).toUpperCase();
-  const workspaceName = cleanMfaLabel(workspaceBranding?.company_name ?? "");
-  const workspaceSubdomain = cleanMfaLabel(subdomain);
-  const labelBase =
-    workspaceName && workspaceName.toLowerCase() !== "lva power planner"
-      ? workspaceName
-      : workspaceSubdomain
-        ? `${workspaceSubdomain}.lvapowerplanner.com`
-        : "LVA Power Planner";
+function mfaFriendlyName(userEmail?: string | null) {
+  const cleanEmail = cleanMfaLabel(userEmail ?? "");
 
-  return `${labelBase} MFA ${randomPart}`;
+  return cleanEmail ? `LVA: ${cleanEmail}` : "LVA Power Planner";
 }
 
 const defaultWorkspaceBranding: WorkspaceBranding = {
@@ -340,7 +329,7 @@ export default function PlannerPortal() {
     const enrollWithFreshName = () =>
       supabase.auth.mfa.enroll({
         factorType: "totp",
-        friendlyName: mfaFriendlyName(workspaceBranding, currentSubdomain()),
+        friendlyName: mfaFriendlyName(user?.email),
       });
 
     let enrollmentResult = await enrollWithFreshName();
