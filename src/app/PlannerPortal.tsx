@@ -122,6 +122,7 @@ export default function PlannerPortal() {
   );
   const [mfaMessage, setMfaMessage] = useState("");
   const [mfaLoading, setMfaLoading] = useState(false);
+  const [allowMicrosoftLogin, setAllowMicrosoftLogin] = useState(false);
 
   function currentSubdomain() {
     if (typeof window === "undefined") return "";
@@ -141,20 +142,66 @@ export default function PlannerPortal() {
     return window.location.hostname.toLowerCase();
   }
 
-  async function mfaRequiredForCurrentWorkspace() {
+  function workspaceHostCandidates() {
     const host = currentHost();
+    const subdomain = currentSubdomain();
 
-    if (!host) return false;
+    return Array.from(
+      new Set(
+        [
+          host,
+          subdomain,
+          subdomain ? `${subdomain}.lvapowerplanner.com` : "",
+        ].filter(Boolean),
+      ),
+    );
+  }
 
-    if (host === "localhost" || host === "127.0.0.1") {
+  async function loadWorkspaceLoginOptions() {
+    const candidates = workspaceHostCandidates();
+
+    if (candidates.length === 0) {
+      setAllowMicrosoftLogin(false);
+      return;
+    }
+
+    if (candidates.includes("localhost") || candidates.includes("127.0.0.1")) {
+      setAllowMicrosoftLogin(false);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("planner_workspaces")
+      .select("allow_microsoft_login")
+      .in("host", candidates)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Could not load workspace login options:", error);
+      setAllowMicrosoftLogin(false);
+      return;
+    }
+
+    setAllowMicrosoftLogin(Boolean(data?.allow_microsoft_login));
+  }
+
+  async function mfaRequiredForCurrentWorkspace() {
+    const candidates = workspaceHostCandidates();
+
+    if (candidates.length === 0) return false;
+
+    if (candidates.includes("localhost") || candidates.includes("127.0.0.1")) {
       return true;
     }
 
     const { data, error } = await supabase
       .from("planner_workspaces")
       .select("require_mfa")
-      .eq("host", host)
+      .in("host", candidates)
       .eq("active", true)
+      .limit(1)
       .maybeSingle();
 
     if (error) {
@@ -520,6 +567,24 @@ export default function PlannerPortal() {
     }
   }
 
+  async function signInWithMicrosoft() {
+    setAccessMessage("");
+
+    const redirectTo =
+      typeof window === "undefined" ? undefined : window.location.origin;
+
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: "azure",
+      options: {
+        redirectTo,
+      },
+    });
+
+    if (error) {
+      alert(error.message);
+    }
+  }
+
   async function requestPasswordReset() {
     const cleanEmail = email.trim();
 
@@ -836,6 +901,7 @@ export default function PlannerPortal() {
 
   useEffect(() => {
     loadWorkspaceBranding();
+    loadWorkspaceLoginOptions();
 
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
@@ -879,6 +945,8 @@ export default function PlannerPortal() {
           setEmail={setEmail}
           setPassword={setPassword}
           signIn={signIn}
+          signInWithMicrosoft={signInWithMicrosoft}
+          allowMicrosoftLogin={allowMicrosoftLogin}
           requestPasswordReset={requestPasswordReset}
           workspaceBranding={workspaceBranding}
         />
@@ -1184,11 +1252,16 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     background: "#F5F7FA",
     textAlign: "center",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
   },
   qrCode: {
+    display: "block",
     width: "220px",
     maxWidth: "100%",
     height: "auto",
+    margin: "0 auto",
     background: "white",
     padding: "10px",
     borderRadius: "10px",
