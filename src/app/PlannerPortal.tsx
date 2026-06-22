@@ -577,7 +577,7 @@ export default function PlannerPortal() {
       provider: "azure",
       options: {
         redirectTo,
-        scopes: "email openid profile",
+        scopes: "openid profile email User.Read",
       },
     });
 
