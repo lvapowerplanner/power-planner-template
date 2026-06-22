@@ -9,7 +9,12 @@ import {
   systemLoadSummary,
 } from "@/planner/calculations";
 import type { DistroLoadSummary } from "@/planner/calculations";
-import type { PlannerOutput, PlannerState, ProjectDistro, ProjectInfo } from "@/planner/types";
+import type {
+  PlannerOutput,
+  PlannerState,
+  ProjectDistro,
+  ProjectInfo,
+} from "@/planner/types";
 
 type WorkspaceBranding = {
   subdomain: string;
@@ -27,6 +32,10 @@ type ReportTabProps = {
   setPlannerState: (state: PlannerState) => void;
   openDistroEditor: (distroId: string) => void;
   workspaceBranding?: WorkspaceBranding;
+};
+
+type ReportPlannerState = PlannerState & {
+  reportShowAllOutputs?: boolean;
 };
 
 type ReportRow = {
@@ -112,10 +121,13 @@ function itemAmpsText(watts: number, output: PlannerOutput) {
   return formatAmps(amps);
 }
 
-function linkedDistroAmpsText(summary: DistroLoadSummary, output: PlannerOutput) {
+function linkedDistroAmpsText(
+  summary: DistroLoadSummary,
+  output: PlannerOutput,
+) {
   if (output.phase === "3Φ") {
     return `L1 ${formatAmps(summary.phaseLoads.L1)} / L2 ${formatAmps(
-      summary.phaseLoads.L2
+      summary.phaseLoads.L2,
     )} / L3 ${formatAmps(summary.phaseLoads.L3)}`;
   }
 
@@ -124,7 +136,7 @@ function linkedDistroAmpsText(summary: DistroLoadSummary, output: PlannerOutput)
 
 function childByOutputId(
   summary: DistroLoadSummary,
-  hiddenDistroIds: string[]
+  hiddenDistroIds: string[],
 ) {
   const map = new Map<string, DistroLoadSummary>();
 
@@ -142,8 +154,9 @@ function buildOutputRows(
   outputIndex: number,
   distro: ProjectDistro,
   plannerState: PlannerState,
+  showAllOutputs: boolean,
   linkedChild?: DistroLoadSummary,
-  outputPrefix?: string
+  outputPrefix?: string,
 ): ReportRow[] {
   const rows: ReportRow[] = [];
   const outputName = outputPrefix
@@ -173,9 +186,10 @@ function buildOutputRows(
             socketIndex,
             distro,
             plannerState,
+            showAllOutputs,
             undefined,
-            outputName
-          )
+            outputName,
+          ),
         );
       });
 
@@ -194,7 +208,7 @@ function buildOutputRows(
       qty: String(item.quantity),
       watts: String(Math.round(watts)),
       amps: itemAmpsText(watts, output),
-      outputNotes: itemIndex === 0 ? output.notes ?? "" : "",
+      outputNotes: itemIndex === 0 ? (output.notes ?? "") : "",
     });
   });
 
@@ -208,7 +222,7 @@ function buildOutputRows(
       qty: "1",
       watts: String(Math.round(linkedChild.watts)),
       amps: linkedDistroAmpsText(linkedChild, output),
-      outputNotes: rows.length === 0 ? output.notes ?? "" : "",
+      outputNotes: rows.length === 0 ? (output.notes ?? "") : "",
     });
   }
 
@@ -223,8 +237,25 @@ function buildOutputRows(
       item: "",
       qty: "",
       watts: String(Math.round(outputWatts(output, plannerState, distro))),
-      amps: output.phase === "3Φ" ? phaseDrawText(loads) : formatAmps(phaseLoadTotal(loads)),
+      amps:
+        output.phase === "3Φ"
+          ? phaseDrawText(loads)
+          : formatAmps(phaseLoadTotal(loads)),
       outputNotes: output.notes,
+    });
+  }
+
+  if (rows.length === 0 && showAllOutputs) {
+    rows.push({
+      id: `${output.id}-unused`,
+      output: outputName,
+      phase: output.phase,
+      type: output.type,
+      item: "Unused",
+      qty: "",
+      watts: "0",
+      amps: "",
+      outputNotes: output.notes ?? "",
     });
   }
 
@@ -234,7 +265,8 @@ function buildOutputRows(
 function buildDistroRows(
   summary: DistroLoadSummary,
   plannerState: PlannerState,
-  hiddenDistroIds: string[]
+  hiddenDistroIds: string[],
+  showAllOutputs: boolean,
 ): ReportRow[] {
   const linkedChildren = childByOutputId(summary, hiddenDistroIds);
 
@@ -244,14 +276,15 @@ function buildDistroRows(
       outputIndex,
       summary.distro,
       plannerState,
-      linkedChildren.get(output.id)
-    )
+      showAllOutputs,
+      linkedChildren.get(output.id),
+    ),
   );
 }
 
 function collectVisibleDistroReports(
   items: DistroReportItem[],
-  hiddenDistroIds: string[]
+  hiddenDistroIds: string[],
 ): DistroReportItem[] {
   return items.flatMap((item) => {
     if (hiddenDistroIds.includes(item.summary.distro.id)) return [];
@@ -370,8 +403,8 @@ async function waitForReportImages(printWindow: Window) {
 
           image.onload = () => resolve();
           image.onerror = () => resolve();
-        })
-    )
+        }),
+    ),
   );
 }
 
@@ -452,16 +485,24 @@ export function ReportTab({
   const summary = systemLoadSummary(plannerState);
   const hiddenSources = plannerState.reportHiddenSources ?? [];
   const hiddenDistroIds = plannerState.reportHiddenDistros ?? [];
+  const reportShowAllOutputs = Boolean(
+    (plannerState as ReportPlannerState).reportShowAllOutputs,
+  );
   const visibleSourceSummaries = summary.sourceSummaries.filter(
-    (source) => !hiddenSources.includes(source.sourceId)
+    (source) => !hiddenSources.includes(source.sourceId),
   );
   const projectInfo = projectInfoForState(plannerState);
-  const brandName = workspaceBranding?.company_name?.trim() || "LVA Power Planner";
+  const brandName =
+    workspaceBranding?.company_name?.trim() || "LVA Power Planner";
   const brandLogoUrl = workspaceBranding?.logo_url?.trim() || "";
   const brandContactEmail = workspaceBranding?.contact_email?.trim() || "";
-  const brandFooter = workspaceBranding?.report_footer?.trim() || "Generated using LVA Power Planner";
-  const brandFontFamily = workspaceBranding?.font_family?.trim() || "Arial, sans-serif";
-  const brandDarkButtonColour = workspaceBranding?.dark_button_colour?.trim() || "#000000";
+  const brandFooter =
+    workspaceBranding?.report_footer?.trim() ||
+    "Generated using LVA Power Planner";
+  const brandFontFamily =
+    workspaceBranding?.font_family?.trim() || "Arial, sans-serif";
+  const brandDarkButtonColour =
+    workspaceBranding?.dark_button_colour?.trim() || "#000000";
   const reportTitle = projectInfo.projectName.trim() || "Power Report";
   const reportMetaItems = [
     ["Project Manager", projectInfo.projectManager],
@@ -473,7 +514,8 @@ export function ReportTab({
   const rootDistroReports: DistroReportItem[] = visibleSourceSummaries.flatMap(
     (source) => {
       const sourceNotes =
-        plannerState.sources.find((item) => item.id === source.sourceId)?.notes ?? "";
+        plannerState.sources.find((item) => item.id === source.sourceId)
+          ?.notes ?? "";
 
       return source.distros.map((distroSummary) => ({
         sourceId: source.sourceId,
@@ -483,11 +525,11 @@ export function ReportTab({
         sourceNotes,
         summary: distroSummary,
       }));
-    }
+    },
   );
   const visibleDistroReports = collectVisibleDistroReports(
     rootDistroReports,
-    hiddenDistroIds
+    hiddenDistroIds,
   );
 
   function toggleSource(sourceId: string) {
@@ -514,6 +556,13 @@ export function ReportTab({
     });
   }
 
+  function toggleReportShowAllOutputs() {
+    setPlannerState({
+      ...plannerState,
+      reportShowAllOutputs: !reportShowAllOutputs,
+    } as ReportPlannerState);
+  }
+
   async function exportReportPdf() {
     const reportElement = document.getElementById("power-planner-report");
 
@@ -538,21 +587,43 @@ export function ReportTab({
       return;
     }
 
-    await writePrintWindow(`${reportTitle} - Distro Reports`, reportElement.innerHTML, brandLogoUrl);
+    await writePrintWindow(
+      `${reportTitle} - Distro Reports`,
+      reportElement.innerHTML,
+      brandLogoUrl,
+    );
   }
 
   return (
-    <section style={{ ...styles.pageShell, fontFamily: brandFontFamily, "--lva-workspace-dark-button": brandDarkButtonColour } as CSSProperties}>
+    <section
+      style={
+        {
+          ...styles.pageShell,
+          fontFamily: brandFontFamily,
+          "--lva-workspace-dark-button": brandDarkButtonColour,
+        } as CSSProperties
+      }
+    >
       <div className="no-print" style={styles.toolbar}>
         <div>
           <h2>Report</h2>
           <p style={styles.muted}>
-            Toggle sources and distros for export. The preview below mirrors the report export layout.
+            Toggle sources and distros for export. The preview below mirrors the
+            report export layout.
           </p>
         </div>
 
         <div style={styles.buttonRow}>
-          <button style={styles.secondaryButton} onClick={exportIndividualDistroReportsPdf}>
+          <button
+            style={styles.secondaryButton}
+            onClick={toggleReportShowAllOutputs}
+          >
+            {reportShowAllOutputs ? "Hide Unused Outputs" : "Show All Outputs"}
+          </button>
+          <button
+            style={styles.secondaryButton}
+            onClick={exportIndividualDistroReportsPdf}
+          >
             Export Distro Reports
           </button>
           <button style={styles.primaryButton} onClick={exportReportPdf}>
@@ -580,14 +651,17 @@ export function ReportTab({
                       onChange={() => toggleSource(source.sourceId)}
                     />
                     <span>
-                      <strong>{source.sourceName}</strong> · {source.sourceConnection}
+                      <strong>{source.sourceName}</strong> ·{" "}
+                      {source.sourceConnection}
                     </span>
                   </label>
 
                   {!sourceHidden && (
                     <div style={styles.distroToggleList}>
                       {source.distros.length === 0 ? (
-                        <p style={styles.mutedSmall}>No distros assigned to this source.</p>
+                        <p style={styles.mutedSmall}>
+                          No distros assigned to this source.
+                        </p>
                       ) : (
                         source.distros.map((distroSummary) => (
                           <DistroToggle
@@ -623,9 +697,11 @@ export function ReportTab({
         ) : (
           visibleSourceSummaries.map((source) => {
             const sourceNotes =
-              plannerState.sources.find((item) => item.id === source.sourceId)?.notes ?? "";
+              plannerState.sources.find((item) => item.id === source.sourceId)
+                ?.notes ?? "";
             const visibleDistros = source.distros.filter(
-              (distroSummary) => !hiddenDistroIds.includes(distroSummary.distro.id)
+              (distroSummary) =>
+                !hiddenDistroIds.includes(distroSummary.distro.id),
             );
 
             return (
@@ -636,13 +712,20 @@ export function ReportTab({
               >
                 <h2 style={styles.sourceTitle}>{source.sourceName}</h2>
 
-                <div className="source-summary-box" style={styles.sourceSummaryBox}>
+                <div
+                  className="source-summary-box"
+                  style={styles.sourceSummaryBox}
+                >
                   <div>
                     <strong>Source:</strong>{" "}
-                    {sourceConnectionText(source.sourceConnection, source.sourceRating)}
+                    {sourceConnectionText(
+                      source.sourceConnection,
+                      source.sourceRating,
+                    )}
                   </div>
                   <div>
-                    <strong>Phase draw:</strong> {phaseDrawText(source.phaseLoads)}
+                    <strong>Phase draw:</strong>{" "}
+                    {phaseDrawText(source.phaseLoads)}
                   </div>
                   <div>
                     <strong>Connected load:</strong> {wattsText(source.watts)}
@@ -653,7 +736,9 @@ export function ReportTab({
                 </div>
 
                 {visibleDistros.length === 0 ? (
-                  <p style={styles.muted}>No distros selected for this source.</p>
+                  <p style={styles.muted}>
+                    No distros selected for this source.
+                  </p>
                 ) : (
                   visibleDistros.map((distroSummary) => (
                     <DistroReport
@@ -666,6 +751,7 @@ export function ReportTab({
                       sourceNotes={sourceNotes}
                       openDistroEditor={openDistroEditor}
                       hiddenDistroIds={hiddenDistroIds}
+                      showAllOutputs={reportShowAllOutputs}
                     />
                   ))
                 )}
@@ -673,7 +759,11 @@ export function ReportTab({
             );
           })
         )}
-        <ReportFooter brandName={brandName} brandFooter={brandFooter} brandContactEmail={brandContactEmail} />
+        <ReportFooter
+          brandName={brandName}
+          brandFooter={brandFooter}
+          brandContactEmail={brandContactEmail}
+        />
       </div>
 
       <div id="individual-distro-reports" style={styles.hiddenPrintArea}>
@@ -701,8 +791,13 @@ export function ReportTab({
               openDistroEditor={openDistroEditor}
               hiddenDistroIds={hiddenDistroIds}
               renderChildren={false}
+              showAllOutputs={reportShowAllOutputs}
             />
-            <ReportFooter brandName={brandName} brandFooter={brandFooter} brandContactEmail={brandContactEmail} />
+            <ReportFooter
+              brandName={brandName}
+              brandFooter={brandFooter}
+              brandContactEmail={brandContactEmail}
+            />
           </section>
         ))}
       </div>
@@ -781,7 +876,10 @@ function ReportHeader({
           <div className="report-brand-name" style={styles.reportBrandName}>
             {brandName}
           </div>
-          <div className="report-brand-subtitle" style={styles.reportBrandSubtitle}>
+          <div
+            className="report-brand-subtitle"
+            style={styles.reportBrandSubtitle}
+          >
             Powered by LVA Power Planner
             {brandContactEmail ? ` · ${brandContactEmail}` : ""}
           </div>
@@ -841,6 +939,7 @@ function DistroReport({
   openDistroEditor,
   hiddenDistroIds,
   renderChildren = true,
+  showAllOutputs = false,
 }: {
   summary: DistroLoadSummary;
   plannerState: PlannerState;
@@ -851,8 +950,14 @@ function DistroReport({
   openDistroEditor: (distroId: string) => void;
   hiddenDistroIds: string[];
   renderChildren?: boolean;
+  showAllOutputs?: boolean;
 }) {
-  const rows = buildDistroRows(summary, plannerState, hiddenDistroIds);
+  const rows = buildDistroRows(
+    summary,
+    plannerState,
+    hiddenDistroIds,
+    showAllOutputs,
+  );
   const sourceLabel = summary.fedFromOutputLabel
     ? `${sourceName} - ${summary.fedFromOutputLabel}`
     : sourceName;
@@ -860,7 +965,7 @@ function DistroReport({
     ? `Auto source from ${sourceName} output ${summary.fedFromOutputLabel}`
     : sourceNotes;
   const visibleChildren = summary.children.filter(
-    (child) => !hiddenDistroIds.includes(child.distro.id)
+    (child) => !hiddenDistroIds.includes(child.distro.id),
   );
 
   return (
@@ -881,10 +986,12 @@ function DistroReport({
           <strong>Location:</strong> {summary.distro.location}
         </div>
         <div>
-          <strong>Source:</strong> {sourceLabel} · {sourceConnection} · {sourceRating}A per phase
+          <strong>Source:</strong> {sourceLabel} · {sourceConnection} ·{" "}
+          {sourceRating}A per phase
         </div>
         <div>
-          <strong>Input:</strong> {summary.distro.input} · {summary.distro.inputA}A per phase
+          <strong>Input:</strong> {summary.distro.input} ·{" "}
+          {summary.distro.inputA}A per phase
         </div>
         <div>
           <strong>Phase cap:</strong> {summary.distro.inputA}A per phase
@@ -959,6 +1066,7 @@ function DistroReport({
             sourceNotes=""
             openDistroEditor={openDistroEditor}
             hiddenDistroIds={hiddenDistroIds}
+            showAllOutputs={showAllOutputs}
           />
         ))}
     </section>
