@@ -15,6 +15,8 @@ type LoginFormProps = {
   setEmail: (value: string) => void;
   setPassword: (value: string) => void;
   signIn: () => void;
+  signInWithMicrosoft?: () => void;
+  allowMicrosoftLogin?: boolean;
   requestPasswordReset: () => void;
   workspaceBranding?: WorkspaceBranding;
 };
@@ -62,6 +64,8 @@ export function LoginForm({
   setEmail,
   setPassword,
   signIn,
+  signInWithMicrosoft,
+  allowMicrosoftLogin = false,
   requestPasswordReset,
   workspaceBranding,
 }: LoginFormProps) {
@@ -115,6 +119,20 @@ export function LoginForm({
             Reset Password
           </button>
         </div>
+
+        {allowMicrosoftLogin && signInWithMicrosoft && (
+          <>
+            <div style={styles.dividerRow}>
+              <span style={styles.dividerLine} />
+              <span style={styles.dividerText}>or</span>
+              <span style={styles.dividerLine} />
+            </div>
+
+            <button style={styles.microsoftButton} onClick={signInWithMicrosoft}>
+              Sign in with Microsoft
+            </button>
+          </>
+        )}
 
         <p style={styles.disclaimerText}>{disclaimerText}</p>
       </section>
@@ -181,6 +199,31 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
   },
   linkButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    color: "#172033",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
+  dividerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    margin: "18px 0",
+  },
+  dividerLine: {
+    flex: 1,
+    height: "1px",
+    background: "#d9e0ea",
+  },
+  dividerText: {
+    color: "#637083",
+    fontSize: "13px",
+  },
+  microsoftButton: {
+    width: "100%",
     padding: "10px 14px",
     borderRadius: "10px",
     border: "1px solid #d9e0ea",
