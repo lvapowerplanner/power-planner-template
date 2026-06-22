@@ -371,6 +371,11 @@ function reportPrintStyles() {
     .individual-distro-report {
       break-after: page;
       page-break-after: always;
+      border: 0 !important;
+      border-radius: 0 !important;
+      padding: 0 !important;
+      background: white !important;
+      box-shadow: none !important;
     }
     .individual-distro-report:last-child {
       break-after: auto;
