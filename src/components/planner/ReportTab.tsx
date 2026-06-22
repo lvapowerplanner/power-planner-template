@@ -781,7 +781,7 @@ export function ReportTab({
             <ReportHeader
               reportTitle={
                 item.summary.distro.instanceName.trim()
-                  ? `${reportTitle} - ${item.summary.distro.instanceName.trim()}`
+                  ? `${reportTitle}\n${item.summary.distro.instanceName.trim()}`
                   : reportTitle
               }
               projectNumber={projectInfo.projectNumber}
@@ -899,7 +899,7 @@ function ReportHeader({
       </div>
 
       <div>
-        <h1 style={styles.reportTitle}>{reportTitle}</h1>
+        <h1 style={styles.reportTitle}>{reportTitle.split("\n").map((line, index) => (<div key={index}>{line}</div>))}</h1>
         {projectNumber.trim() && (
           <p style={styles.reportSubtitle}>Project Number: {projectNumber}</p>
         )}
@@ -1210,7 +1210,9 @@ const styles: Record<string, CSSProperties> = {
     lineHeight: 1.25,
   },
   reportTitle: {
-    fontSize: "22px",
+    fontSize: "16px",
+    fontWeight: 500,
+    lineHeight: 1.2,
     marginBottom: "4px",
   },
   reportSubtitle: {
