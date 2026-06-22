@@ -774,9 +774,16 @@ export function ReportTab({
             style={styles.reportPage}
           >
             <ReportHeader
-              reportTitle={`${reportTitle} - ${displayDistroName(item.summary.distro)}`}
+              reportTitle={
+                item.summary.distro.instanceName.trim()
+                  ? `${reportTitle} - ${item.summary.distro.instanceName.trim()}`
+                  : reportTitle
+              }
               projectNumber={projectInfo.projectNumber}
-              reportMetaItems={reportMetaItems}
+              reportMetaItems={[
+                ...reportMetaItems,
+                ["Distro Type", item.summary.distro.name],
+              ]}
               brandName={brandName}
               brandLogoUrl={brandLogoUrl}
               brandContactEmail={brandContactEmail}
