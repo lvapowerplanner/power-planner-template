@@ -66,9 +66,9 @@ export default function LandingPage() {
           designed for real-world event power workflows.
         </p>
 
-        <p className="mx-auto mt-8 max-w-2xl text-lg text-white"> 
-          To arrange a personalised demonstration and discuss how LVA Power Planner can support your projects, contact us at{" "} 
-          <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4" > hello@lvapowerplanner.com </a> . 
+        <p className="mx-auto mt-8 max-w-2xl text-lg text-white">
+          To arrange a personalised demonstration and discuss how LVA Power Planner can support your projects, contact us at{" "}
+          <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4">hello@lvapowerplanner.com</a>.
         </p>
       </section>
 
@@ -76,6 +76,19 @@ export default function LandingPage() {
         <p className="mx-auto max-w-4xl">
           LVA Power Planner is an indicative planning tool. It may support BS 7909 documentation workflows, but it does not verify, certify or guarantee compliance with BS 7909, BS 7671 or any other standard. Responsibility remains with the user and competent duty holder.
         </p>
+
+        <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2">
+          <a href="/privacy" className="underline underline-offset-4 hover:text-black">
+            Privacy Policy
+          </a>
+          <a href="/terms" className="underline underline-offset-4 hover:text-black">
+            Terms of Service
+          </a>
+          <a href="mailto:hello@lvapowerplanner.com" className="underline underline-offset-4 hover:text-black">
+            Contact
+          </a>
+        </div>
+
         <p className="mt-4">© {new Date().getFullYear()} LVA Power Planner</p>
       </footer>
     </main>
