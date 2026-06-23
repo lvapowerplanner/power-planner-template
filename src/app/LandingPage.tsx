@@ -25,33 +25,27 @@ export default function LandingPage() {
         {[
           [
             "Power Planning",
-            "Design temporary power systems with confidence",
-            "Build complete power plans before arriving on site, reducing surprises, rework and last-minute power issues.",
+            "Design complete temporary power systems before arriving on site, with clear schematics and load calculations.",
           ],
           [
             "Distro Management",
-            "Create realistic distribution networks",
-            "Model distribution systems exactly as they will be deployed, including custom distros, output layouts and downstream feeds.",
+            "Model distribution exactly as it will be deployed. See all distros, circuits and loads in one place.",
           ],
           [
             "Load Calculations",
-            "Instant load and phase analysis",
-            "Automatically calculate connected load, current draw and phase balance across the entire system as you build.",
+            "Automatic load and phase balancing as you build. See total load, phase load and circuit load at a glance.",
           ],
           [
             "Equipment Library",
-            "Build from your own equipment inventory.",
-            "Prepopulated equipment libraries and standardise planning using the equipment your team actually deploys.",
+            "Standardise planning using your own inventory integrated directly into LVA Power Planner.",
           ],
           [
-            "System Overview",
-            "Visualise the entire power chain",
-            "See sources, distros, outputs and connected equipment in one clear view, making complex systems easy to understand.",
+            "System Warnings",
+            "Identify potential issues and safety concerns before deployment, with clear warnings and visual indicators.",
           ],
           [
             "Exportable Reports",
-            "Generate professional power documentation.",
-            "Export clear, site-ready reports with project information, load schedules and distribution layouts for each power source within the system.",
+            "Produce PDF reports to ensure consistency on-site and maintain project records.",
           ],
         ].map(([title, text]) => (
           <div key={title} className="rounded-2xl border border-gray-200 p-6">
