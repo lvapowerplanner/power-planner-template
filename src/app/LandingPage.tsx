@@ -16,8 +16,8 @@ export default function LandingPage() {
 
         <p className="mx-auto mt-6 max-w-3xl text-lg text-gray-600 md:text-xl">
           LVA Power Planner helps production teams build clear, structured power
-          plans for generators, distros, circuits, equipment loads and
-          professional reports.
+          schematics for live events, with views of full systems, distros, circuits, equipment loads and
+          PDF reporting.
         </p>
       </section>
 
@@ -25,27 +25,33 @@ export default function LandingPage() {
         {[
           [
             "Power Planning",
-            "Plan power sources and understand available capacity before arriving on site.",
+            "Design temporary power systems with confidence",
+            "Build complete power plans before arriving on site, reducing surprises, rework and last-minute power issues.",
           ],
           [
             "Distro Management",
-            "Build realistic distribution systems with custom distros and circuit layouts.",
+            "Create realistic distribution networks",
+            "Model distribution systems exactly as they will be deployed, including custom distros, output layouts and downstream feeds.",
           ],
           [
             "Load Calculations",
-            "Calculate connected loads, demand and phase balance quickly and consistently.",
+            "Instant load and phase analysis",
+            "Automatically calculate connected load, current draw and phase balance across the entire system as you build.",
           ],
           [
             "Equipment Library",
-            "Store commonly used equipment across custom defined categories.",
+            "Build from your own equipment inventory.",
+            "Prepopulated equipment libraries and standardise planning using the equipment your team actually deploys.",
           ],
           [
             "System Overview",
-            "See the full temporary power system in a clear, easy-to-follow layout.",
+            "Visualise the entire power chain",
+            "See sources, distros, outputs and connected equipment in one clear view, making complex systems easy to understand.",
           ],
           [
             "Exportable Reports",
-            "Produce professional reports for onsite teams and project records.",
+            "Generate professional power documentation.",
+            "Export clear, site-ready reports with project information, load schedules and distribution layouts for each power source within the system.",
           ],
         ].map(([title, text]) => (
           <div key={title} className="rounded-2xl border border-gray-200 p-6">
