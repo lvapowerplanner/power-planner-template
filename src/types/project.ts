@@ -19,6 +19,7 @@ export const emptyPlannerState: PlannerState = {
   customEquipment: [],
   customDistros: [],
   reportHiddenSources: [],
+  dismissedWarnings: [],
 };
 
 export const emptyProjectData: ProjectData = {

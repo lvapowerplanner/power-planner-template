@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { autoSourcesForDistro } from "@/planner/autoSources";
+import { WarningPanel, activeIssuesForScope } from "@/components/planner/WarningPanel";
 import {
   addPhaseLoads,
   createEmptyPhaseLoads,
@@ -21,6 +22,7 @@ import type { PlannerState, PowerSource } from "@/planner/types";
 type PowerSourcesTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
+  openDistroEditor: (distroId: string) => void;
 };
 
 type SourceCardSummary = {
@@ -58,6 +60,28 @@ function isThreePhaseConnection(connection: string) {
   return connection.includes("/ 3") || connection.includes("/3");
 }
 
+function phaseImbalanceReference(loads: PhaseLoads) {
+  const phaseEntries = (["L1", "L2", "L3"] as const).map((phase) => ({
+    phase,
+    amps: loads[phase],
+  }));
+  const highest = phaseEntries.reduce((current, candidate) =>
+    candidate.amps > current.amps ? candidate : current,
+  );
+  const lowest = phaseEntries.reduce((current, candidate) =>
+    candidate.amps < current.amps ? candidate : current,
+  );
+  const imbalance = phaseImbalance(loads);
+
+  return `${highest.phase} ${Math.round(imbalance)}% imbalance versus ${lowest.phase}`;
+}
+
+function sourcePhaseStyle(source: PowerSource): React.CSSProperties {
+  return isThreePhaseConnection(source.conn)
+    ? styles.threePhaseCard
+    : styles.singlePhaseCard;
+}
+
 function displaySourceConnection(source: PowerSource) {
   return `${source.conn} · ${source.rating}A per phase`;
 }
@@ -86,15 +110,17 @@ function sourceIssues(
         message: `${source.name} ${phase} overloaded: ${formatAmps(
           amps,
         )} / ${formatAmps(source.rating)}.`,
+        currentValue: amps,
       });
-    } else if (amps > source.rating * 0.95) {
+    } else if (amps > source.rating * 0.8) {
       issues.push({
         id: `${source.id}-${phase}-near-limit`,
         severity: "warning",
         context: source.name,
-        message: `${source.name} ${phase} above 95% capacity: ${formatAmps(
+        message: `${source.name} ${phase} above 80% capacity: ${formatAmps(
           amps,
         )} / ${formatAmps(source.rating)}.`,
+        currentValue: amps,
       });
     }
   });
@@ -108,16 +134,16 @@ function sourceIssues(
         id: `${source.id}-phase-imbalance-critical`,
         severity: "critical",
         context: source.name,
-        message: `Severe phase imbalance on ${source.name}: ${Math.round(
-          imbalance,
-        )}%.`,
+        message: `Severe phase imbalance on ${source.name}: ${phaseImbalanceReference(phaseLoads)}.`,
+        currentValue: imbalance,
       });
     } else if (imbalance >= 30 && maxPhaseLoad > 5) {
       issues.push({
         id: `${source.id}-phase-imbalance-warning`,
         severity: "warning",
         context: source.name,
-        message: `Phase imbalance on ${source.name}: ${Math.round(imbalance)}%.`,
+        message: `Phase imbalance on ${source.name}: ${phaseImbalanceReference(phaseLoads)}.`,
+        currentValue: imbalance,
       });
     }
   }
@@ -168,6 +194,7 @@ function buildAutoSourceSummary(
 export function PowerSourcesTab({
   plannerState,
   setPlannerState,
+  openDistroEditor,
 }: PowerSourcesTabProps) {
   const [sourceName, setSourceName] = useState("");
   const [sourceType, setSourceType] = useState("125A / 3");
@@ -348,29 +375,13 @@ export function PowerSourcesTab({
         Add Manual Power Source
       </button>
 
-      {allIssues.length > 0 && (
-        <section style={styles.issuesPanel}>
-          <h3>Power Source Warnings</h3>
-          <div style={styles.issueList}>
-            {allIssues.map((issue) => (
-              <div
-                key={`${issue.sourceId}-${issue.id}`}
-                style={{
-                  ...styles.issueItem,
-                  ...(issue.severity === "critical"
-                    ? styles.issueCritical
-                    : styles.issueWarning),
-                }}
-              >
-                <strong>
-                  {issue.severity === "critical" ? "Critical" : "Warning"}
-                </strong>
-                <span>{issue.message}</span>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+      <WarningPanel
+        scope="planner-warnings"
+        title="Power Source Warnings"
+        issues={allIssues}
+        plannerState={plannerState}
+        setPlannerState={setPlannerState}
+      />
 
       <hr style={styles.divider} />
 
@@ -389,6 +400,8 @@ export function PowerSourcesTab({
               moveUpDisabled={index === 0}
               moveDownDisabled={index === manualSourceSummaries.length - 1}
               onDelete={() => deletePowerSource(summary.source.id)}
+              dismissedWarnings={plannerState.dismissedWarnings ?? []}
+              openDistroEditor={openDistroEditor}
             />
           ))
         )}
@@ -405,7 +418,12 @@ export function PowerSourcesTab({
           </p>
         ) : (
           autoSourceSummaries.map((summary) => (
-            <PowerSourceCard key={summary.source.id} summary={summary} />
+            <PowerSourceCard
+              key={summary.source.id}
+              summary={summary}
+              dismissedWarnings={plannerState.dismissedWarnings ?? []}
+              openDistroEditor={openDistroEditor}
+            />
           ))
         )}
       </div>
@@ -420,6 +438,8 @@ function PowerSourceCard({
   onMoveDown,
   moveUpDisabled = false,
   moveDownDisabled = false,
+  dismissedWarnings = [],
+  openDistroEditor,
 }: {
   summary: SourceCardSummary;
   onDelete?: () => void;
@@ -427,8 +447,11 @@ function PowerSourceCard({
   onMoveDown?: () => void;
   moveUpDisabled?: boolean;
   moveDownDisabled?: boolean;
+  dismissedWarnings?: PlannerState["dismissedWarnings"];
+  openDistroEditor: (distroId: string) => void;
 }) {
-  const health = sourceHealth(summary.issues);
+  const activeIssues = activeIssuesForScope("planner-warnings", summary.issues, dismissedWarnings);
+  const health = sourceHealth(activeIssues);
   const imbalance = isThreePhaseConnection(summary.source.conn)
     ? phaseImbalance(summary.phaseLoads)
     : 0;
@@ -442,6 +465,7 @@ function PowerSourceCard({
           : health === "warning"
             ? styles.cardWarning
             : {}),
+        ...sourcePhaseStyle(summary.source),
       }}
     >
       <div style={styles.sourceHeader}>
@@ -524,7 +548,15 @@ function PowerSourceCard({
                     ? `${distroSummary.distro.instanceName} - ${distroSummary.distro.name}`
                     : distroSummary.distro.name}
                 </span>
-                <strong>{formatWatts(distroSummary.watts)}</strong>
+                <div style={styles.assignedActions}>
+                  <strong>{formatWatts(distroSummary.watts)}</strong>
+                  <button
+                    style={styles.smallButton}
+                    onClick={() => openDistroEditor(distroSummary.distro.id)}
+                  >
+                    Open
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -664,6 +696,12 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "16px",
     background: "#F5F7FA",
   },
+  singlePhaseCard: {
+    borderLeft: "6px solid #007D8F",
+  },
+  threePhaseCard: {
+    borderLeft: "6px solid #dc2626",
+  },
   cardWarning: {
     borderColor: "#f59e0b",
     background: "#FFFBEB",
@@ -707,7 +745,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#111827",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 400,
     lineHeight: 1,
   },
   healthBadge: {
@@ -788,6 +826,22 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "12px",
     borderTop: "1px solid #eef2f7",
     paddingTop: "6px",
+    alignItems: "center",
+  },
+  assignedActions: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    justifyContent: "flex-end",
+  },
+  smallButton: {
+    padding: "6px 9px",
+    borderRadius: "8px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#111827",
+    cursor: "pointer",
+    fontWeight: 500,
   },
   issuesPanel: {
     border: "1px solid #DCE5EC",

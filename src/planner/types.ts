@@ -74,6 +74,15 @@ export type ProjectInfo = {
   venue: string;
 };
 
+export type DismissedWarning = {
+  scope: string;
+  issueId: string;
+  message: string;
+  context: string;
+  dismissedAtValue?: number;
+  dismissedAt: string;
+};
+
 export type PlannerState = {
   /** Kept for backwards compatibility with older saved projects. Use projectInfo.projectName for new UI/report titles. */
   systemName: string;
@@ -85,4 +94,5 @@ export type PlannerState = {
   customDistros: DistroDefinition[];
   reportHiddenSources: string[];
   reportHiddenDistros?: string[];
+  dismissedWarnings?: DismissedWarning[];
 };

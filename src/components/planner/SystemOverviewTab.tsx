@@ -1,3 +1,4 @@
+import { WarningPanel, activeIssuesForScope } from "@/components/planner/WarningPanel";
 import {
   displayDistroName,
   formatAmps,
@@ -239,12 +240,13 @@ export function SystemOverviewTab({
         </div>
       </section>
 
-      {summary.issues.length > 0 && (
-        <section style={styles.issuesPanel}>
-          <h3>Warnings & Issues</h3>
-          <IssueList issues={summary.issues} />
-        </section>
-      )}
+      <WarningPanel
+        scope="planner-warnings"
+        title="System Warnings"
+        issues={summary.issues}
+        plannerState={plannerState}
+        setPlannerState={setPlannerState}
+      />
 
       <section style={styles.flowSection}>
         {summary.sourceSummaries.length === 0 ? (
@@ -252,7 +254,25 @@ export function SystemOverviewTab({
         ) : (
           <div style={styles.sourceList}>
             {summary.sourceSummaries.map((source) => (
-              <div key={source.sourceId} style={styles.sourceCard}>
+              <div
+                key={source.sourceId}
+                style={{
+                  ...styles.sourceCard,
+                  ...(activeIssuesForScope(
+                    "planner-warnings",
+                    source.issues,
+                    plannerState.dismissedWarnings ?? [],
+                  ).some((issue) => issue.severity === "critical")
+                    ? styles.cardCritical
+                    : activeIssuesForScope(
+                        "planner-warnings",
+                        source.issues,
+                        plannerState.dismissedWarnings ?? [],
+                      ).length > 0
+                      ? styles.cardWarning
+                      : {}),
+                }}
+              >
                 <div style={styles.sourceHeader}>
                   <div>
                     <h3 style={styles.sourceTitle}>{source.sourceName}</h3>
@@ -280,6 +300,7 @@ export function SystemOverviewTab({
                         depth={0}
                         sourceConnection={source.sourceConnection}
                         sourceRating={source.sourceRating}
+                        dismissedWarnings={plannerState.dismissedWarnings ?? []}
                       />
                     ))}
                   </div>
@@ -301,6 +322,7 @@ export function SystemOverviewTab({
                   openDistroEditor={openDistroEditor}
                   depth={0}
                   unassigned
+                  dismissedWarnings={plannerState.dismissedWarnings ?? []}
                 />
               ))}
             </div>
@@ -318,6 +340,7 @@ function DistroTreeCard({
   unassigned = false,
   sourceConnection,
   sourceRating,
+  dismissedWarnings = [],
 }: {
   summary: DistroLoadSummary;
   openDistroEditor: (distroId: string) => void;
@@ -325,6 +348,7 @@ function DistroTreeCard({
   unassigned?: boolean;
   sourceConnection?: string;
   sourceRating?: number;
+  dismissedWarnings?: PlannerState["dismissedWarnings"];
 }) {
   const connectionType = connectionColour(summary.distro.input);
   const lineStyle =
@@ -338,6 +362,11 @@ function DistroTreeCard({
     summary.distro.inputA,
     sourceConnection,
     sourceRating
+  );
+  const activeDistroIssues = activeIssuesForScope(
+    "planner-warnings",
+    summary.issues,
+    dismissedWarnings,
   );
 
   return (
@@ -366,6 +395,11 @@ function DistroTreeCard({
           ...(connectionType === "threePhase"
             ? styles.threePhaseCard
             : styles.singlePhaseCard),
+          ...(activeDistroIssues.some((issue) => issue.severity === "critical")
+            ? styles.cardCritical
+            : activeDistroIssues.length > 0
+              ? styles.cardWarning
+              : {}),
           marginLeft: depth ? `${depth * 30}px` : 0,
         }}
       >
@@ -411,6 +445,7 @@ function DistroTreeCard({
                 summary={child}
                 openDistroEditor={openDistroEditor}
                 depth={depth + 1}
+                dismissedWarnings={dismissedWarnings}
               />
             ))}
           </div>
@@ -514,6 +549,14 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "18px",
     background: "white",
   },
+  cardWarning: {
+    borderColor: "#F2C94C",
+    background: "#FFF8E5",
+  },
+  cardCritical: {
+    borderColor: "#E5484D",
+    background: "#FDECEC",
+  },
   headerRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -563,7 +606,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#FFFFFF",
     color: "#111827",
     fontFamily: "inherit",
-    fontWeight: 600,
+    fontWeight: 400,
     outline: "none",
   },
   legend: {

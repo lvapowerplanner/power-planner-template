@@ -17,6 +17,7 @@ export type ValidationIssue = {
   severity: Exclude<ValidationSeverity, "ok">;
   message: string;
   context: string;
+  currentValue?: number;
 };
 
 export type DistroLoadSummary = {
@@ -382,6 +383,7 @@ export function validateOutput(
         severity: "critical",
         context,
         message: `${context} is overloaded: ${formatAmps(amps)} / ${formatAmps(output.rating)}.`,
+        currentValue: amps,
       },
     ];
   }
@@ -396,6 +398,7 @@ export function validateOutput(
         severity: "warning",
         context,
         message: `${context} is near capacity: ${formatAmps(amps)} / ${formatAmps(output.rating)}.`,
+        currentValue: amps,
       },
     ];
   }
@@ -465,6 +468,7 @@ function socapexBreakerPairIssues(
           severity: "critical",
           context,
           message: `${context} shared breaker is overloaded: ${formatAmps(amps)} / ${formatAmps(rating)}.`,
+          currentValue: amps,
         });
       } else if (amps > rating * 0.95) {
         issues.push({
@@ -472,6 +476,7 @@ function socapexBreakerPairIssues(
           severity: "warning",
           context,
           message: `${context} shared breaker is near capacity: ${formatAmps(amps)} / ${formatAmps(rating)}.`,
+          currentValue: amps,
         });
       }
     });
@@ -512,6 +517,23 @@ export function validateDistro(
   return issues;
 }
 
+
+function phaseImbalanceReference(loads: PhaseLoads) {
+  const phaseEntries = (["L1", "L2", "L3"] as const).map((phase) => ({
+    phase,
+    amps: loads[phase],
+  }));
+  const highest = phaseEntries.reduce((current, candidate) =>
+    candidate.amps > current.amps ? candidate : current,
+  );
+  const lowest = phaseEntries.reduce((current, candidate) =>
+    candidate.amps < current.amps ? candidate : current,
+  );
+  const imbalance = phaseImbalance(loads);
+
+  return `${highest.phase} ${Math.round(imbalance)}% imbalance versus ${lowest.phase}`;
+}
+
 export function validateSource(
   sourceId: string,
   sourceName: string,
@@ -536,6 +558,7 @@ export function validateSource(
         message: `${sourceName} ${phase} overloaded: ${formatAmps(
           amps,
         )} / ${formatAmps(sourceRating)}.`,
+        currentValue: amps,
       });
     } else if (amps > sourceRating * 0.8) {
       issues.push({
@@ -545,6 +568,7 @@ export function validateSource(
         message: `${sourceName} ${phase} above 80% capacity: ${formatAmps(
           amps,
         )} / ${formatAmps(sourceRating)}.`,
+        currentValue: amps,
       });
     }
   });
@@ -557,16 +581,16 @@ export function validateSource(
         id: `${sourceId}-phase-imbalance-critical`,
         severity: "critical",
         context: sourceName,
-        message: `Severe phase imbalance on ${sourceName}: ${Math.round(
-          imbalance,
-        )}%.`,
+        message: `Severe phase imbalance on ${sourceName}: ${phaseImbalanceReference(loads)}.`,
+        currentValue: imbalance,
       });
     } else if (imbalance >= 30 && maxPhase(loads) > 5) {
       issues.push({
         id: `${sourceId}-phase-imbalance-warning`,
         severity: "warning",
         context: sourceName,
-        message: `Phase imbalance on ${sourceName}: ${Math.round(imbalance)}%.`,
+        message: `Phase imbalance on ${sourceName}: ${phaseImbalanceReference(loads)}.`,
+        currentValue: imbalance,
       });
     }
   }

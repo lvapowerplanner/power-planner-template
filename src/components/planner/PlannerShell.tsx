@@ -119,6 +119,7 @@ function normaliseImportedPlannerState(value: PlannerState): PlannerState {
     customDistros: value.customDistros ?? [],
     reportHiddenSources: value.reportHiddenSources ?? [],
     reportHiddenDistros: value.reportHiddenDistros ?? [],
+    dismissedWarnings: value.dismissedWarnings ?? [],
   });
 }
 
@@ -310,6 +311,7 @@ export function PlannerShell({
           <PowerSourcesTab
             plannerState={plannerState}
             setPlannerState={setPlannerState}
+            openDistroEditor={openDistroEditor}
           />
         )}
 

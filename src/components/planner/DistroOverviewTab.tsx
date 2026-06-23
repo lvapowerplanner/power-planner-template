@@ -1,5 +1,12 @@
 import { useState } from "react";
 import { autoSourcesForDistro } from "@/planner/autoSources";
+import { WarningPanel, activeIssuesForScope } from "@/components/planner/WarningPanel";
+import {
+  distroLoadSummary,
+  formatAmps,
+  phasePercentage,
+} from "@/planner/calculations";
+import type { DistroLoadSummary } from "@/planner/calculations";
 import { useCompanyDistroLibrary } from "@/planner/companyStock";
 import type {
   DistroDefinition,
@@ -118,6 +125,12 @@ function sourceBelongsToDistroOwnOutput(source: PowerSource, distroId: string) {
   return source.auto && source.parentDistroId === distroId;
 }
 
+function distroPhaseStyle(distro: ProjectDistro): React.CSSProperties {
+  return normaliseConnection(distro.input).phase === "3"
+    ? styles.threePhaseCard
+    : styles.singlePhaseCard;
+}
+
 export function DistroOverviewTab({
   plannerState,
   setPlannerState,
@@ -131,6 +144,12 @@ export function DistroOverviewTab({
     ...plannerState.sources.filter((source) => !source.auto),
     ...plannerState.distros.flatMap((distro) => autoSourcesForDistro(distro)),
   ];
+
+  const distroSummaries = plannerState.distros.map((distro) =>
+    distroLoadSummary(distro, plannerState),
+  );
+
+  const allIssues = distroSummaries.flatMap((summary) => summary.issues);
 
   function addDistro() {
     const selectedDefinition = distroDefinitions[Number(selectedDistroIndex)];
@@ -272,6 +291,14 @@ export function DistroOverviewTab({
         </p>
       ) : null}
 
+      <WarningPanel
+        scope="planner-warnings"
+        title="Distro Warnings"
+        issues={allIssues}
+        plannerState={plannerState}
+        setPlannerState={setPlannerState}
+      />
+
       <hr style={styles.divider} />
 
       {plannerState.distros.length === 0 ? (
@@ -279,6 +306,14 @@ export function DistroOverviewTab({
       ) : (
         <div style={styles.list}>
           {plannerState.distros.map((distro, distroIndex) => {
+            const distroSummary = distroSummaries.find(
+              (summary) => summary.distro.id === distro.id,
+            );
+            const activeDistroIssues = activeIssuesForScope(
+              "planner-warnings",
+              distroSummary?.issues ?? [],
+              plannerState.dismissedWarnings ?? [],
+            );
             const availableSources = allAvailableSources.filter((source) => {
               const compatible = connectionsAreCompatible(
                 source.conn,
@@ -302,7 +337,18 @@ export function DistroOverviewTab({
             });
 
             return (
-              <div key={distro.id} style={styles.distroCard}>
+              <div
+                key={distro.id}
+                style={{
+                  ...styles.distroCard,
+                  ...(activeDistroIssues.some((issue) => issue.severity === "critical")
+                    ? styles.cardCritical
+                    : activeDistroIssues.length > 0
+                      ? styles.cardWarning
+                      : {}),
+                  ...distroPhaseStyle(distro),
+                }}
+              >
                 <div style={styles.headerRow}>
                   <div>
                     <strong>{displayDistroName(distro)}</strong>
@@ -345,6 +391,10 @@ export function DistroOverviewTab({
                     </button>
                   </div>
                 </div>
+
+                {distroSummary && (
+                  <DistroPhaseSummary summary={distroSummary} />
+                )}
 
                 <div style={styles.formGrid}>
                   <label style={styles.label}>
@@ -396,6 +446,59 @@ export function DistroOverviewTab({
         </div>
       )}
     </section>
+  );
+}
+
+function DistroPhaseSummary({ summary }: { summary: DistroLoadSummary }) {
+  return (
+    <section style={styles.phaseSummaryBox}>
+      <div style={styles.phaseSummaryHeader}>
+        <strong>Phase Balance</strong>
+      </div>
+      <div style={styles.phaseGrid}>
+        <PhaseCard phase="L1" amps={summary.phaseLoads.L1} rating={summary.distro.inputA} />
+        <PhaseCard phase="L2" amps={summary.phaseLoads.L2} rating={summary.distro.inputA} />
+        <PhaseCard phase="L3" amps={summary.phaseLoads.L3} rating={summary.distro.inputA} />
+      </div>
+    </section>
+  );
+}
+
+function PhaseCard({
+  phase,
+  amps,
+  rating,
+}: {
+  phase: string;
+  amps: number;
+  rating: number;
+}) {
+  const percentage = phasePercentage(amps, rating);
+
+  return (
+    <div style={styles.phaseCard}>
+      <div style={styles.phaseHeader}>
+        <strong>{phase}</strong>
+        <span>{percentage}%</span>
+      </div>
+      <p style={styles.phaseText}>
+        {formatAmps(amps)} / {formatAmps(rating)}
+      </p>
+      <div style={styles.meter}>
+        <div
+          style={{
+            ...styles.meterFill,
+            width: `${Math.min(percentage, 100)}%`,
+            background:
+              percentage >= 100
+                ? "#E5484D"
+                : percentage >= 95
+                  ? "#B7791F"
+                  : "#0A8F5D",
+          }}
+        />
+      </div>
+    </div>
   );
 }
 
@@ -456,7 +559,7 @@ const styles: Record<string, React.CSSProperties> = {
     background: "white",
     color: "#111827",
     cursor: "pointer",
-    fontWeight: 600,
+    fontWeight: 400,
     lineHeight: 1,
   },
   dangerButton: {
@@ -482,6 +585,20 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "14px",
     background: "#F5F7FA",
   },
+  singlePhaseCard: {
+    borderLeft: "6px solid #007D8F",
+  },
+  threePhaseCard: {
+    borderLeft: "6px solid #dc2626",
+  },
+  cardWarning: {
+    borderColor: "#F2C94C",
+    background: "#FFF8E5",
+  },
+  cardCritical: {
+    borderColor: "#E5484D",
+    background: "#FDECEC",
+  },
   headerRow: {
     display: "flex",
     justifyContent: "space-between",
@@ -498,5 +615,51 @@ const styles: Record<string, React.CSSProperties> = {
     display: "grid",
     gridTemplateColumns: "1fr 1fr 1fr",
     gap: "12px",
+  },
+  phaseSummaryBox: {
+    border: "1px solid #DCE5EC",
+    borderRadius: "12px",
+    padding: "12px",
+    background: "white",
+    marginBottom: "14px",
+  },
+  phaseSummaryHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    alignItems: "center",
+    marginBottom: "10px",
+    color: "#111827",
+  },
+  phaseGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "8px",
+  },
+  phaseCard: {
+    border: "1px solid #DCE5EC",
+    borderRadius: "10px",
+    padding: "10px",
+    background: "#F8FAFC",
+  },
+  phaseHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "8px",
+  },
+  phaseText: {
+    margin: "5px 0 8px",
+    color: "#667085",
+    fontSize: "13px",
+  },
+  meter: {
+    height: "8px",
+    borderRadius: "999px",
+    overflow: "hidden",
+    background: "#E5E7EB",
+  },
+  meterFill: {
+    height: "100%",
+    borderRadius: "999px",
   },
 };
