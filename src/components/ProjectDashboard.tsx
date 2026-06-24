@@ -75,7 +75,7 @@ export function ProjectDashboard({
   projects,
   newProjectName,
   setNewProjectName,
-  projectSharingEnabled = false,
+  projectSharingEnabled = true,
   projectShares,
   workspaceUsers,
   createProject,
@@ -419,7 +419,7 @@ export function ProjectDashboard({
             <h2 style={styles.createTitle}>Create Project</h2>
             <p style={styles.muted}>
               {projectSharingEnabled
-                ? "Projects are private by default. Use the project actions menu to share a project with selected workspace users."
+                ? "Projects are private by default. Use the settings cog to share a project with selected workspace users."
                 : "Projects on the app workspace are individual and only visible to you."}
             </p>
           </div>
@@ -447,7 +447,7 @@ export function ProjectDashboard({
               <>
                 {renderProjectList(
                   "Private Projects",
-                  "Projects only visible to you. Use the project actions menu to share with selected users.",
+                  "Projects only visible to you. Use the settings cog to share with selected users.",
                   privateProjects,
                 )}
                 {renderProjectList(
