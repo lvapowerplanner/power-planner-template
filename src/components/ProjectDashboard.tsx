@@ -90,6 +90,7 @@ export function ProjectDashboard({
   const [editingProjectName, setEditingProjectName] = useState("");
   const [selectedShareUsers, setSelectedShareUsers] = useState<string[]>([]);
   const [settingsSaving, setSettingsSaving] = useState(false);
+  const [shareDropdownOpen, setShareDropdownOpen] = useState(false);
   const companyName = workspaceBranding?.company_name?.trim() || "Event Power Planner";
 
   const sharesByProject = useMemo(() => {
@@ -106,22 +107,21 @@ export function ProjectDashboard({
 
   const { privateProjects, sharedByMeProjects, sharedWithMeProjects } = useMemo(() => {
     return {
-      privateProjects: projects.filter(
-        (project) =>
-          isOwnedByCurrentUser(project, user) &&
-          (sharesByProject[project.id] ?? []).length === 0 &&
-          project.is_private !== false,
+      privateProjects: projects.filter((project) =>
+        isOwnedByCurrentUser(project, user),
       ),
-      sharedByMeProjects: projects.filter(
-        (project) =>
-          isOwnedByCurrentUser(project, user) &&
-          ((sharesByProject[project.id] ?? []).length > 0 || project.is_private === false),
-      ),
+      sharedByMeProjects: [],
       sharedWithMeProjects: projects.filter(
         (project) => !isOwnedByCurrentUser(project, user),
       ),
     };
   }, [projects, sharesByProject, user]);
+
+  function projectCreatorLabel(project: Project) {
+    if (project.user_id === user.id) return "You";
+
+    return workspaceUsers.find((workspaceUser) => workspaceUser.id === project.user_id)?.email || "Workspace user";
+  }
 
   function projectVisibilityLabel(project: Project) {
     if (!isOwnedByCurrentUser(project, user)) return "Shared with me";
@@ -143,6 +143,7 @@ export function ProjectDashboard({
     setSelectedShareUsers(
       (sharesByProject[project.id] ?? []).map((share) => share.shared_with),
     );
+    setShareDropdownOpen(false);
   }
 
   function closeSettings() {
@@ -150,6 +151,7 @@ export function ProjectDashboard({
     setEditingProjectName("");
     setSelectedShareUsers([]);
     setSettingsSaving(false);
+    setShareDropdownOpen(false);
   }
 
   function toggleShareUser(userId: string) {
@@ -263,17 +265,38 @@ export function ProjectDashboard({
               shareableUsers.length === 0 ? (
                 <p style={styles.emptyText}>No other users were found in this workspace.</p>
               ) : (
-                <div style={styles.userShareList}>
-                  {shareableUsers.map((workspaceUser) => (
-                    <label key={workspaceUser.id} style={styles.userShareRow}>
-                      <input
-                        type="checkbox"
-                        checked={selectedShareUsers.includes(workspaceUser.id)}
-                        onChange={() => toggleShareUser(workspaceUser.id)}
-                      />
-                      <span>{userLabel(workspaceUser)}</span>
-                    </label>
-                  ))}
+                <div style={styles.multiSelectWrapper}>
+                  <button
+                    type="button"
+                    style={styles.multiSelectButton}
+                    onClick={() => setShareDropdownOpen((open) => !open)}
+                  >
+                    <span>
+                      {shareCount === 0
+                        ? "Select users to share with"
+                        : `${shareCount} user${shareCount === 1 ? "" : "s"} selected`}
+                    </span>
+                    <span style={styles.dropdownChevron}>⌄</span>
+                  </button>
+
+                  {shareDropdownOpen && (
+                    <div style={styles.multiSelectMenu}>
+                      {shareableUsers.map((workspaceUser) => {
+                        const checked = selectedShareUsers.includes(workspaceUser.id);
+
+                        return (
+                          <label key={workspaceUser.id} style={styles.multiSelectOption}>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleShareUser(workspaceUser.id)}
+                            />
+                            <span>{userLabel(workspaceUser)}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               )
             ) : (
@@ -347,7 +370,7 @@ export function ProjectDashboard({
                         </span>
                       </div>
                       <p style={styles.muted}>
-                        {project.updated_at ? "Updated" : "Created"} {new Date(projectDate(project)).toLocaleString()}
+                        Created by {projectCreatorLabel(project)} · {project.updated_at ? "Updated" : "Created"} {new Date(projectDate(project)).toLocaleString()}
                         {!isOwner ? " · Shared project" : shareCount > 0 ? ` · ${shareCount} user${shareCount === 1 ? "" : "s"}` : ""}
                       </p>
                     </div>
@@ -439,8 +462,8 @@ export function ProjectDashboard({
               <>
                 {renderProjectList(
                   "My Projects",
-                  "Projects owned by you. Use the project actions menu to share with selected workspace users.",
-                  [...privateProjects, ...sharedByMeProjects],
+                  "Projects owned by you. Use the actions menu to share with selected users.",
+                  privateProjects,
                 )}
                 {renderProjectList(
                   "Shared With Me",
@@ -451,8 +474,8 @@ export function ProjectDashboard({
             ) : (
               renderProjectList(
                 "My Projects",
-                "Individual projects on the app workspace.",
-                [...privateProjects, ...sharedByMeProjects],
+                "Projects owned by you.",
+                privateProjects,
               )
             )}
           </div>
@@ -707,6 +730,52 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "12px",
     alignItems: "flex-start",
     marginBottom: "10px",
+  },
+  multiSelectWrapper: {
+    position: "relative",
+  },
+  multiSelectButton: {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "10px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    color: "#172033",
+    cursor: "pointer",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "10px",
+    fontWeight: 500,
+    textAlign: "left",
+  },
+  dropdownChevron: {
+    fontSize: "18px",
+    lineHeight: 1,
+    color: "#637083",
+  },
+  multiSelectMenu: {
+    position: "absolute",
+    zIndex: 20,
+    top: "calc(100% + 6px)",
+    left: 0,
+    right: 0,
+    maxHeight: "240px",
+    overflowY: "auto",
+    border: "1px solid #d9e0ea",
+    borderRadius: "12px",
+    background: "white",
+    boxShadow: "0 10px 24px rgba(17, 24, 39, 0.12)",
+    padding: "6px",
+  },
+  multiSelectOption: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    padding: "10px",
+    borderRadius: "10px",
+    color: "#172033",
+    cursor: "pointer",
   },
   userShareList: {
     display: "grid",
