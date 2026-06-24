@@ -220,9 +220,6 @@ export function ProjectDashboard({
             <strong>Project Settings</strong>
             <p style={styles.muted}>Rename, share or delete “{project.name}”.</p>
           </div>
-          <button style={styles.iconButton} onClick={closeSettings} aria-label="Close project settings">
-            ×
-          </button>
         </div>
 
         <div style={styles.settingsGrid}>
@@ -417,11 +414,6 @@ export function ProjectDashboard({
         <section style={styles.createPanel}>
           <div>
             <h2 style={styles.createTitle}>Create Project</h2>
-            <p style={styles.muted}>
-              {projectSharingEnabled
-                ? "Projects are private by default. Use the settings cog to share a project with selected workspace users."
-                : "Projects on the app workspace are individual and only visible to you."}
-            </p>
           </div>
 
           <div style={styles.createProjectRow}>
@@ -446,14 +438,9 @@ export function ProjectDashboard({
             {projectSharingEnabled ? (
               <>
                 {renderProjectList(
-                  "Private Projects",
-                  "Projects only visible to you. Use the settings cog to share with selected users.",
-                  privateProjects,
-                )}
-                {renderProjectList(
-                  "Shared By Me",
-                  "Projects you have shared with selected workspace users.",
-                  sharedByMeProjects,
+                  "My Projects",
+                  "Projects owned by you. Use the project actions menu to share with selected workspace users.",
+                  [...privateProjects, ...sharedByMeProjects],
                 )}
                 {renderProjectList(
                   "Shared With Me",
