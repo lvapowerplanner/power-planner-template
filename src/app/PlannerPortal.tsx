@@ -12,6 +12,8 @@ import {
   emptyProjectData,
   type Project,
   type ProjectData,
+  type ProjectShare,
+  type WorkspaceUser,
 } from "@/types/project";
 
 type WorkspaceBranding = {
@@ -102,6 +104,11 @@ export default function PlannerPortal() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [newProjectName, setNewProjectName] = useState("");
+  const [projectShares, setProjectShares] = useState<ProjectShare[]>([]);
+  const [workspaceUsers, setWorkspaceUsers] = useState<WorkspaceUser[]>([]);
+  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [projectSharingMode, setProjectSharingMode] = useState<"disabled" | "selected_users" | "workspace">("disabled");
+  const projectSharingEnabled = projectSharingMode === "selected_users";
 
   const [activeProject, setActiveProject] = useState<Project | null>(null);
   const [projectData, setProjectData] = useState<ProjectData>(emptyProjectData);
@@ -142,6 +149,12 @@ export default function PlannerPortal() {
     return window.location.hostname.toLowerCase();
   }
 
+  function currentHostUsesIndividualProjects() {
+    const subdomain = currentSubdomain();
+
+    return subdomain === "app";
+  }
+
   function workspaceHostCandidates() {
     const host = currentHost();
     const subdomain = currentSubdomain();
@@ -155,6 +168,71 @@ export default function PlannerPortal() {
         ].filter(Boolean),
       ),
     );
+  }
+
+
+  async function resolveWorkspaceId() {
+    if (currentHostUsesIndividualProjects()) {
+      setWorkspaceId(null);
+      setProjectSharingMode("disabled");
+      return null;
+    }
+
+    const candidates = workspaceHostCandidates();
+
+    if (candidates.length === 0) {
+      setWorkspaceId(null);
+      setProjectSharingMode("disabled");
+      return null;
+    }
+
+    if (candidates.includes("localhost") || candidates.includes("127.0.0.1")) {
+      setWorkspaceId(null);
+      setProjectSharingMode("disabled");
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from("planner_workspaces")
+      .select("id")
+      .in("host", candidates)
+      .eq("active", true)
+      .limit(1)
+      .maybeSingle();
+
+    if (error) {
+      console.error("Could not resolve workspace:", error);
+      setWorkspaceId(null);
+      setProjectSharingMode("disabled");
+      return null;
+    }
+
+    const resolvedWorkspaceId = data?.id ? String(data.id) : null;
+    setWorkspaceId(resolvedWorkspaceId);
+
+    if (!resolvedWorkspaceId) {
+      setProjectSharingMode("disabled");
+      return null;
+    }
+
+    const { data: settings, error: settingsError } = await supabase
+      .from("workspace_settings")
+      .select("project_sharing_mode")
+      .eq("subdomain", currentSubdomain())
+      .maybeSingle();
+
+    if (settingsError) {
+      console.error("Could not load workspace project sharing setting:", settingsError);
+      setProjectSharingMode("disabled");
+      return resolvedWorkspaceId;
+    }
+
+    const mode = String(settings?.project_sharing_mode ?? "disabled");
+    setProjectSharingMode(
+      mode === "selected_users" || mode === "workspace" ? mode : "disabled",
+    );
+
+    return resolvedWorkspaceId;
   }
 
   async function loadWorkspaceLoginOptions() {
@@ -294,6 +372,7 @@ export default function PlannerPortal() {
     setMfaEnrollment(null);
     setMfaMessage("");
     setMfaLoading(false);
+    setWorkspaceId(null);
     setAccessMessage(message);
   }
 
@@ -710,18 +789,94 @@ export default function PlannerPortal() {
   }
 
   async function loadProjects(currentUser: User) {
-    const { data, error } = await supabase
-      .from("projects")
-      .select("*")
-      .eq("user_id", currentUser.id)
-      .order("created_at", { ascending: false });
+    const currentWorkspaceId = currentHostUsesIndividualProjects()
+      ? null
+      : workspaceId ?? (await resolveWorkspaceId());
+
+    let effectiveProjectSharingMode = projectSharingMode;
+
+    if (currentWorkspaceId && !currentHostUsesIndividualProjects()) {
+      const { data: settings, error: settingsError } = await supabase
+        .from("workspace_settings")
+        .select("project_sharing_mode")
+        .eq("subdomain", currentSubdomain())
+        .maybeSingle();
+
+      if (settingsError) {
+        console.error("Could not load workspace project sharing setting:", settingsError);
+        effectiveProjectSharingMode = "disabled";
+      } else {
+        const mode = String(settings?.project_sharing_mode ?? "disabled");
+        effectiveProjectSharingMode =
+          mode === "selected_users" || mode === "workspace" ? mode : "disabled";
+      }
+
+      setProjectSharingMode(effectiveProjectSharingMode);
+    }
+
+    let query = supabase.from("projects").select("*");
+
+    if (currentWorkspaceId) {
+      query = query.or(`user_id.eq.${currentUser.id},workspace_id.eq.${currentWorkspaceId}`);
+    } else {
+      query = query.eq("user_id", currentUser.id);
+    }
+
+    const { data, error } = await query.order("updated_at", { ascending: false });
 
     if (error) {
       alert(error.message);
       return;
     }
 
-    setProjects(data ?? []);
+    const loadedProjects = data ?? [];
+    setProjects(loadedProjects);
+
+    if (currentWorkspaceId && effectiveProjectSharingMode === "selected_users") {
+      await Promise.all([
+        loadWorkspaceUsers(currentWorkspaceId),
+        loadProjectShares(loadedProjects),
+      ]);
+    } else {
+      setWorkspaceUsers([]);
+      setProjectShares([]);
+    }
+  }
+
+  async function loadWorkspaceUsers(currentWorkspaceId: string) {
+    const { data, error } = await supabase.rpc("workspace_users_for_current_user", {
+      target_workspace_id: currentWorkspaceId,
+    });
+
+    if (error) {
+      console.error("Could not load workspace users:", error);
+      setWorkspaceUsers([]);
+      return;
+    }
+
+    setWorkspaceUsers((data ?? []) as WorkspaceUser[]);
+  }
+
+  async function loadProjectShares(projectList: Project[]) {
+    const projectIds = projectList.map((project) => project.id);
+
+    if (projectIds.length === 0) {
+      setProjectShares([]);
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from("project_shares")
+      .select("project_id, shared_with, shared_by, role, created_at")
+      .in("project_id", projectIds);
+
+    if (error) {
+      console.error("Could not load project shares:", error);
+      setProjectShares([]);
+      return;
+    }
+
+    setProjectShares((data ?? []) as ProjectShare[]);
   }
 
   async function createProject() {
@@ -732,12 +887,17 @@ export default function PlannerPortal() {
       return;
     }
 
+    const currentWorkspaceId = currentHostUsesIndividualProjects()
+      ? null
+      : workspaceId ?? (await resolveWorkspaceId());
     const { data: project, error: projectError } = await supabase
       .from("projects")
       .insert([
         {
           name: newProjectName.trim(),
           user_id: user.id,
+          workspace_id: currentHostUsesIndividualProjects() ? null : currentWorkspaceId,
+          is_private: true,
         },
       ])
       .select()
@@ -764,6 +924,103 @@ export default function PlannerPortal() {
     await loadProjects(user);
   }
 
+  async function updateProjectShares(projectId: string, sharedWithUserIds: string[]) {
+    if (!user) return false;
+
+    if (currentHostUsesIndividualProjects() || projectSharingMode !== "selected_users") {
+      alert("Project sharing is not enabled for this workspace.");
+      return false;
+    }
+
+    const targetProject = projects.find((project) => project.id === projectId);
+
+    if (!targetProject) return false;
+
+    if (targetProject.user_id !== user.id) {
+      alert("Only the project owner can manage project sharing.");
+      return false;
+    }
+
+    const currentWorkspaceId = workspaceId ?? (await resolveWorkspaceId());
+
+    if (!currentWorkspaceId) {
+      alert("This workspace could not be resolved, so the project cannot be shared.");
+      return false;
+    }
+
+    const safeUserIds = Array.from(
+      new Set(
+        sharedWithUserIds.filter(
+          (userId) => userId && userId !== user.id && workspaceUsers.some((item) => item.id === userId),
+        ),
+      ),
+    );
+
+    const { error: deleteError } = await supabase
+      .from("project_shares")
+      .delete()
+      .eq("project_id", projectId);
+
+    if (deleteError) {
+      alert(deleteError.message);
+      return false;
+    }
+
+    if (safeUserIds.length > 0) {
+      const { error: insertError } = await supabase.from("project_shares").insert(
+        safeUserIds.map((sharedWith) => ({
+          project_id: projectId,
+          shared_with: sharedWith,
+          shared_by: user.id,
+          role: "planner",
+        })),
+      );
+
+      if (insertError) {
+        alert(insertError.message);
+        return false;
+      }
+    }
+
+    const updatedAt = new Date().toISOString();
+
+    const { error: projectError } = await supabase
+      .from("projects")
+      .update({
+        workspace_id: currentWorkspaceId,
+        is_private: true,
+        updated_at: updatedAt,
+      })
+      .eq("id", projectId)
+      .eq("user_id", user.id);
+
+    if (projectError) {
+      alert(projectError.message);
+      return false;
+    }
+
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              workspace_id: currentWorkspaceId,
+              is_private: true,
+              updated_at: updatedAt,
+            }
+          : project,
+      ),
+    );
+
+    await loadProjectShares(projects.map((project) =>
+      project.id === projectId
+        ? { ...project, workspace_id: currentWorkspaceId, is_private: true, updated_at: updatedAt }
+        : project,
+    ));
+
+    return true;
+  }
+
   async function renameProject(projectId: string, nextName: string) {
     const cleanName = nextName.trim();
 
@@ -774,7 +1031,7 @@ export default function PlannerPortal() {
 
     const { error } = await supabase
       .from("projects")
-      .update({ name: cleanName })
+      .update({ name: cleanName, updated_at: new Date().toISOString() })
       .eq("id", projectId);
 
     if (error) {
@@ -784,13 +1041,15 @@ export default function PlannerPortal() {
 
     setProjects((currentProjects) =>
       currentProjects.map((project) =>
-        project.id === projectId ? { ...project, name: cleanName } : project,
+        project.id === projectId
+          ? { ...project, name: cleanName, updated_at: new Date().toISOString() }
+          : project,
       ),
     );
 
     setActiveProject((currentProject) =>
       currentProject?.id === projectId
-        ? { ...currentProject, name: cleanName }
+        ? { ...currentProject, name: cleanName, updated_at: new Date().toISOString() }
         : currentProject,
     );
 
@@ -885,7 +1144,23 @@ export default function PlannerPortal() {
       return;
     }
 
-    setSaveStatus(`Saved ${new Date().toLocaleTimeString()}`);
+    const savedAt = new Date();
+    const savedAtIso = savedAt.toISOString();
+
+    await supabase
+      .from("projects")
+      .update({ updated_at: savedAtIso })
+      .eq("id", activeProject.id);
+
+    setActiveProject({ ...activeProject, updated_at: savedAtIso });
+    setProjects((currentProjects) =>
+      currentProjects.map((project) =>
+        project.id === activeProject.id
+          ? { ...project, updated_at: savedAtIso }
+          : project,
+      ),
+    );
+    setSaveStatus(`Saved ${savedAt.toLocaleTimeString()}`);
   }
 
   useEffect(() => {
@@ -903,6 +1178,7 @@ export default function PlannerPortal() {
   useEffect(() => {
     loadWorkspaceBranding();
     loadWorkspaceLoginOptions();
+    resolveWorkspaceId();
 
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
@@ -1038,10 +1314,14 @@ export default function PlannerPortal() {
       projects={projects}
       newProjectName={newProjectName}
       setNewProjectName={setNewProjectName}
+      projectSharingEnabled={projectSharingEnabled}
+      projectShares={projectShares}
+      workspaceUsers={workspaceUsers}
       createProject={createProject}
       openProject={openProject}
       deleteProject={deleteProject}
       renameProject={renameProject}
+      updateProjectShares={updateProjectShares}
       signOut={signOut}
       workspaceBranding={workspaceBranding}
     />
