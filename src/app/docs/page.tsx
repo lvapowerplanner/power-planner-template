@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DocsSearch } from "./DocsSearch";
+import { DocsCommandPalette, DocsSearch } from "./DocsSearch";
 import { DocsSidebar, DocsStyles, DocsTopBar } from "./DocsLayoutComponents";
 import { docArticles, docCategories } from "./docsData";
 
@@ -12,6 +12,7 @@ export default function DocsHomePage() {
   return (
     <main style={styles.shell} className="docs-shell">
       <DocsStyles />
+      <DocsCommandPalette />
       <DocsSidebar />
 
       <section style={styles.main} className="docs-main">

@@ -1,44 +1,38 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { docArticles } from "./docsData";
+import { articleSearchText, docArticles } from "./docsData";
+
+function rankedResults(query: string, limit?: number) {
+  const cleanQuery = query.trim().toLowerCase();
+
+  if (!cleanQuery) return docArticles.slice(0, limit ?? 9);
+
+  const terms = cleanQuery.split(/\s+/).filter(Boolean);
+
+  return docArticles
+    .map((article) => {
+      const text = articleSearchText(article);
+      const title = article.title.toLowerCase();
+      const tags = article.tags.join(" ").toLowerCase();
+      const exactTitle = title.includes(cleanQuery) ? 10 : 0;
+      const exactTag = tags.includes(cleanQuery) ? 7 : 0;
+      const exactContent = text.includes(cleanQuery) ? 4 : 0;
+      const termScore = terms.reduce((score, term) => score + (text.includes(term) ? 1 : 0), 0);
+      const score = exactTitle + exactTag + exactContent + termScore;
+
+      return { article, score };
+    })
+    .filter((result) => result.score > 0)
+    .sort((a, b) => b.score - a.score || a.article.title.localeCompare(b.article.title))
+    .slice(0, limit)
+    .map((result) => result.article);
+}
 
 export function DocsSearch() {
   const [query, setQuery] = useState("");
-  const cleanQuery = query.trim().toLowerCase();
-
-  const results = useMemo(() => {
-    if (!cleanQuery) return docArticles.slice(0, 9);
-
-    return docArticles
-      .map((article) => {
-        const searchableContent = [
-          article.title,
-          article.description,
-          article.category,
-          article.summary,
-          ...article.sections.flatMap((section) => [
-            section.heading,
-            ...section.body,
-            ...(section.steps ?? []),
-            section.callout?.title ?? "",
-            section.callout?.body ?? "",
-          ]),
-        ].join(" ").toLowerCase();
-
-        const titleMatch = article.title.toLowerCase().includes(cleanQuery) ? 5 : 0;
-        const descriptionMatch = article.description.toLowerCase().includes(cleanQuery) ? 3 : 0;
-        const categoryMatch = article.category.toLowerCase().includes(cleanQuery) ? 2 : 0;
-        const contentMatch = searchableContent.includes(cleanQuery) ? 1 : 0;
-        const score = titleMatch + descriptionMatch + categoryMatch + contentMatch;
-
-        return { article, score };
-      })
-      .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score || a.article.title.localeCompare(b.article.title))
-      .map((result) => result.article);
-  }, [cleanQuery]);
+  const results = useMemo(() => rankedResults(query, 12), [query]);
 
   return (
     <section style={styles.searchPanel}>
@@ -80,6 +74,69 @@ export function DocsSearch() {
         )}
       </div>
     </section>
+  );
+}
+
+export function DocsCommandPalette() {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const results = useMemo(() => rankedResults(query, 8), [query]);
+
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      const isSearchShortcut = (event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k";
+      if (!isSearchShortcut) return;
+
+      event.preventDefault();
+      setOpen(true);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [open]);
+
+  if (!open) return null;
+
+  return (
+    <div style={styles.paletteOverlay} onMouseDown={() => setOpen(false)}>
+      <section style={styles.palette} onMouseDown={(event) => event.stopPropagation()} role="dialog" aria-modal="true" aria-label="Search documentation">
+        <div style={styles.paletteHeader}>
+          <strong>Search documentation</strong>
+          <button type="button" style={styles.paletteClose} onClick={() => setOpen(false)}>Esc</button>
+        </div>
+        <input
+          autoFocus
+          style={styles.paletteInput}
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Search articles, warnings, reports, auto sources..."
+        />
+        <div style={styles.paletteResults}>
+          {results.length === 0 ? (
+            <p style={styles.muted}>No matching articles.</p>
+          ) : (
+            results.map((article) => (
+              <Link key={article.slug} href={`/docs/${article.slug}`} style={styles.paletteResult} onClick={() => setOpen(false)}>
+                <span style={styles.category}>{article.category}</span>
+                <strong>{article.title}</strong>
+                <span>{article.description}</span>
+              </Link>
+            ))
+          )}
+        </div>
+      </section>
+    </div>
   );
 }
 
@@ -179,5 +236,61 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#667085",
     marginBottom: 0,
     lineHeight: 1.5,
+  },
+  paletteOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000,
+    background: "rgba(17, 24, 39, 0.42)",
+    padding: "8vh 18px",
+  },
+  palette: {
+    maxWidth: "720px",
+    margin: "0 auto",
+    background: "white",
+    borderRadius: "24px",
+    border: "1px solid #E5E7EB",
+    boxShadow: "0 28px 90px rgba(17, 24, 39, 0.32)",
+    padding: "18px",
+  },
+  paletteHeader: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "12px",
+  },
+  paletteClose: {
+    border: "1px solid #D0D5DD",
+    borderRadius: "999px",
+    background: "#F8FAFC",
+    padding: "6px 10px",
+    fontWeight: 800,
+    color: "#475467",
+  },
+  paletteInput: {
+    width: "100%",
+    border: "1px solid #D0D5DD",
+    borderRadius: "16px",
+    padding: "15px 16px",
+    font: "inherit",
+    fontSize: "17px",
+    outline: "none",
+  },
+  paletteResults: {
+    display: "grid",
+    gap: "10px",
+    marginTop: "14px",
+    maxHeight: "58vh",
+    overflow: "auto",
+  },
+  paletteResult: {
+    display: "grid",
+    gap: "5px",
+    padding: "14px",
+    borderRadius: "16px",
+    textDecoration: "none",
+    color: "#172033",
+    border: "1px solid #EEF2F6",
+    background: "#FCFCFD",
   },
 };

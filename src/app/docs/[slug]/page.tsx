@@ -1,4 +1,5 @@
 import { notFound } from "next/navigation";
+import { DocsCommandPalette } from "../DocsSearch";
 import {
   articleBySlug,
   docArticles,
@@ -53,6 +54,7 @@ export default async function DocArticlePage({ params }: PageProps) {
   return (
     <main style={styles.shell} className="docs-shell">
       <DocsStyles />
+      <DocsCommandPalette />
       <DocsSidebar activeSlug={slug} />
 
       <section style={styles.main} className="docs-main">

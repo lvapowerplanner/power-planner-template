@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { docCategories, type CalloutType, type DocArticle } from "./docsData";
+import { docCategories, type CalloutType, type DocArticle, type DocScreenshot } from "./docsData";
 
 export function sectionId(value: string) {
   return value.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
@@ -48,6 +48,7 @@ export function DocsSidebar({ activeSlug }: { activeSlug?: string }) {
 export function DocsTopBar() {
   return (
     <div style={styles.topBar}>
+      <span style={styles.shortcutHint}>Press Ctrl/⌘ + K to search</span>
       <Link href="/" style={styles.topBarLink}>← Main website</Link>
       <Link href="/docs" style={styles.topBarLink}>Docs home</Link>
       <a href="mailto:hello@lvapowerplanner.com" style={styles.topBarLink}>Support</a>
@@ -70,6 +71,11 @@ export function ArticleHeader({ article }: { article: DocArticle }) {
         <span>Updated {article.updated}</span>
         <span>{article.readTime}</span>
         <span>{article.sections.length} sections</span>
+      </div>
+      <div style={styles.tagRow}>
+        {article.tags.slice(0, 6).map((tag) => (
+          <span key={tag} style={styles.tag}>{tag}</span>
+        ))}
       </div>
     </header>
   );
@@ -101,6 +107,20 @@ export function Callout({ type, title, body }: { type: CalloutType; title: strin
   );
 }
 
+export function ScreenshotBlock({ screenshot }: { screenshot: DocScreenshot }) {
+  return (
+    <figure style={styles.screenshotFigure}>
+      <div style={styles.screenshotFrame}>
+        <img src={screenshot.src} alt={screenshot.alt} style={styles.screenshotImage} />
+      </div>
+      <figcaption style={styles.screenshotCaption}>
+        <strong>{screenshot.title}</strong>
+        {screenshot.caption ? <span>{screenshot.caption}</span> : null}
+      </figcaption>
+    </figure>
+  );
+}
+
 export function ArticleBody({ article }: { article: DocArticle }) {
   return (
     <div style={styles.articleBody}>
@@ -110,6 +130,11 @@ export function ArticleBody({ article }: { article: DocArticle }) {
           {section.body.map((paragraph) => (
             <p key={paragraph} style={styles.paragraph}>{paragraph}</p>
           ))}
+          {section.bullets && (
+            <ul style={styles.bullets}>
+              {section.bullets.map((bullet) => <li key={bullet}>{bullet}</li>)}
+            </ul>
+          )}
           {section.steps && (
             <ol style={styles.steps}>
               {section.steps.map((step) => (
@@ -117,6 +142,7 @@ export function ArticleBody({ article }: { article: DocArticle }) {
               ))}
             </ol>
           )}
+          {section.screenshot && <ScreenshotBlock screenshot={section.screenshot} />}
           {section.callout && <Callout {...section.callout} />}
         </section>
       ))}
@@ -129,7 +155,7 @@ export function RelatedArticles({ articles }: { articles: DocArticle[] }) {
   return (
     <section style={styles.relatedSection}>
       <h2 style={styles.relatedTitle}>Related articles</h2>
-      <div style={styles.relatedGrid}>
+      <div style={styles.relatedGrid} className="docs-related-grid">
         {articles.map((article) => (
           <Link key={article.slug} href={`/docs/${article.slug}`} style={styles.relatedCard}>
             <span style={styles.relatedCategory}>{article.category}</span>
@@ -185,7 +211,8 @@ const calloutConfig: Record<CalloutType, { icon: string; border: string; backgro
 };
 
 const styles: Record<string, React.CSSProperties> = {
-  topBar: { display: "flex", gap: "14px", justifyContent: "flex-end", marginBottom: "22px", flexWrap: "wrap" },
+  topBar: { display: "flex", gap: "14px", justifyContent: "flex-end", marginBottom: "22px", flexWrap: "wrap", alignItems: "center" },
+  shortcutHint: { marginRight: "auto", color: "#667085", fontSize: "13px", fontWeight: 800 },
   topBarLink: { color: "#475467", textDecoration: "none", fontSize: "14px", fontWeight: 700 },
   sidebar: { position: "sticky", top: 0, alignSelf: "start", height: "100vh", overflow: "auto", borderRight: "1px solid #E5E7EB", padding: "28px 18px", background: "#FFFFFF" },
   sidebarBrand: { display: "flex", alignItems: "center", gap: "10px", color: "#111827", textDecoration: "none", fontWeight: 900, marginBottom: "24px" },
@@ -203,6 +230,8 @@ const styles: Record<string, React.CSSProperties> = {
   articleTitle: { margin: 0, fontSize: "clamp(38px, 6vw, 68px)", lineHeight: 0.95, letterSpacing: "-0.055em", color: "#111827" },
   articleSummary: { maxWidth: "780px", color: "#475467", fontSize: "20px", lineHeight: 1.55, margin: "20px 0 0" },
   metaRow: { display: "flex", gap: "10px", flexWrap: "wrap", marginTop: "20px", color: "#475467", fontSize: "13px", fontWeight: 800 },
+  tagRow: { display: "flex", gap: "8px", flexWrap: "wrap", marginTop: "18px" },
+  tag: { display: "inline-flex", padding: "6px 9px", borderRadius: "999px", background: "#F2F4F7", color: "#475467", fontSize: "12px", fontWeight: 800 },
   toc: { position: "sticky", top: "22px", alignSelf: "start", border: "1px solid #E5E7EB", borderRadius: "16px", padding: "16px", background: "#FFFFFF" },
   tocTitle: { margin: "0 0 10px", color: "#111827", fontWeight: 900 },
   tocLink: { display: "block", color: "#475467", textDecoration: "none", padding: "7px 0", fontSize: "14px", borderTop: "1px solid #F2F4F7" },
@@ -210,10 +239,15 @@ const styles: Record<string, React.CSSProperties> = {
   section: { scrollMarginTop: "28px" },
   sectionTitle: { margin: "0 0 12px", fontSize: "28px", letterSpacing: "-0.03em", color: "#111827" },
   paragraph: { color: "#344054", fontSize: "17px", lineHeight: 1.75, margin: "0 0 14px" },
+  bullets: { color: "#344054", fontSize: "17px", lineHeight: 1.75, paddingLeft: "24px", marginTop: "12px" },
   steps: { color: "#344054", fontSize: "17px", lineHeight: 1.75, paddingLeft: "24px", marginTop: "12px" },
   callout: { marginTop: "18px", border: "1px solid", borderRadius: "16px", padding: "16px" },
   calloutTitleRow: { display: "flex", gap: "10px", alignItems: "center", color: "#111827", marginBottom: "8px" },
   calloutBody: { margin: 0, color: "#344054", lineHeight: 1.6 },
+  screenshotFigure: { margin: "22px 0 0", border: "1px solid #E5E7EB", borderRadius: "18px", overflow: "hidden", background: "#F8FAFC" },
+  screenshotFrame: { minHeight: "220px", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #F8FAFC, #EEF2F6)" },
+  screenshotImage: { display: "block", width: "100%", maxHeight: "560px", objectFit: "contain" },
+  screenshotCaption: { display: "grid", gap: "4px", padding: "12px 14px", color: "#667085", fontSize: "13px", lineHeight: 1.45 },
   relatedSection: { borderTop: "1px solid #E5E7EB", marginTop: "38px", paddingTop: "28px" },
   relatedTitle: { margin: "0 0 16px", fontSize: "24px" },
   relatedGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "14px" },
