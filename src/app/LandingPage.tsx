@@ -16,8 +16,8 @@ export default function LandingPage() {
 
         <p className="mx-auto mt-6 max-w-3xl text-lg text-gray-600 md:text-xl">
           LVA Power Planner helps production teams build clear, structured power
-          schematics for live events, with views of full systems, distros, circuits, equipment loads and
-          PDF reporting.
+          plans for generators, distros, circuits, equipment loads and
+          professional reports.
         </p>
       </section>
 
@@ -25,27 +25,27 @@ export default function LandingPage() {
         {[
           [
             "Power Planning",
-            "Design complete temporary power systems before arriving on site, with clear schematics and load calculations.",
+            "Plan power sources and understand available capacity before arriving on site.",
           ],
           [
             "Distro Management",
-            "Model distribution exactly as it will be deployed. See all distros, circuits and loads in one place.",
+            "Build realistic distribution systems with custom distros and circuit layouts.",
           ],
           [
             "Load Calculations",
-            "Automatic load and phase balancing as you build. See total load, phase load and circuit load at a glance.",
+            "Calculate connected loads, demand and phase balance quickly and consistently.",
           ],
           [
             "Equipment Library",
-            "Standardise planning using your own inventory integrated directly into LVA Power Planner.",
+            "Store commonly used equipment across custom defined categories.",
           ],
           [
-            "System Warnings",
-            "Identify potential issues and safety concerns before deployment, with clear warnings and visual indicators.",
+            "System Overview",
+            "See the full temporary power system in a clear, easy-to-follow layout.",
           ],
           [
             "Exportable Reports",
-            "Produce PDF reports to ensure consistency on-site and maintain project records.",
+            "Produce professional reports for onsite teams and project records.",
           ],
         ].map(([title, text]) => (
           <div key={title} className="rounded-2xl border border-gray-200 p-6">
@@ -66,9 +66,15 @@ export default function LandingPage() {
           designed for real-world event power workflows.
         </p>
 
-        <p className="mx-auto mt-8 max-w-2xl text-lg text-white">
-          To arrange a personalised demonstration and discuss how LVA Power Planner can support your projects, contact us at{" "}
-          <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4">hello@lvapowerplanner.com</a>.
+        <p className="mx-auto mt-8 max-w-2xl text-lg text-white"> 
+          To arrange a personalised demonstration and discuss how LVA Power Planner can support your projects, contact us at{" "} 
+          <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4" > hello@lvapowerplanner.com </a> . 
+        </p>
+
+        <p className="mx-auto mt-5 text-white">
+          <a href="/docs" className="font-semibold underline underline-offset-4">
+            View the online documentation centre
+          </a>
         </p>
       </section>
 
@@ -76,19 +82,6 @@ export default function LandingPage() {
         <p className="mx-auto max-w-4xl">
           LVA Power Planner is an indicative planning tool. It may support BS 7909 documentation workflows, but it does not verify, certify or guarantee compliance with BS 7909, BS 7671 or any other standard. Responsibility remains with the user and competent duty holder.
         </p>
-
-        <div className="mt-5 flex flex-wrap justify-center gap-x-5 gap-y-2">
-          <a href="/privacy" className="underline underline-offset-4 hover:text-black">
-            Privacy Policy
-          </a>
-          <a href="/terms" className="underline underline-offset-4 hover:text-black">
-            Terms of Service
-          </a>
-          <a href="mailto:hello@lvapowerplanner.com" className="underline underline-offset-4 hover:text-black">
-            Contact
-          </a>
-        </div>
-
         <p className="mt-4">© {new Date().getFullYear()} LVA Power Planner</p>
       </footer>
     </main>
