@@ -108,14 +108,19 @@ export function Callout({ type, title, body }: { type: CalloutType; title: strin
 }
 
 export function ScreenshotBlock({ screenshot }: { screenshot: DocScreenshot }) {
+  if (!screenshot.src) return null;
+
   return (
     <figure style={styles.screenshotFigure}>
-      <div style={styles.screenshotFrame}>
+      <a href={screenshot.src} target="_blank" rel="noreferrer" style={styles.screenshotLink}>
         <img src={screenshot.src} alt={screenshot.alt} style={styles.screenshotImage} />
-      </div>
+      </a>
       <figcaption style={styles.screenshotCaption}>
-        <strong>{screenshot.title}</strong>
-        {screenshot.caption ? <span>{screenshot.caption}</span> : null}
+        <span>
+          <strong>{screenshot.title}</strong>
+          {screenshot.caption ? <> — {screenshot.caption}</> : null}
+        </span>
+        <span style={styles.screenshotHint}>Open image</span>
       </figcaption>
     </figure>
   );
@@ -244,10 +249,11 @@ const styles: Record<string, React.CSSProperties> = {
   callout: { marginTop: "18px", border: "1px solid", borderRadius: "16px", padding: "16px" },
   calloutTitleRow: { display: "flex", gap: "10px", alignItems: "center", color: "#111827", marginBottom: "8px" },
   calloutBody: { margin: 0, color: "#344054", lineHeight: 1.6 },
-  screenshotFigure: { margin: "22px 0 0", border: "1px solid #E5E7EB", borderRadius: "18px", overflow: "hidden", background: "#F8FAFC" },
-  screenshotFrame: { minHeight: "220px", display: "flex", alignItems: "center", justifyContent: "center", background: "linear-gradient(135deg, #F8FAFC, #EEF2F6)" },
-  screenshotImage: { display: "block", width: "100%", maxHeight: "560px", objectFit: "contain" },
-  screenshotCaption: { display: "grid", gap: "4px", padding: "12px 14px", color: "#667085", fontSize: "13px", lineHeight: 1.45 },
+  screenshotFigure: { margin: "22px 0 0", border: "1px solid #E5E7EB", borderRadius: "18px", overflow: "hidden", background: "#FFFFFF", boxShadow: "0 12px 34px rgba(17, 24, 39, 0.06)" },
+  screenshotLink: { display: "block", background: "#F8FAFC", textDecoration: "none" },
+  screenshotImage: { display: "block", width: "100%", maxHeight: "620px", objectFit: "contain" },
+  screenshotCaption: { display: "flex", justifyContent: "space-between", gap: "14px", padding: "12px 14px", color: "#667085", fontSize: "13px", lineHeight: 1.45, borderTop: "1px solid #E5E7EB" },
+  screenshotHint: { color: "#111827", fontWeight: 800, whiteSpace: "nowrap" },
   relatedSection: { borderTop: "1px solid #E5E7EB", marginTop: "38px", paddingTop: "28px" },
   relatedTitle: { margin: "0 0 16px", fontSize: "24px" },
   relatedGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "14px" },
@@ -270,5 +276,6 @@ const responsiveStyles = `
   @media (max-width: 760px) {
     .docs-main { padding: 22px !important; }
     .docs-related-grid { grid-template-columns: 1fr !important; }
+    .docs-featured-grid { grid-template-columns: 1fr !important; }
   }
 `;

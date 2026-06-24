@@ -9,6 +9,10 @@ export const metadata = {
 };
 
 export default function DocsHomePage() {
+  const featuredArticles = docArticles.filter((article) =>
+    ["introduction", "system-overview", "distro-editor", "reports"].includes(article.slug),
+  );
+
   return (
     <main style={styles.shell} className="docs-shell">
       <DocsStyles />
@@ -34,6 +38,25 @@ export default function DocsHomePage() {
 
         <section style={styles.content}>
           <DocsSearch />
+
+          <section style={styles.featuredSection}>
+            <div style={styles.sectionHeader}>
+              <div>
+                <p style={styles.kicker}>Start here</p>
+                <h2 style={styles.sectionTitle}>Popular guides</h2>
+              </div>
+              <Link href="/docs/introduction" style={styles.smallLink}>Read introduction →</Link>
+            </div>
+            <div style={styles.featuredGrid} className="docs-featured-grid">
+              {featuredArticles.map((article) => (
+                <Link key={article.slug} href={`/docs/${article.slug}`} style={styles.featuredCard}>
+                  <span style={styles.featuredCategory}>{article.category}</span>
+                  <strong>{article.title}</strong>
+                  <span>{article.description}</span>
+                </Link>
+              ))}
+            </div>
+          </section>
 
           <div style={styles.categoryGrid}>
             {docCategories.map((category) => (
@@ -96,6 +119,13 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: { maxWidth: "720px", margin: "20px auto 0", color: "#475467", fontSize: "20px", lineHeight: 1.55 },
   statsRow: { display: "flex", justifyContent: "center", gap: "10px", flexWrap: "wrap", marginTop: "24px", color: "#475467", fontSize: "13px", fontWeight: 800 },
   content: { maxWidth: "1180px", margin: "0 auto", display: "grid", gap: "22px" },
+  featuredSection: { background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "24px", padding: "24px" },
+  sectionHeader: { display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "16px", marginBottom: "16px" },
+  sectionTitle: { margin: 0, fontSize: "30px", letterSpacing: "-0.04em" },
+  smallLink: { color: "#111827", textDecoration: "none", fontWeight: 900, whiteSpace: "nowrap" },
+  featuredGrid: { display: "grid", gridTemplateColumns: "repeat(4, minmax(0, 1fr))", gap: "12px" },
+  featuredCard: { display: "grid", gap: "8px", textDecoration: "none", color: "#344054", border: "1px solid #E5E7EB", borderRadius: "16px", padding: "16px", background: "#FCFCFD" },
+  featuredCategory: { color: "#667085", fontSize: "12px", fontWeight: 900, textTransform: "uppercase", letterSpacing: "0.06em" },
   categoryGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: "18px" },
   categoryCard: { background: "#FFFFFF", border: "1px solid #E5E7EB", borderRadius: "22px", padding: "22px" },
   categoryHeader: { display: "flex", justifyContent: "space-between", gap: "12px", alignItems: "center" },

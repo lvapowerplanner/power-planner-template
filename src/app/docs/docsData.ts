@@ -288,7 +288,7 @@ export const docArticles: DocArticle[] = [
           title: "System Overview screen",
           src: "/docs/images/system-overview.png",
           alt: "System Overview tab showing project information, source cards and distro hierarchy",
-          caption: "Place a screenshot at public/docs/images/system-overview.png to activate this visual in the live documentation.",
+          caption: "Project information, active warnings, power sources and the downstream distribution tree are reviewed from this screen.",
         },
       },
       {
@@ -446,7 +446,7 @@ export const docArticles: DocArticle[] = [
           title: "Distro Overview add panel",
           src: "/docs/images/distro-overview.png",
           alt: "Distro Overview showing add distro controls and distro cards",
-          caption: "Recommended screenshot: add a marked-up image showing the Distro Type selector, Add Distro button, source selector and Open button."
+          caption: "Add distros from the library, assign sources and open individual distros for detailed editing."
         }
       },
       {
@@ -509,7 +509,7 @@ export const docArticles: DocArticle[] = [
           title: "Distro Editor layout",
           src: "/docs/images/distro-editor.png",
           alt: "Distro Editor showing equipment library, phase summary and output cards",
-          caption: "Recommended screenshot: mark the equipment library, editing distro selector, phase summary, source selector and output cards."
+          caption: "The Distro Editor combines the equipment library, source selection, phase summary and output cards in one workspace."
         }
       },
       {
@@ -685,7 +685,7 @@ export const docArticles: DocArticle[] = [
           title: "Custom Equipment form",
           src: "/docs/images/custom-equipment.png",
           alt: "Custom Equipment page showing name category and watts fields",
-          caption: "Recommended screenshot: show the form fields and the list of project custom equipment."
+          caption: "Create project-specific equipment items and make them available in the Distro Editor equipment library."
         }
       },
       {
@@ -750,7 +750,7 @@ export const docArticles: DocArticle[] = [
           title: "Custom Distro builder",
           src: "/docs/images/custom-distros.png",
           alt: "Custom Distros page showing input type and output builder controls",
-          caption: "Recommended screenshot: show the input type, output controls and current layout preview."
+          caption: "Build project-specific distro templates using configurable inputs and output types."
         }
       },
       {
@@ -812,7 +812,7 @@ export const docArticles: DocArticle[] = [
           title: "Report preview",
           src: "/docs/images/reports.png",
           alt: "Report tab showing export controls and report preview",
-          caption: "Recommended screenshot: show source/distro toggles, export buttons and the report preview header."
+          caption: "Choose report content, review the branded preview and export PDF deliverables from the Report tab."
         }
       },
       {
