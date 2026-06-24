@@ -9,7 +9,7 @@ export function DocsSearch() {
   const cleanQuery = query.trim().toLowerCase();
 
   const results = useMemo(() => {
-    if (!cleanQuery) return docArticles.slice(0, 8);
+    if (!cleanQuery) return docArticles.slice(0, 9);
 
     return docArticles
       .map((article) => {
@@ -27,15 +27,16 @@ export function DocsSearch() {
           ]),
         ].join(" ").toLowerCase();
 
-        const titleMatch = article.title.toLowerCase().includes(cleanQuery) ? 3 : 0;
-        const descriptionMatch = article.description.toLowerCase().includes(cleanQuery) ? 2 : 0;
+        const titleMatch = article.title.toLowerCase().includes(cleanQuery) ? 5 : 0;
+        const descriptionMatch = article.description.toLowerCase().includes(cleanQuery) ? 3 : 0;
+        const categoryMatch = article.category.toLowerCase().includes(cleanQuery) ? 2 : 0;
         const contentMatch = searchableContent.includes(cleanQuery) ? 1 : 0;
-        const score = titleMatch + descriptionMatch + contentMatch;
+        const score = titleMatch + descriptionMatch + categoryMatch + contentMatch;
 
         return { article, score };
       })
       .filter((result) => result.score > 0)
-      .sort((a, b) => b.score - a.score)
+      .sort((a, b) => b.score - a.score || a.article.title.localeCompare(b.article.title))
       .map((result) => result.article);
   }, [cleanQuery]);
 
@@ -58,6 +59,12 @@ export function DocsSearch() {
           placeholder="Search phase imbalance, reports, auto sources..."
         />
       </label>
+
+      {query && (
+        <button type="button" style={styles.clearButton} onClick={() => setQuery("")}>
+          Clear search
+        </button>
+      )}
 
       <div style={styles.results}>
         {results.length === 0 ? (
@@ -113,9 +120,7 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 800,
     whiteSpace: "nowrap",
   },
-  label: {
-    display: "block",
-  },
+  label: { display: "block" },
   visuallyHidden: {
     position: "absolute",
     width: "1px",
@@ -135,6 +140,16 @@ const styles: Record<string, React.CSSProperties> = {
     font: "inherit",
     fontSize: "16px",
     outline: "none",
+  },
+  clearButton: {
+    marginTop: "10px",
+    padding: "8px 12px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "999px",
+    background: "#FFFFFF",
+    cursor: "pointer",
+    fontWeight: 700,
+    color: "#344054",
   },
   results: {
     display: "grid",
