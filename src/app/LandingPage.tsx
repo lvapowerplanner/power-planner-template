@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function LandingPage() {
   return (
     <main className="min-h-screen bg-white text-black font-sans">
@@ -83,6 +85,17 @@ export default function LandingPage() {
           LVA Power Planner is an indicative planning tool. It may support BS 7909 documentation workflows, but it does not verify, certify or guarantee compliance with BS 7909, BS 7671 or any other standard. Responsibility remains with the user and competent duty holder.
         </p>
         <p className="mt-4">© {new Date().getFullYear()} LVA Power Planner</p>
+        <div className="mt-4 flex flex-wrap justify-center gap-6 text-sm">
+          <Link href="/privacy" className="hover:text-black transition-colors">
+            Privacy Policy
+          </Link>
+          <Link href="/terms" className="hover:text-black transition-colors">
+            Terms &amp; Conditions
+          </Link>
+          <Link href="/docs" className="hover:text-black transition-colors">
+            Documentation
+          </Link>
+        </div>
       </footer>
     </main>
   );
