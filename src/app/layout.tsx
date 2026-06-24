@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Outfit } from "next/font/google";
+import { Lato } from "next/font/google";
 import "./globals.css";
 
-const outfit = Outfit({
+const lato = Lato({
   subsets: ["latin"],
-  variable: "--font-outfit",
+  weight: ["300", "400", "700", "900"],
+  variable: "--font-lato",
 });
 
 export const metadata: Metadata = {
@@ -18,8 +19,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en" className={`${outfit.variable} h-full antialiased`}>
-      <body className={`${outfit.className} min-h-full flex flex-col`}>
+    <html lang="en" className={`${lato.variable} h-full antialiased`}>
+      <body className={`${lato.className} min-h-full flex flex-col`}>
         <style>{`
           :root {
             --lva-ui-hover: rgba(158, 158, 158, 0.07);
