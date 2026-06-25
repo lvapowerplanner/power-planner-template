@@ -47,6 +47,7 @@ export const docCategories: DocCategory[] = [
       { title: "Introduction", slug: "introduction", description: "What LVA Power Planner does and who it is for." },
       { title: "Logging In & MFA", slug: "logging-in", description: "Accessing your workspace and securing your account." },
       { title: "Creating Projects", slug: "creating-projects", description: "Create, open, rename and manage projects." },
+      { title: "Project Sharing", slug: "project-sharing", description: "Share private projects with selected workspace users." },
     ],
   },
   {
@@ -265,8 +266,103 @@ export const docArticles: DocArticle[] = [
           "For major revisions, still use Export Project to create a dated backup before making extensive changes.",
         ],
       },
+      {
+        heading: "Private projects and sharing",
+        body: [
+          "Projects are private by default. A project appears in My Projects for the user who created it and remains hidden from other workspace users until it is shared.",
+          "Where Project Sharing is enabled for the workspace, use the project actions menu to share a project with selected users or make it private again.",
+        ],
+        callout: {
+          type: "info",
+          title: "Workspace controlled",
+          body: "Project Sharing is controlled by the workspace configuration. It may be unavailable in some workspaces and is not available on the individual app subdomain.",
+        },
+      },
     ],
-    related: ["system-overview", "import-export", "reports"],
+    related: ["project-sharing", "system-overview", "import-export", "reports"],
+  },
+  {
+    title: "Project Sharing",
+    slug: "project-sharing",
+    category: "Getting Started",
+    updated: "June 2026",
+    readTime: "8 min read",
+    description: "Share private projects with selected users in the same workspace.",
+    summary: "Project Sharing allows project owners to keep projects private by default and share them with selected colleagues when collaboration is required.",
+    tags: ["project sharing", "shared projects", "my projects", "workspace", "permissions", "private projects", "selected users"],
+    sections: [
+      {
+        heading: "Overview",
+        body: [
+          "Project Sharing allows users within the same company workspace to collaborate on selected projects without making every project visible to everyone by default.",
+          "New projects are private by default and appear under My Projects for the project creator. Shared projects appear under Projects Shared With Me for users who have been given access.",
+        ],
+        callout: {
+          type: "info",
+          title: "Company workspace only",
+          body: "Projects can only be shared with users in the same workspace. Project sharing does not apply to the individual app subdomain.",
+        },
+      },
+      {
+        heading: "Sharing modes",
+        body: [
+          "Project Sharing is controlled by the workspace configuration. If it is disabled, all projects remain private and sharing controls are hidden from the dashboard.",
+          "When selected-user sharing is enabled, project owners can choose exactly which workspace users should have access to each project.",
+        ],
+        bullets: [
+          "Disabled: sharing controls are hidden and projects remain private.",
+          "Selected users: owners can share individual projects with chosen workspace users.",
+          "Workspace sharing: reserved for future workspace-wide sharing workflows where required.",
+        ],
+      },
+      {
+        heading: "Sharing a project",
+        body: [
+          "To share a project, open the project actions menu from the project card in My Projects. The actions menu is shown as a three-dot button on the project card.",
+          "In Project Settings, choose the users who should have access from the sharing dropdown, then save the sharing changes.",
+        ],
+        steps: [
+          "Open the project dashboard.",
+          "Find the project under My Projects.",
+          "Select the three-dot project actions menu.",
+          "Open Project Settings and choose the users to share with.",
+          "Save the sharing changes.",
+        ],
+        screenshot: {
+          title: "Sharing a project",
+          src: "/docs/images/project-sharing.png",
+          alt: "Project dashboard showing project sharing controls",
+          caption: "Project owners can share private projects with selected users from the project actions menu.",
+        },
+      },
+      {
+        heading: "Making a project private",
+        body: [
+          "A shared project can be made private again by the project owner. Making a project private removes shared access for other users while keeping the project available to the owner.",
+          "Use this when a project no longer needs collaboration or when access was granted temporarily for review.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Shared access is removed",
+          body: "When a project is made private, users who previously had access will no longer see it under Projects Shared With Me.",
+        },
+      },
+      {
+        heading: "Projects shared with you",
+        body: [
+          "Projects shared by another user appear separately from your own projects. This makes it clear which projects you created and which projects you have been invited to access.",
+          "Shared projects can be opened from the dashboard in the same way as your own projects, subject to the permissions applied by the workspace and the current sharing implementation.",
+        ],
+      },
+      {
+        heading: "Administrator controls",
+        body: [
+          "Workspace administrators can enable or disable Project Sharing for each workspace. This allows collaboration to be tested or rolled out only where required.",
+          "If you expect to see sharing controls but they are not visible, Project Sharing may not be enabled for your workspace.",
+        ],
+      },
+    ],
+    related: ["creating-projects", "logging-in", "import-export", "faq"],
   },
   {
     title: "System Overview",
@@ -982,8 +1078,12 @@ export const docArticles: DocArticle[] = [
       { heading: "What is an Auto Source?", body: ["An Auto Source is a virtual source created from an eligible distro output. It allows downstream distros to be connected while still calculating load through the parent distro."], },
       { heading: "Why did my dismissed warning come back?", body: ["Dismissed warnings return when the underlying load changes significantly. This prevents an old dismissal from hiding a newly changed condition."], },
       { heading: "Why is a report missing a distro?", body: ["Check the Report tab toggles. Sources and distros can be hidden from the report export without being removed from the project."], },
+      { heading: "Why can I not share my project?", body: ["Project Sharing may be disabled for your workspace, or you may be using the individual app subdomain where sharing is not available."], },
+      { heading: "Can I share a project with another company?", body: ["No. Projects can only be shared with users in the same workspace. Cross-company sharing is not currently supported."], },
+      { heading: "Can I stop sharing a project?", body: ["Yes. Project owners can make a project private again from the project actions menu. This removes access for users it was previously shared with."], },
+      { heading: "Why do shared projects appear separately?", body: ["My Projects contains projects you created. Projects Shared With Me contains projects another user has shared with you."], },
     ],
-    related: ["warnings", "reports", "distro-overview"],
+    related: ["warnings", "reports", "distro-overview", "project-sharing"],
   },
   {
     title: "Glossary",
@@ -1015,8 +1115,9 @@ export const docArticles: DocArticle[] = [
     sections: [
       { heading: "Documentation centre", body: ["Online documentation includes searchable articles, category navigation, article pages, metadata, callouts, related articles, previous/next navigation and command-palette search."], },
       { heading: "Current planner functionality", body: ["Current documented features include MFA login, branded workspaces, project dashboard, system overview, manual and auto sources, distro management, drag-and-drop equipment assignment, custom equipment, custom distros, warnings, report exports and JSON import/export."], },
+      { heading: "Project Sharing", body: ["Project Sharing allows workspace users to keep projects private by default and share selected projects with chosen colleagues when workspace sharing is enabled. The feature includes My Projects, Projects Shared With Me, selected-user sharing and workspace-level sharing controls."], },
     ],
-    related: ["introduction", "best-practice"],
+    related: ["introduction", "project-sharing", "best-practice"],
   },
 ];
 
