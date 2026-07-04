@@ -37,130 +37,6 @@ function jsonResponse(body: Record<string, unknown>, status = 200) {
   });
 }
 
-function serialiseError(error: unknown) {
-  if (error instanceof Error) {
-    return {
-      name: error.name,
-      message: error.message,
-      stack: error.stack,
-    };
-  }
-
-  if (error && typeof error === "object") {
-    const candidate = error as Record<string, unknown>;
-    return {
-      name: String(candidate.name ?? "Error"),
-      message: String(candidate.message ?? JSON.stringify(candidate)),
-      code: candidate.code,
-      status: candidate.status,
-      details: candidate.details,
-      hint: candidate.hint,
-    };
-  }
-
-  return {
-    name: "Error",
-    message: String(error ?? "Unknown error"),
-  };
-}
-
-function authErrorMessage(error: any, fallback: string) {
-  if (!error) return fallback;
-
-  if (typeof error === "string") return error;
-
-  if (error.message && error.message !== "{}") return String(error.message);
-
-  if (error.error_description) return String(error.error_description);
-  if (error.error) return String(error.error);
-  if (error.msg) return String(error.msg);
-
-  try {
-    const json = JSON.stringify(error);
-    return json && json !== "{}" ? json : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-async function inviteUserByEmailDirect(
-  supabaseUrl: string,
-  serviceRoleKey: string,
-  email: string,
-  options: { redirectTo: string; data: Record<string, unknown> },
-) {
-  const baseUrl = supabaseUrl.replace(/\/$/, "");
-  const inviteUrl = new URL(`${baseUrl}/auth/v1/invite`);
-
-  if (options.redirectTo) {
-    inviteUrl.searchParams.set("redirect_to", options.redirectTo);
-  }
-
-  try {
-    const response = await fetch(inviteUrl.toString(), {
-      method: "POST",
-      headers: {
-        apikey: serviceRoleKey,
-        Authorization: `Bearer ${serviceRoleKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        email,
-        data: options.data,
-      }),
-    });
-
-    const rawText = await response.text();
-    let body: any = null;
-
-    if (rawText) {
-      try {
-        body = JSON.parse(rawText);
-      } catch {
-        body = rawText;
-      }
-    }
-
-    if (!response.ok) {
-      return {
-        data: null,
-        error: {
-          status: response.status,
-          message: authErrorMessage(
-            body,
-            `Supabase invite request failed with status ${response.status}.`,
-          ),
-          details: body,
-        },
-      };
-    }
-
-    const user = body?.user ?? body;
-
-    if (!user?.id) {
-      return {
-        data: null,
-        error: {
-          status: response.status,
-          message: "Supabase invite succeeded but did not return a user ID.",
-          details: body,
-        },
-      };
-    }
-
-    return { data: { user }, error: null };
-  } catch (error) {
-    return {
-      data: null,
-      error: {
-        status: 0,
-        message: "Supabase invite request could not be completed.",
-        details: serialiseError(error),
-      },
-    };
-  }
-}
-
 function cleanEmail(value: unknown) {
   return String(value ?? "")
     .trim()
@@ -197,25 +73,153 @@ function isUuid(value: string) {
   );
 }
 
-async function findAuthUserByEmail(adminClient: any, email: string) {
-  const perPage = 1000;
 
-  for (let page = 1; page <= 20; page += 1) {
-    const { data, error } = await adminClient.auth.admin.listUsers({
-      page,
-      perPage,
-    });
-
-    if (error) throw error;
-
-    const users = data?.users ?? [];
-    const match = users.find((user: any) => cleanEmail(user.email) === email);
-
-    if (match) return match;
-    if (users.length < perPage) return null;
+function serialiseError(error: unknown) {
+  if (error instanceof Error) {
+    return {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+    };
   }
 
-  return null;
+  if (error && typeof error === "object") {
+    const candidate = error as Record<string, unknown>;
+    return {
+      name: String(candidate.name ?? "Error"),
+      message: String(candidate.message ?? JSON.stringify(candidate)),
+      code: candidate.code,
+      status: candidate.status,
+      details: candidate.details,
+      hint: candidate.hint,
+    };
+  }
+
+  return { name: "Error", message: String(error ?? "Unknown error") };
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (!error) return fallback;
+  if (typeof error === "string") return error;
+
+  if (error && typeof error === "object") {
+    const candidate = error as Record<string, unknown>;
+
+    if (candidate.message && String(candidate.message) !== "{}") {
+      return String(candidate.message);
+    }
+
+    if (candidate.error_description) return String(candidate.error_description);
+    if (candidate.error) return String(candidate.error);
+    if (candidate.msg) return String(candidate.msg);
+
+    try {
+      const encoded = JSON.stringify(candidate);
+      return encoded && encoded !== "{}" ? encoded : fallback;
+    } catch {
+      return fallback;
+    }
+  }
+
+  return fallback;
+}
+
+async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 12000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function inviteUserByEmailDirect(
+  supabaseUrl: string,
+  serviceRoleKey: string,
+  email: string,
+  options: { redirectTo: string; data: Record<string, unknown> },
+) {
+  const baseUrl = supabaseUrl.replace(/\/$/, "");
+  const inviteUrl = new URL(`${baseUrl}/auth/v1/invite`);
+
+  if (options.redirectTo) {
+    inviteUrl.searchParams.set("redirect_to", options.redirectTo);
+  }
+
+  try {
+    const response = await fetchWithTimeout(
+      inviteUrl.toString(),
+      {
+        method: "POST",
+        headers: {
+          apikey: serviceRoleKey,
+          Authorization: `Bearer ${serviceRoleKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          data: options.data,
+        }),
+      },
+      12000,
+    );
+
+    const rawText = await response.text();
+    let body: any = null;
+
+    if (rawText) {
+      try {
+        body = JSON.parse(rawText);
+      } catch {
+        body = rawText;
+      }
+    }
+
+    if (!response.ok) {
+      return {
+        data: null,
+        error: {
+          status: response.status,
+          message: errorMessage(
+            body,
+            `Supabase Auth invite failed with status ${response.status}.`,
+          ),
+          details: body,
+        },
+      };
+    }
+
+    const user = body?.user ?? body;
+
+    if (!user?.id) {
+      return {
+        data: null,
+        error: {
+          status: response.status,
+          message: "Supabase Auth invite succeeded but did not return a user ID.",
+          details: body,
+        },
+      };
+    }
+
+    return { data: { user }, error: null };
+  } catch (error) {
+    const serialised = serialiseError(error);
+    const timedOut = serialised.name === "AbortError";
+
+    return {
+      data: null,
+      error: {
+        status: timedOut ? 408 : 0,
+        message: timedOut
+          ? "Supabase Auth did not respond while sending the invitation. Please try again. If this repeats, check the Supabase Auth email provider/logs."
+          : "Supabase Auth invite request could not be completed.",
+        details: serialised,
+      },
+    };
+  }
 }
 
 async function writeAudit(
@@ -260,7 +264,7 @@ async function resendInviteEmail(
   });
 
   if (error) {
-    throw new Error(authErrorMessage(error, "Supabase could not resend the invitation."));
+    throw new Error(errorMessage(error, "Supabase could not resend the invitation."));
   }
 }
 
@@ -297,6 +301,7 @@ async function resetMfaFactors(adminClient: any, userId: string) {
 }
 
 Deno.serve(async (req) => {
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -480,14 +485,6 @@ Deno.serve(async (req) => {
     let invited = false;
 
     if (!targetUser) {
-      const existingAuthUser = await findAuthUserByEmail(adminClient, email);
-
-      if (existingAuthUser) {
-        targetUser = { id: existingAuthUser.id };
-      }
-    }
-
-    if (!targetUser) {
       const { data: inviteData, error: inviteError } =
         await inviteUserByEmailDirect(supabaseUrl, supabaseServiceRoleKey, email, {
           redirectTo: siteUrl,
@@ -501,13 +498,10 @@ Deno.serve(async (req) => {
       if (inviteError || !inviteData?.user) {
         return jsonResponse(
           {
-            error: authErrorMessage(
-              inviteError,
-              "Supabase could not invite this user.",
-            ),
+            error: errorMessage(inviteError, "Supabase could not invite this user."),
             details: inviteError,
           },
-          400,
+          inviteError?.status === 408 ? 408 : 400,
         );
       }
 
@@ -759,4 +753,18 @@ Deno.serve(async (req) => {
   }
 
   return jsonResponse({ error: "Unsupported admin action." }, 400);
+  } catch (error) {
+    const debugId = crypto.randomUUID();
+    const details = serialiseError(error);
+    console.error(JSON.stringify({ debug_id: debugId, error: details }));
+
+    return jsonResponse(
+      {
+        error: "Workspace administration failed.",
+        details,
+        debug_id: debugId,
+      },
+      500,
+    );
+  }
 });
