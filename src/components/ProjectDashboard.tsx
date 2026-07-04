@@ -26,6 +26,8 @@ type ProjectDashboardProps = {
   deleteProject: (projectId: string) => void;
   renameProject: (projectId: string, nextName: string) => Promise<boolean>;
   updateProjectShares: (projectId: string, sharedWithUserIds: string[]) => Promise<boolean>;
+  isAdmin?: boolean;
+  openAdminPortal?: () => void;
   signOut: () => void;
   workspaceBranding?: WorkspaceBranding;
 };
@@ -83,6 +85,8 @@ export function ProjectDashboard({
   deleteProject,
   renameProject,
   updateProjectShares,
+  isAdmin = false,
+  openAdminPortal,
   signOut,
   workspaceBranding,
 }: ProjectDashboardProps) {
@@ -427,12 +431,33 @@ export function ProjectDashboard({
             </div>
           </div>
 
-          <button style={styles.button} onClick={signOut}>
-            Sign Out
-          </button>
+          <div style={styles.headerActions}>
+            <button style={styles.button} onClick={signOut}>
+              Sign Out
+            </button>
+          </div>
         </div>
 
         <hr style={styles.divider} />
+
+        <section style={styles.workspaceActionsPanel}>
+          <div>
+            <h2 style={styles.createTitle}>Projects</h2>
+            <p style={styles.muted}>Create and manage power planning projects for this workspace.</p>
+          </div>
+
+          {isAdmin && openAdminPortal && (
+            <div style={styles.adminActionCard}>
+              <div>
+                <strong>Administration</strong>
+                <p style={styles.mutedSmall}>Manage users, company equipment and distro libraries.</p>
+              </div>
+              <button style={styles.secondaryButton} onClick={openAdminPortal}>
+                Open Admin Portal
+              </button>
+            </div>
+          )}
+        </section>
 
         <section style={styles.createPanel}>
           <div>
@@ -499,10 +524,33 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     border: "1px solid #d9e0ea",
   },
+  headerActions: {
+    display: "flex",
+    gap: "8px",
+    alignItems: "center",
+    flexWrap: "wrap",
+    justifyContent: "flex-end",
+  },
   brandRow: {
     display: "flex",
     gap: "12px",
     alignItems: "center",
+  },
+  workspaceActionsPanel: {
+    display: "grid",
+    gap: "14px",
+    marginBottom: "18px",
+  },
+  adminActionCard: {
+    border: "1px solid #d9e0ea",
+    borderRadius: "14px",
+    padding: "14px",
+    background: "#f8fafc",
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    alignItems: "center",
+    flexWrap: "wrap",
   },
   logo: {
     maxWidth: "120px",

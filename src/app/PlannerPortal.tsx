@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import type { User } from "@supabase/supabase-js";
 
+import { AdminPortal } from "@/components/AdminPortal";
 import { LoginForm } from "@/components/LoginForm";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
@@ -13,6 +14,7 @@ import {
   type Project,
   type ProjectData,
   type ProjectShare,
+  type UserRole,
   type WorkspaceUser,
 } from "@/types/project";
 
@@ -107,7 +109,12 @@ export default function PlannerPortal() {
   const [projectShares, setProjectShares] = useState<ProjectShare[]>([]);
   const [workspaceUsers, setWorkspaceUsers] = useState<WorkspaceUser[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [projectSharingMode, setProjectSharingMode] = useState<"disabled" | "selected_users" | "workspace">("disabled");
+  const [userRole, setUserRole] = useState<UserRole>("user");
+  const [licenseCount, setLicenseCount] = useState(5);
+  const [adminPortalOpen, setAdminPortalOpen] = useState(false);
+  const [projectSharingMode, setProjectSharingMode] = useState<
+    "disabled" | "selected_users" | "workspace"
+  >("disabled");
   const projectSharingEnabled = projectSharingMode === "selected_users";
 
   const [activeProject, setActiveProject] = useState<Project | null>(null);
@@ -170,7 +177,6 @@ export default function PlannerPortal() {
     );
   }
 
-
   async function resolveWorkspaceId() {
     if (currentHostUsesIndividualProjects()) {
       setWorkspaceId(null);
@@ -217,15 +223,20 @@ export default function PlannerPortal() {
 
     const { data: settings, error: settingsError } = await supabase
       .from("workspace_settings")
-      .select("project_sharing_mode")
+      .select("project_sharing_mode, license_count")
       .eq("subdomain", currentSubdomain())
       .maybeSingle();
 
     if (settingsError) {
-      console.error("Could not load workspace project sharing setting:", settingsError);
+      console.error(
+        "Could not load workspace project sharing setting:",
+        settingsError,
+      );
       setProjectSharingMode("disabled");
       return resolvedWorkspaceId;
     }
+
+    setLicenseCount(Number(settings?.license_count ?? 5) || 5);
 
     const mode = String(settings?.project_sharing_mode ?? "disabled");
     setProjectSharingMode(
@@ -373,18 +384,21 @@ export default function PlannerPortal() {
     setMfaMessage("");
     setMfaLoading(false);
     setWorkspaceId(null);
+    setUserRole("user");
+    setAdminPortalOpen(false);
     setAccessMessage(message);
   }
 
   async function checkWorkspaceAccess(currentUser: User) {
     if (isGlobalAdmin(currentUser)) {
+      setUserRole("admin");
       setAccessMessage("");
       return true;
     }
 
     const { data: profile, error } = await supabase
       .from("user_profiles")
-      .select("allowed_subdomain")
+      .select("allowed_subdomain, role, status")
       .eq("id", currentUser.id)
       .single();
 
@@ -410,6 +424,30 @@ export default function PlannerPortal() {
       return false;
     }
 
+    const profileStatus = String(profile.status ?? "active");
+
+    if (profileStatus === "disabled" || profileStatus === "removed") {
+      await supabase.auth.signOut();
+      clearSessionState("This account has been disabled for this workspace.");
+      return false;
+    }
+
+    if (profileStatus === "invited") {
+      const { error: activateError } = await supabase
+        .from("user_profiles")
+        .update({ status: "active" })
+        .eq("id", currentUser.id);
+
+      if (activateError) {
+        console.error(
+          "Could not activate invited user profile:",
+          activateError,
+        );
+      }
+    }
+
+    const profileRole = String(profile.role ?? "user");
+    setUserRole(profileRole === "admin" ? "admin" : "user");
     setAccessMessage("");
     return true;
   }
@@ -516,14 +554,22 @@ export default function PlannerPortal() {
 
     const enrolledFactor = enrollmentResult.data;
 
-    if (!enrolledFactor?.id || !enrolledFactor.totp?.qr_code || !enrolledFactor.totp?.secret) {
-      setMfaMessage("Could not prepare 2FA setup. Please sign out and try again.");
+    if (
+      !enrolledFactor?.id ||
+      !enrolledFactor.totp?.qr_code ||
+      !enrolledFactor.totp?.secret
+    ) {
+      setMfaMessage(
+        "Could not prepare 2FA setup. Please sign out and try again.",
+      );
       return false;
     }
 
     const { data: currentAuthUser } = await supabase.auth.getUser();
     const mfaAccountEmail =
-      currentAuthUser.user?.email?.trim() || user?.email?.trim() || email.trim();
+      currentAuthUser.user?.email?.trim() ||
+      user?.email?.trim() ||
+      email.trim();
 
     setMfaEnrollment({
       factorId: enrolledFactor.id,
@@ -791,21 +837,26 @@ export default function PlannerPortal() {
   async function loadProjects(currentUser: User) {
     const currentWorkspaceId = currentHostUsesIndividualProjects()
       ? null
-      : workspaceId ?? (await resolveWorkspaceId());
+      : (workspaceId ?? (await resolveWorkspaceId()));
 
     let effectiveProjectSharingMode = projectSharingMode;
 
     if (currentWorkspaceId && !currentHostUsesIndividualProjects()) {
       const { data: settings, error: settingsError } = await supabase
         .from("workspace_settings")
-        .select("project_sharing_mode")
+        .select("project_sharing_mode, license_count")
         .eq("subdomain", currentSubdomain())
         .maybeSingle();
 
       if (settingsError) {
-        console.error("Could not load workspace project sharing setting:", settingsError);
+        console.error(
+          "Could not load workspace project sharing setting:",
+          settingsError,
+        );
         effectiveProjectSharingMode = "disabled";
       } else {
+        setLicenseCount(Number(settings?.license_count ?? 5) || 5);
+
         const mode = String(settings?.project_sharing_mode ?? "disabled");
         effectiveProjectSharingMode =
           mode === "selected_users" || mode === "workspace" ? mode : "disabled";
@@ -817,12 +868,16 @@ export default function PlannerPortal() {
     let query = supabase.from("projects").select("*");
 
     if (currentWorkspaceId) {
-      query = query.or(`user_id.eq.${currentUser.id},workspace_id.eq.${currentWorkspaceId}`);
+      query = query.or(
+        `user_id.eq.${currentUser.id},workspace_id.eq.${currentWorkspaceId}`,
+      );
     } else {
       query = query.eq("user_id", currentUser.id);
     }
 
-    const { data, error } = await query.order("updated_at", { ascending: false });
+    const { data, error } = await query.order("updated_at", {
+      ascending: false,
+    });
 
     if (error) {
       alert(error.message);
@@ -832,21 +887,31 @@ export default function PlannerPortal() {
     const loadedProjects = data ?? [];
     setProjects(loadedProjects);
 
-    if (currentWorkspaceId && effectiveProjectSharingMode === "selected_users") {
-      await Promise.all([
-        loadWorkspaceUsers(currentWorkspaceId),
-        loadProjectShares(loadedProjects),
-      ]);
+    if (currentWorkspaceId) {
+      await loadWorkspaceUsers(currentWorkspaceId);
+
+      if (effectiveProjectSharingMode === "selected_users") {
+        await loadProjectShares(loadedProjects);
+      } else {
+        setProjectShares([]);
+      }
     } else {
       setWorkspaceUsers([]);
       setProjectShares([]);
     }
   }
 
-  async function loadWorkspaceUsers(currentWorkspaceId: string) {
-    const { data, error } = await supabase.rpc("workspace_users_for_current_user", {
-      target_workspace_id: currentWorkspaceId,
-    });
+  async function loadWorkspaceUsers(currentWorkspaceId = workspaceId ?? "") {
+    if (!currentWorkspaceId) {
+      setWorkspaceUsers([]);
+      return;
+    }
+    const { data, error } = await supabase.rpc(
+      "workspace_users_for_current_user",
+      {
+        target_workspace_id: currentWorkspaceId,
+      },
+    );
 
     if (error) {
       console.error("Could not load workspace users:", error);
@@ -889,14 +954,16 @@ export default function PlannerPortal() {
 
     const currentWorkspaceId = currentHostUsesIndividualProjects()
       ? null
-      : workspaceId ?? (await resolveWorkspaceId());
+      : (workspaceId ?? (await resolveWorkspaceId()));
     const { data: project, error: projectError } = await supabase
       .from("projects")
       .insert([
         {
           name: newProjectName.trim(),
           user_id: user.id,
-          workspace_id: currentHostUsesIndividualProjects() ? null : currentWorkspaceId,
+          workspace_id: currentHostUsesIndividualProjects()
+            ? null
+            : currentWorkspaceId,
           is_private: true,
         },
       ])
@@ -924,10 +991,16 @@ export default function PlannerPortal() {
     await loadProjects(user);
   }
 
-  async function updateProjectShares(projectId: string, sharedWithUserIds: string[]) {
+  async function updateProjectShares(
+    projectId: string,
+    sharedWithUserIds: string[],
+  ) {
     if (!user) return false;
 
-    if (currentHostUsesIndividualProjects() || projectSharingMode !== "selected_users") {
+    if (
+      currentHostUsesIndividualProjects() ||
+      projectSharingMode !== "selected_users"
+    ) {
       alert("Project sharing is not enabled for this workspace.");
       return false;
     }
@@ -944,14 +1017,19 @@ export default function PlannerPortal() {
     const currentWorkspaceId = workspaceId ?? (await resolveWorkspaceId());
 
     if (!currentWorkspaceId) {
-      alert("This workspace could not be resolved, so the project cannot be shared.");
+      alert(
+        "This workspace could not be resolved, so the project cannot be shared.",
+      );
       return false;
     }
 
     const safeUserIds = Array.from(
       new Set(
         sharedWithUserIds.filter(
-          (userId) => userId && userId !== user.id && workspaceUsers.some((item) => item.id === userId),
+          (userId) =>
+            userId &&
+            userId !== user.id &&
+            workspaceUsers.some((item) => item.id === userId),
         ),
       ),
     );
@@ -967,14 +1045,16 @@ export default function PlannerPortal() {
     }
 
     if (safeUserIds.length > 0) {
-      const { error: insertError } = await supabase.from("project_shares").insert(
-        safeUserIds.map((sharedWith) => ({
-          project_id: projectId,
-          shared_with: sharedWith,
-          shared_by: user.id,
-          role: "planner",
-        })),
-      );
+      const { error: insertError } = await supabase
+        .from("project_shares")
+        .insert(
+          safeUserIds.map((sharedWith) => ({
+            project_id: projectId,
+            shared_with: sharedWith,
+            shared_by: user.id,
+            role: "planner",
+          })),
+        );
 
       if (insertError) {
         alert(insertError.message);
@@ -1012,11 +1092,18 @@ export default function PlannerPortal() {
       ),
     );
 
-    await loadProjectShares(projects.map((project) =>
-      project.id === projectId
-        ? { ...project, workspace_id: currentWorkspaceId, is_private: true, updated_at: updatedAt }
-        : project,
-    ));
+    await loadProjectShares(
+      projects.map((project) =>
+        project.id === projectId
+          ? {
+              ...project,
+              workspace_id: currentWorkspaceId,
+              is_private: true,
+              updated_at: updatedAt,
+            }
+          : project,
+      ),
+    );
 
     return true;
   }
@@ -1042,14 +1129,22 @@ export default function PlannerPortal() {
     setProjects((currentProjects) =>
       currentProjects.map((project) =>
         project.id === projectId
-          ? { ...project, name: cleanName, updated_at: new Date().toISOString() }
+          ? {
+              ...project,
+              name: cleanName,
+              updated_at: new Date().toISOString(),
+            }
           : project,
       ),
     );
 
     setActiveProject((currentProject) =>
       currentProject?.id === projectId
-        ? { ...currentProject, name: cleanName, updated_at: new Date().toISOString() }
+        ? {
+            ...currentProject,
+            name: cleanName,
+            updated_at: new Date().toISOString(),
+          }
         : currentProject,
     );
 
@@ -1293,6 +1388,24 @@ export default function PlannerPortal() {
     );
   }
 
+  if (adminPortalOpen) {
+    return (
+      <AdminPortal
+        workspaceId={workspaceId}
+        subdomain={currentSubdomain()}
+        workspaceUsers={workspaceUsers}
+        licenseCount={licenseCount}
+        reloadWorkspaceUsers={async () => {
+          if (workspaceId) {
+            await loadWorkspaceUsers(workspaceId);
+          }
+        }}
+        backToProjects={() => setAdminPortalOpen(false)}
+        workspaceBranding={workspaceBranding}
+      />
+    );
+  }
+
   if (activeProject) {
     return (
       <ProjectWorkspace
@@ -1322,6 +1435,8 @@ export default function PlannerPortal() {
       deleteProject={deleteProject}
       renameProject={renameProject}
       updateProjectShares={updateProjectShares}
+      isAdmin={userRole === "admin"}
+      openAdminPortal={() => setAdminPortalOpen(true)}
       signOut={signOut}
       workspaceBranding={workspaceBranding}
     />
@@ -1329,7 +1444,9 @@ export default function PlannerPortal() {
 }
 
 function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
-  const [qrSource, setQrSource] = useState(() => qrCodeDataUrl(enrollment.qrCode));
+  const [qrSource, setQrSource] = useState(() =>
+    qrCodeDataUrl(enrollment.qrCode),
+  );
 
   useEffect(() => {
     let active = true;
@@ -1360,11 +1477,7 @@ function MfaQrImage({ enrollment }: { enrollment: MfaEnrollment }) {
   }, [enrollment.otpAuthUri, enrollment.qrCode]);
 
   return (
-    <img
-      src={qrSource}
-      alt="Authenticator app QR code"
-      style={styles.qrCode}
-    />
+    <img src={qrSource} alt="Authenticator app QR code" style={styles.qrCode} />
   );
 }
 

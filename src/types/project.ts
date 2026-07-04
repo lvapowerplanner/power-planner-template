@@ -18,9 +18,14 @@ export type ProjectShare = {
   created_at: string;
 };
 
+export type UserRole = "admin" | "user";
+export type WorkspaceUserStatus = "invited" | "active" | "disabled" | "removed";
+
 export type WorkspaceUser = {
   id: string;
   email: string;
+  role?: UserRole;
+  status?: WorkspaceUserStatus;
 };
 
 export type ProjectData = {
