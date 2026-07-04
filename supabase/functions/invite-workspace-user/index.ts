@@ -170,6 +170,7 @@ async function resetMfaFactors(adminClient: any, userId: string) {
 }
 
 Deno.serve(async (req) => {
+  try {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -629,4 +630,17 @@ Deno.serve(async (req) => {
   }
 
   return jsonResponse({ error: "Unsupported admin action." }, 400);
+  } catch (error) {
+    console.error("Unhandled workspace admin function error:", error);
+
+    return jsonResponse(
+      {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Unexpected server error while running admin action.",
+      },
+      500,
+    );
+  }
 });

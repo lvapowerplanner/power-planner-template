@@ -357,37 +357,83 @@ export function AdminPortal({
       return false;
     }
 
+    const functionBaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+
+    if (!functionBaseUrl) {
+      alert("Supabase URL is not configured for this deployment.");
+      return false;
+    }
+
     setUserSaving(true);
 
-    const { data, error } = await supabase.functions.invoke(
-      "invite-workspace-user",
-      {
-        body: {
-          action,
-          workspace_id: workspaceId,
-          subdomain,
-          ...body,
+    try {
+      const { data: sessionData, error: sessionError } =
+        await supabase.auth.getSession();
+
+      if (sessionError || !sessionData.session?.access_token) {
+        alert("Your session could not be verified. Please sign out and sign back in.");
+        return false;
+      }
+
+      const response = await fetch(
+        `${functionBaseUrl}/functions/v1/invite-workspace-user`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${sessionData.session.access_token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            action,
+            workspace_id: workspaceId,
+            subdomain,
+            ...body,
+          }),
         },
-      },
-    );
+      );
 
-    setUserSaving(false);
+      const rawText = await response.text();
+      let data: unknown = null;
 
-    if (error) {
-      alert(error.message);
-      return false;
-    }
+      if (rawText) {
+        try {
+          data = JSON.parse(rawText);
+        } catch {
+          data = { error: rawText };
+        }
+      }
 
-    if (data && typeof data === "object" && "error" in data) {
+      if (!response.ok) {
+        const message =
+          data && typeof data === "object" && "error" in data
+            ? String((data as { error?: unknown }).error)
+            : `Admin action failed with status ${response.status}.`;
+
+        alert(message);
+        return false;
+      }
+
+      if (data && typeof data === "object" && "error" in data) {
+        alert(
+          String((data as { error?: unknown }).error ?? "Admin action failed."),
+        );
+        return false;
+      }
+
+      await reloadWorkspaceUsers();
+      await loadAudit();
+      return true;
+    } catch (error) {
+      console.error("Workspace admin action failed:", error);
       alert(
-        String((data as { error?: unknown }).error ?? "Admin action failed."),
+        error instanceof Error
+          ? error.message
+          : "Admin action failed. Please try again.",
       );
       return false;
+    } finally {
+      setUserSaving(false);
     }
-
-    await reloadWorkspaceUsers();
-    await loadAudit();
-    return true;
   }
 
   function showToast(message: string) {
