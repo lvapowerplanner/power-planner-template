@@ -375,21 +375,19 @@ export function AdminPortal({
         return false;
       }
 
-      const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-
       const response = await fetch(
         `${functionBaseUrl}/functions/v1/invite-workspace-user`,
         {
           method: "POST",
           headers: {
             Authorization: `Bearer ${sessionData.session.access_token}`,
-            ...(anonKey ? { apikey: anonKey } : {}),
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
             action,
             workspace_id: workspaceId,
             subdomain,
+            redirect_to: typeof window === "undefined" ? undefined : window.location.origin,
             ...body,
           }),
         },
@@ -407,21 +405,12 @@ export function AdminPortal({
       }
 
       if (!response.ok) {
-        const responseObject =
-          data && typeof data === "object" ? (data as Record<string, unknown>) : {};
         const message =
-          typeof responseObject.error === "string" && responseObject.error.trim()
-            ? responseObject.error
-            : typeof responseObject.message === "string" && responseObject.message.trim()
-              ? responseObject.message
-              : `Admin action failed with status ${response.status}.`;
+          data && typeof data === "object" && "error" in data
+            ? String((data as { error?: unknown }).error)
+            : `Admin action failed with status ${response.status}.`;
 
-        const debugId =
-          typeof responseObject.debug_id === "string" ? `\n\nDebug ID: ${responseObject.debug_id}` : "";
-        const details =
-          typeof responseObject.details === "string" ? `\n\nDetails: ${responseObject.details}` : "";
-
-        alert(`${message}${details}${debugId}`);
+        alert(message);
         return false;
       }
 

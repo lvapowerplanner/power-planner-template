@@ -25,6 +25,7 @@ type AdminPayload = {
   user_id?: string;
   workspace_id?: string;
   subdomain?: string;
+  redirect_to?: string;
 };
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -59,6 +60,44 @@ function cleanSubdomain(value: unknown) {
 function workspaceSubdomainFromHost(host: unknown) {
   return cleanSubdomain(host);
 }
+
+function workspaceOriginFromHost(host: unknown) {
+  const cleanHost = String(host ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "");
+
+  if (!cleanHost) return "";
+
+  if (cleanHost === "localhost" || cleanHost.startsWith("localhost:")) {
+    return `http://${cleanHost}`;
+  }
+
+  if (cleanHost.includes(".")) {
+    return `https://${cleanHost}`;
+  }
+
+  return `https://${cleanHost}.lvapowerplanner.com`;
+}
+
+function requestedRedirectOrigin(value: unknown, expectedSubdomain: string) {
+  const rawValue = String(value ?? "").trim();
+
+  if (!rawValue) return "";
+
+  try {
+    const url = new URL(rawValue);
+    const redirectSubdomain = cleanSubdomain(url.hostname);
+
+    if (redirectSubdomain !== expectedSubdomain) return "";
+
+    return url.origin;
+  } catch {
+    return "";
+  }
+}
+
 
 function isWorkspaceMatch(allowedSubdomain: unknown, targetSubdomain: string) {
   const allowed = String(allowedSubdomain ?? "")
@@ -387,6 +426,17 @@ Deno.serve(async (req) => {
     return jsonResponse({ error: "Workspace/subdomain mismatch." }, 400);
   }
 
+  const workspaceOrigin = workspaceOriginFromHost((workspace as any).host);
+  const requestedOrigin = requestedRedirectOrigin(payload.redirect_to, subdomain);
+  const inviteRedirectUrl = requestedOrigin || workspaceOrigin;
+
+  if (!inviteRedirectUrl) {
+    return jsonResponse(
+      { error: "Could not build a valid workspace invite redirect URL." },
+      500,
+    );
+  }
+
   const { data: callerProfile, error: callerProfileError } = await adminClient
     .from("user_profiles")
     .select("id, email, allowed_subdomain, role, status")
@@ -477,7 +527,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const siteUrl = `https://${(workspace as any).host}`;
+    const siteUrl = inviteRedirectUrl;
     let targetUser = existingProfile
       ? { id: (existingProfile as any).id }
       : null;
@@ -533,7 +583,7 @@ Deno.serve(async (req) => {
       target_email: email,
       action: invited ? "invite_user" : "add_existing_user",
       role,
-      metadata: { subdomain },
+      metadata: { subdomain, redirect_to: siteUrl },
     });
 
     return jsonResponse({
@@ -580,7 +630,7 @@ Deno.serve(async (req) => {
   const targetEmail = cleanEmail((targetProfile as any).email);
 
   if (action === "resend_invitation") {
-    const siteUrl = `https://${(workspace as any).host}`;
+    const siteUrl = inviteRedirectUrl;
 
     if (!targetEmail || !targetEmail.includes("@")) {
       return jsonResponse(
@@ -626,7 +676,7 @@ Deno.serve(async (req) => {
       target_email: targetEmail,
       action: "resend_invitation",
       role: (targetProfile as any).role,
-      metadata: { subdomain },
+      metadata: { subdomain, redirect_to: siteUrl },
     });
 
     return jsonResponse({ ok: true });
