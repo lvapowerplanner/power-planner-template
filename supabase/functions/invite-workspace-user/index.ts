@@ -477,8 +477,7 @@ Deno.serve(async (req) => {
       }
     }
 
-    const siteUrl =
-      Deno.env.get("SITE_URL") || `https://${(workspace as any).host}`;
+    const siteUrl = `https://${(workspace as any).host}`;
     let targetUser = existingProfile
       ? { id: (existingProfile as any).id }
       : null;
@@ -581,8 +580,7 @@ Deno.serve(async (req) => {
   const targetEmail = cleanEmail((targetProfile as any).email);
 
   if (action === "resend_invitation") {
-    const siteUrl =
-      Deno.env.get("SITE_URL") || `https://${(workspace as any).host}`;
+    const siteUrl = `https://${(workspace as any).host}`;
 
     if (!targetEmail || !targetEmail.includes("@")) {
       return jsonResponse(
