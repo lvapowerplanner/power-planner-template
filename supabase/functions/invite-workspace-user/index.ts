@@ -141,65 +141,58 @@ async function inviteUserByEmailDirect(
   email: string,
   options: { redirectTo: string; data: Record<string, unknown> },
 ) {
-  const baseUrl = supabaseUrl.replace(/\/$/, "");
-  const inviteUrl = new URL(`${baseUrl}/auth/v1/invite`);
-
-  if (options.redirectTo) {
-    inviteUrl.searchParams.set("redirect_to", options.redirectTo);
-  }
+  const adminClient = createClient(supabaseUrl, serviceRoleKey, {
+    auth: {
+      autoRefreshToken: false,
+      persistSession: false,
+    },
+  });
 
   try {
-    const response = await fetchWithTimeout(
-      inviteUrl.toString(),
-      {
-        method: "POST",
-        headers: {
-          apikey: serviceRoleKey,
-          Authorization: `Bearer ${serviceRoleKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          email,
-          data: options.data,
-        }),
-      },
-      12000,
-    );
+    const invitePromise = adminClient.auth.admin.inviteUserByEmail(email, {
+      data: options.data,
+      redirectTo: options.redirectTo,
+    });
 
-    const rawText = await response.text();
-    let body: any = null;
+    const timeoutPromise = new Promise<{
+      data: null;
+      error: { status: number; message: string; details: Record<string, unknown> };
+    }>((resolve) => {
+      setTimeout(() => {
+        resolve({
+          data: null,
+          error: {
+            status: 408,
+            message:
+              "Supabase Auth did not respond while sending the invitation. Please try again. If this repeats, check the Supabase Auth email provider/logs.",
+            details: { timeoutMs: 12000 },
+          },
+        });
+      }, 12000);
+    });
 
-    if (rawText) {
-      try {
-        body = JSON.parse(rawText);
-      } catch {
-        body = rawText;
-      }
-    }
+    const result = await Promise.race([invitePromise, timeoutPromise]);
 
-    if (!response.ok) {
+    if (result.error) {
       return {
         data: null,
         error: {
-          status: response.status,
-          message: errorMessage(
-            body,
-            `Supabase Auth invite failed with status ${response.status}.`,
-          ),
-          details: body,
+          status: (result.error as any).status ?? 400,
+          message: errorMessage(result.error, "Supabase could not invite this user."),
+          details: serialiseError(result.error),
         },
       };
     }
 
-    const user = body?.user ?? body;
+    const user = (result.data as any)?.user;
 
     if (!user?.id) {
       return {
         data: null,
         error: {
-          status: response.status,
+          status: 400,
           message: "Supabase Auth invite succeeded but did not return a user ID.",
-          details: body,
+          details: result.data ?? {},
         },
       };
     }
@@ -207,15 +200,12 @@ async function inviteUserByEmailDirect(
     return { data: { user }, error: null };
   } catch (error) {
     const serialised = serialiseError(error);
-    const timedOut = serialised.name === "AbortError";
 
     return {
       data: null,
       error: {
-        status: timedOut ? 408 : 0,
-        message: timedOut
-          ? "Supabase Auth did not respond while sending the invitation. Please try again. If this repeats, check the Supabase Auth email provider/logs."
-          : "Supabase Auth invite request could not be completed.",
+        status: 400,
+        message: errorMessage(error, "Supabase Auth invite request could not be completed."),
         details: serialised,
       },
     };
@@ -536,7 +526,7 @@ Deno.serve(async (req) => {
       target_email: email,
       action: invited ? "invite_user" : "add_existing_user",
       role,
-      metadata: { subdomain },
+      metadata: { subdomain, redirect_to: siteUrl },
     });
 
     return jsonResponse({
