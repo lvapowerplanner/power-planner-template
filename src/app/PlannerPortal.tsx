@@ -123,6 +123,7 @@ export default function PlannerPortal() {
   const [saveStatus, setSaveStatus] = useState("Not saved yet");
   const [accessMessage, setAccessMessage] = useState("");
   const [isPasswordRecovery, setIsPasswordRecovery] = useState(false);
+  const [isInvitePasswordSetup, setIsInvitePasswordSetup] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [workspaceBranding, setWorkspaceBranding] = useState<WorkspaceBranding>(
@@ -154,6 +155,27 @@ export default function PlannerPortal() {
     if (typeof window === "undefined") return "";
 
     return window.location.hostname.toLowerCase();
+  }
+
+  function authRedirectType() {
+    if (typeof window === "undefined") return "";
+
+    const hashParams = new URLSearchParams(
+      window.location.hash.replace(/^#/, ""),
+    );
+    const searchParams = new URLSearchParams(window.location.search);
+
+    return (
+      hashParams.get("type") ??
+      searchParams.get("type") ??
+      hashParams.get("auth_type") ??
+      searchParams.get("auth_type") ??
+      ""
+    ).toLowerCase();
+  }
+
+  function isInviteAuthRedirect() {
+    return authRedirectType() === "invite";
   }
 
   function currentHostUsesIndividualProjects() {
@@ -375,6 +397,7 @@ export default function PlannerPortal() {
     setProjectData(emptyProjectData);
     setSaveStatus("Not saved yet");
     setIsPasswordRecovery(false);
+    setIsInvitePasswordSetup(false);
     setNewPassword("");
     setConfirmPassword("");
     setMfaMode("none");
@@ -757,6 +780,7 @@ export default function PlannerPortal() {
     }
 
     setIsPasswordRecovery(false);
+    setIsInvitePasswordSetup(false);
     setNewPassword("");
     setConfirmPassword("");
     setAccessMessage("");
@@ -1275,8 +1299,18 @@ export default function PlannerPortal() {
     loadWorkspaceLoginOptions();
     resolveWorkspaceId();
 
+    const inviteRedirect = isInviteAuthRedirect();
+
     supabase.auth.getUser().then(({ data }) => {
       if (data.user) {
+        if (inviteRedirect) {
+          setUser(data.user);
+          setIsInvitePasswordSetup(true);
+          setIsPasswordRecovery(false);
+          setAccessMessage("");
+          return;
+        }
+
         approveAndLoadUser(data.user);
       } else {
         clearSessionState();
@@ -1288,11 +1322,20 @@ export default function PlannerPortal() {
         if (event === "PASSWORD_RECOVERY") {
           setUser(session?.user ?? null);
           setIsPasswordRecovery(true);
+          setIsInvitePasswordSetup(false);
           setAccessMessage("");
           return;
         }
 
         if (session?.user) {
+          if (isInviteAuthRedirect()) {
+            setUser(session.user);
+            setIsInvitePasswordSetup(true);
+            setIsPasswordRecovery(false);
+            setAccessMessage("");
+            return;
+          }
+
           approveAndLoadUser(session.user);
         } else {
           clearSessionState();
@@ -1343,7 +1386,7 @@ export default function PlannerPortal() {
     );
   }
 
-  if (isPasswordRecovery) {
+  if (isPasswordRecovery || isInvitePasswordSetup) {
     return (
       <main
         style={{
@@ -1352,10 +1395,15 @@ export default function PlannerPortal() {
         }}
       >
         <section style={styles.passwordCard}>
-          <h1>Set New Password</h1>
+          <h1>{isInvitePasswordSetup ? "Create Your Password" : "Set New Password"}</h1>
           <p style={styles.passwordText}>
-            Enter a new password for your{" "}
-            {workspaceBranding.company_name || "LVA Power Planner"} account.
+            {isInvitePasswordSetup
+              ? `Create a password for your ${
+                  workspaceBranding.company_name || "LVA Power Planner"
+                } account before continuing.`
+              : `Enter a new password for your ${
+                  workspaceBranding.company_name || "LVA Power Planner"
+                } account.`}
           </p>
 
           <label style={styles.passwordLabel}>
@@ -1381,7 +1429,7 @@ export default function PlannerPortal() {
           </label>
 
           <button style={styles.passwordButton} onClick={completePasswordReset}>
-            Update Password
+            {isInvitePasswordSetup ? "Create Password" : "Update Password"}
           </button>
         </section>
       </main>
