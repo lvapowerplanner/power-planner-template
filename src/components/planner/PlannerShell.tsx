@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { ChangeEvent } from "react";
+import { AdvancedCalculationsTab } from "@/components/planner/AdvancedCalculationsTab";
 import { CustomDistrosTab } from "@/components/planner/CustomDistrosTab";
 import { CustomEquipmentTab } from "@/components/planner/CustomEquipmentTab";
 import { DistroEditorTab } from "@/components/planner/DistroEditorTab";
@@ -25,6 +26,7 @@ type PlannerShellProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
+  advancedFeaturesEnabled?: boolean;
 };
 
 type PlannerTab =
@@ -32,6 +34,7 @@ type PlannerTab =
   | "Power Sources"
   | "Distro Overview"
   | "Distro Editor"
+  | "Advanced Calculations"
   | "Custom Equipment"
   | "Custom Distros"
   | "Report";
@@ -73,7 +76,7 @@ function plannerThemeStyle(workspaceBranding?: WorkspaceBranding): React.CSSProp
   } as React.CSSProperties;
 }
 
-const tabs: PlannerTab[] = [
+const standardTabs: PlannerTab[] = [
   "System Overview",
   "Power Sources",
   "Distro Overview",
@@ -120,6 +123,18 @@ function normaliseImportedPlannerState(value: PlannerState): PlannerState {
     reportHiddenSources: value.reportHiddenSources ?? [],
     reportHiddenDistros: value.reportHiddenDistros ?? [],
     dismissedWarnings: value.dismissedWarnings ?? [],
+    advancedElectrical: {
+      calculationMethod:
+        value.advancedElectrical?.calculationMethod ?? "real-power",
+      defaultPowerFactor:
+        value.advancedElectrical?.defaultPowerFactor ?? 1,
+      nominalSinglePhaseVoltage:
+        value.advancedElectrical?.nominalSinglePhaseVoltage ?? 230,
+      nominalThreePhaseVoltage:
+        value.advancedElectrical?.nominalThreePhaseVoltage ?? 400,
+      showUnusedOutputs:
+        value.advancedElectrical?.showUnusedOutputs ?? false,
+    },
   });
 }
 
@@ -127,10 +142,18 @@ export function PlannerShell({
   plannerState,
   setPlannerState,
   workspaceBranding,
+  advancedFeaturesEnabled = false,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
   const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const tabs: PlannerTab[] = advancedFeaturesEnabled
+    ? [
+        ...standardTabs.slice(0, 4),
+        "Advanced Calculations",
+        ...standardTabs.slice(4),
+      ]
+    : standardTabs;
 
   useEffect(() => {
     const updatedState = ensureAutoSources(plannerState);
@@ -330,6 +353,15 @@ export function PlannerShell({
             goToDistroOverview={() => setActiveTab("Distro Overview")}
           />
         )}
+
+        {activeTab === "Advanced Calculations" &&
+          advancedFeaturesEnabled && (
+            <AdvancedCalculationsTab
+              plannerState={plannerState}
+              setPlannerState={setPlannerState}
+              openDistroEditor={openDistroEditor}
+            />
+          )}
 
         {activeTab === "Custom Equipment" && (
           <CustomEquipmentTab

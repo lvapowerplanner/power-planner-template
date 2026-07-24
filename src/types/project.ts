@@ -41,6 +41,13 @@ export const emptyPlannerState: PlannerState = {
   customDistros: [],
   reportHiddenSources: [],
   dismissedWarnings: [],
+  advancedElectrical: {
+    calculationMethod: "real-power",
+    defaultPowerFactor: 1,
+    nominalSinglePhaseVoltage: 230,
+    nominalThreePhaseVoltage: 400,
+    showUnusedOutputs: false,
+  },
 };
 
 export const emptyProjectData: ProjectData = {

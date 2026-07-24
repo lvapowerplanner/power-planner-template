@@ -1,5 +1,13 @@
+import { useState } from "react";
+import {
+  AdvancedWarningEditor,
+  advancedWarningHasEditableCircuits,
+} from "@/components/planner/AdvancedWarningEditor";
 import { WarningPanel, activeIssuesForScope } from "@/components/planner/WarningPanel";
 import {
+  advancedDistroLoadMetrics,
+  advancedPlannerStateForLoadSummary,
+  advancedSourceLoadMetrics,
   displayDistroName,
   formatAmps,
   formatWatts,
@@ -9,6 +17,7 @@ import {
 import type {
   DistroLoadSummary,
   PhaseLoads,
+  SourceLoadSummary,
   ValidationIssue,
 } from "@/planner/calculations";
 import type { PlannerState, ProjectInfo } from "@/planner/types";
@@ -17,7 +26,46 @@ type SystemOverviewTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   openDistroEditor: (distroId: string) => void;
+  calculationView?: "standard" | "advanced";
+  showProjectInformation?: boolean;
+  showHeader?: boolean;
 };
+
+function formatKva(value: number) {
+  return value >= 1000
+    ? `${(value / 1000).toFixed(2)} kVA`
+    : `${Math.round(value)} VA`;
+}
+
+function sourceTotalLabel(
+  source: SourceLoadSummary,
+  advancedView: boolean,
+  plannerState: PlannerState,
+) {
+  if (!advancedView) {
+    return `${formatWatts(source.watts)} · ${formatAmps(source.amps)}`;
+  }
+
+  const metrics = advancedSourceLoadMetrics(source.sourceId, plannerState);
+  return `${formatWatts(metrics.designWatts)} design · ${formatKva(
+    metrics.apparentVa,
+  )} · ${formatAmps(source.amps)}`;
+}
+
+function distroTotalLabel(
+  summary: DistroLoadSummary,
+  advancedView: boolean,
+  plannerState: PlannerState,
+) {
+  if (!advancedView) {
+    return `${formatWatts(summary.watts)} · ${formatAmps(summary.amps)}`;
+  }
+
+  const metrics = advancedDistroLoadMetrics(summary.distro, plannerState);
+  return `${formatWatts(metrics.designWatts)} design · ${formatKva(
+    metrics.apparentVa,
+  )} · ${formatAmps(summary.amps)}`;
+}
 
 function isThreePhaseConnection(connection: string) {
   return (
@@ -132,8 +180,19 @@ export function SystemOverviewTab({
   plannerState,
   setPlannerState,
   openDistroEditor,
+  calculationView = "standard",
+  showProjectInformation = true,
+  showHeader = true,
 }: SystemOverviewTabProps) {
-  const summary = systemLoadSummary(plannerState);
+  const [expandedAdvancedIssueId, setExpandedAdvancedIssueId] = useState<
+    string | null
+  >(null);
+  const advancedView = calculationView === "advanced";
+  const summary = systemLoadSummary(
+    advancedView
+      ? advancedPlannerStateForLoadSummary(plannerState)
+      : plannerState,
+  );
   const projectInfo = projectInfoForState(plannerState);
 
   function updateProjectInfo(field: keyof ProjectInfo, value: string) {
@@ -151,27 +210,40 @@ export function SystemOverviewTab({
 
   return (
     <section data-lva-surface style={styles.card}>
-      <div style={styles.headerRow}>
-        <div>
-          <h2>System Overview</h2>
-          <p style={styles.muted}>
-            Overview of the system configuration and project details.
-          </p>
-        </div>
+      {showHeader && (
+        <div style={styles.headerRow}>
+          <div>
+            <h2>System Overview</h2>
+            <p style={styles.muted}>
+              Overview of the system configuration and project details.
+            </p>
+          </div>
 
-        <div style={styles.legend}>
-          <span style={styles.legendItem}>
-            <span style={{ ...styles.legendLine, ...styles.threePhaseLine }} />
-            3-phase
-          </span>
-          <span style={styles.legendItem}>
-            <span style={{ ...styles.legendLine, ...styles.singlePhaseLine }} />
-            Single-phase
+          <div style={styles.legend}>
+            <span style={styles.legendItem}>
+              <span style={{ ...styles.legendLine, ...styles.threePhaseLine }} />
+              3-phase
+            </span>
+            <span style={styles.legendItem}>
+              <span style={{ ...styles.legendLine, ...styles.singlePhaseLine }} />
+              Single-phase
+            </span>
+          </div>
+        </div>
+      )}
+
+      {advancedView && showHeader && (
+        <div style={styles.advancedNotice}>
+          <strong>Advanced design view</strong>
+          <span>
+            Phase loads and warnings include circuit diversity and power-factor
+            settings from Advanced Calculations.
           </span>
         </div>
-      </div>
+      )}
 
-      <section style={styles.projectInfoPanel}>
+      {showProjectInformation && (
+        <section style={styles.projectInfoPanel}>
         <div>
           <h3 style={styles.projectInfoTitle}>Project Information</h3>
           <p style={styles.projectInfoText}>
@@ -238,7 +310,8 @@ export function SystemOverviewTab({
             />
           </label>
         </div>
-      </section>
+        </section>
+      )}
 
       <WarningPanel
         scope="planner-warnings"
@@ -246,6 +319,36 @@ export function SystemOverviewTab({
         issues={summary.issues}
         plannerState={plannerState}
         setPlannerState={setPlannerState}
+        renderIssueAction={
+          advancedView
+            ? (issue) =>
+                advancedWarningHasEditableCircuits(issue, plannerState) ? (
+                  <button
+                    style={styles.reviewButton}
+                    onClick={() =>
+                      setExpandedAdvancedIssueId((current) =>
+                        current === issue.id ? null : issue.id,
+                      )
+                    }
+                  >
+                    Review{" "}
+                    {expandedAdvancedIssueId === issue.id ? "▴" : "▾"}
+                  </button>
+                ) : null
+            : undefined
+        }
+        renderIssueDetails={
+          advancedView
+            ? (issue) =>
+                expandedAdvancedIssueId === issue.id ? (
+                  <AdvancedWarningEditor
+                    issue={issue}
+                    plannerState={plannerState}
+                    setPlannerState={setPlannerState}
+                  />
+                ) : null
+            : undefined
+        }
       />
 
       <section style={styles.flowSection}>
@@ -282,7 +385,7 @@ export function SystemOverviewTab({
                   </div>
 
                   <div style={styles.sourceTotal}>
-                    {formatWatts(source.watts)} · {formatAmps(source.amps)}
+                    {sourceTotalLabel(source, advancedView, plannerState)}
                   </div>
                 </div>
 
@@ -301,6 +404,8 @@ export function SystemOverviewTab({
                         sourceConnection={source.sourceConnection}
                         sourceRating={source.sourceRating}
                         dismissedWarnings={plannerState.dismissedWarnings ?? []}
+                        advancedView={advancedView}
+                        plannerState={plannerState}
                       />
                     ))}
                   </div>
@@ -323,6 +428,8 @@ export function SystemOverviewTab({
                   depth={0}
                   unassigned
                   dismissedWarnings={plannerState.dismissedWarnings ?? []}
+                  advancedView={advancedView}
+                  plannerState={plannerState}
                 />
               ))}
             </div>
@@ -341,6 +448,8 @@ function DistroTreeCard({
   sourceConnection,
   sourceRating,
   dismissedWarnings = [],
+  advancedView = false,
+  plannerState,
 }: {
   summary: DistroLoadSummary;
   openDistroEditor: (distroId: string) => void;
@@ -349,6 +458,8 @@ function DistroTreeCard({
   sourceConnection?: string;
   sourceRating?: number;
   dismissedWarnings?: PlannerState["dismissedWarnings"];
+  advancedView?: boolean;
+  plannerState: PlannerState;
 }) {
   const connectionType = connectionColour(summary.distro.input);
   const lineStyle =
@@ -414,7 +525,7 @@ function DistroTreeCard({
 
           <div style={styles.distroActions}>
             <span style={styles.distroTotal}>
-              {formatWatts(summary.watts)} · {formatAmps(summary.amps)}
+              {distroTotalLabel(summary, advancedView, plannerState)}
             </span>
             <button
               style={styles.secondaryButton}
@@ -446,6 +557,8 @@ function DistroTreeCard({
                 openDistroEditor={openDistroEditor}
                 depth={depth + 1}
                 dismissedWarnings={dismissedWarnings}
+                advancedView={advancedView}
+                plannerState={plannerState}
               />
             ))}
           </div>
@@ -563,6 +676,54 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "16px",
     alignItems: "flex-start",
     marginBottom: "18px",
+  },
+  headerControls: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  viewSwitch: {
+    display: "flex",
+    gap: "3px",
+    padding: "4px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "12px",
+    background: "#F5F7FA",
+  },
+  viewButton: {
+    padding: "8px 11px",
+    border: "1px solid transparent",
+    borderRadius: "9px",
+    background: "transparent",
+    color: "#526071",
+    cursor: "pointer",
+  },
+  activeViewButton: {
+    borderColor: "var(--lva-workspace-highlight-border, #242424)",
+    background: "var(--lva-workspace-highlight, #ececec)",
+    color: "#111827",
+  },
+  advancedNotice: {
+    display: "grid",
+    gap: "3px",
+    marginBottom: "16px",
+    padding: "11px 13px",
+    border: "1px solid #F2C94C",
+    borderRadius: "12px",
+    background: "#FFF8E5",
+    color: "#744B00",
+    fontSize: "13px",
+  },
+  reviewButton: {
+    padding: 0,
+    border: 0,
+    background: "transparent",
+    color: "#667085",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: 500,
   },
   muted: {
     color: "#667085",

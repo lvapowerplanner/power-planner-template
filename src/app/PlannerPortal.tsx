@@ -109,6 +109,7 @@ export default function PlannerPortal() {
   const [projectShares, setProjectShares] = useState<ProjectShare[]>([]);
   const [workspaceUsers, setWorkspaceUsers] = useState<WorkspaceUser[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
+  const [advancedFeaturesEnabled, setAdvancedFeaturesEnabled] = useState(false);
   const [userRole, setUserRole] = useState<UserRole>("user");
   const [licenseCount, setLicenseCount] = useState(5);
   const [adminPortalOpen, setAdminPortalOpen] = useState(false);
@@ -210,19 +211,21 @@ export default function PlannerPortal() {
 
     if (candidates.length === 0) {
       setWorkspaceId(null);
+      setAdvancedFeaturesEnabled(false);
       setProjectSharingMode("disabled");
       return null;
     }
 
     if (candidates.includes("localhost") || candidates.includes("127.0.0.1")) {
       setWorkspaceId(null);
+      setAdvancedFeaturesEnabled(process.env.NODE_ENV === "development");
       setProjectSharingMode("disabled");
       return null;
     }
 
     const { data, error } = await supabase
       .from("planner_workspaces")
-      .select("id")
+      .select("id, advanced_features_enabled")
       .in("host", candidates)
       .eq("active", true)
       .limit(1)
@@ -231,12 +234,14 @@ export default function PlannerPortal() {
     if (error) {
       console.error("Could not resolve workspace:", error);
       setWorkspaceId(null);
+      setAdvancedFeaturesEnabled(false);
       setProjectSharingMode("disabled");
       return null;
     }
 
     const resolvedWorkspaceId = data?.id ? String(data.id) : null;
     setWorkspaceId(resolvedWorkspaceId);
+    setAdvancedFeaturesEnabled(Boolean(data?.advanced_features_enabled));
 
     if (!resolvedWorkspaceId) {
       setProjectSharingMode("disabled");
@@ -1465,6 +1470,7 @@ export default function PlannerPortal() {
         saveStatus={saveStatus}
         renameProject={renameProject}
         workspaceBranding={workspaceBranding}
+        advancedFeaturesEnabled={advancedFeaturesEnabled}
       />
     );
   }

@@ -34,6 +34,9 @@ export type PlannerOutput = {
   detail?: string;
   connectorStyle?: ConnectorStyle;
   socaCircuits?: PlannerOutput[];
+  diversityPercent?: number;
+  diversityReason?: string;
+  powerFactorOverride?: number;
 };
 
 export type DistroDefinition = {
@@ -83,6 +86,18 @@ export type DismissedWarning = {
   dismissedAt: string;
 };
 
+export type AdvancedCalculationMethod =
+  | "real-power"
+  | "include-power-factor";
+
+export type AdvancedElectricalSettings = {
+  calculationMethod: AdvancedCalculationMethod;
+  defaultPowerFactor: number;
+  nominalSinglePhaseVoltage: number;
+  nominalThreePhaseVoltage: number;
+  showUnusedOutputs: boolean;
+};
+
 export type PlannerState = {
   /** Kept for backwards compatibility with older saved projects. Use projectInfo.projectName for new UI/report titles. */
   systemName: string;
@@ -95,4 +110,5 @@ export type PlannerState = {
   reportHiddenSources: string[];
   reportHiddenDistros?: string[];
   dismissedWarnings?: DismissedWarning[];
+  advancedElectrical?: AdvancedElectricalSettings;
 };

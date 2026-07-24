@@ -61,6 +61,21 @@ export type SystemLoadSummary = {
   health: ValidationSeverity;
 };
 
+export type AdvancedCircuitCalculation = {
+  connectedWatts: number;
+  diversityPercent: number;
+  diversifiedWatts: number;
+  powerFactor: number;
+  apparentVa: number;
+  currentAmps: number;
+};
+
+export type AdvancedLoadMetrics = {
+  connectedWatts: number;
+  designWatts: number;
+  apparentVa: number;
+};
+
 function autoSourceId(parentDistroId: string, outputId: string): string {
   return `auto_${parentDistroId}_${outputId}`;
 }
@@ -75,6 +90,225 @@ export function isThreePhaseConnection(connection: string): boolean {
 
 export function wattsToAmps(watts: number): number {
   return watts / 230;
+}
+
+export function clampDiversityPercent(value?: number): number {
+  if (!Number.isFinite(value)) return 100;
+  return Math.min(100, Math.max(1, Number(value)));
+}
+
+export function clampPowerFactor(value?: number): number {
+  if (!Number.isFinite(value)) return 1;
+  return Math.min(1, Math.max(0.1, Number(value)));
+}
+
+export function calculateAdvancedCircuit({
+  connectedWatts,
+  phase,
+  diversityPercent,
+  calculationMethod,
+  projectPowerFactor,
+  powerFactorOverride,
+  nominalSinglePhaseVoltage,
+  nominalThreePhaseVoltage,
+}: {
+  connectedWatts: number;
+  phase: PlannerOutput["phase"];
+  diversityPercent?: number;
+  calculationMethod: "real-power" | "include-power-factor";
+  projectPowerFactor: number;
+  powerFactorOverride?: number;
+  nominalSinglePhaseVoltage: number;
+  nominalThreePhaseVoltage: number;
+}): AdvancedCircuitCalculation {
+  const safeConnectedWatts = Math.max(0, Number(connectedWatts) || 0);
+  const safeDiversity = clampDiversityPercent(diversityPercent);
+  const diversifiedWatts = safeConnectedWatts * (safeDiversity / 100);
+  const selectedPowerFactor =
+    calculationMethod === "include-power-factor"
+      ? clampPowerFactor(powerFactorOverride ?? projectPowerFactor)
+      : 1;
+  const apparentVa = diversifiedWatts / selectedPowerFactor;
+  const singlePhaseVoltage = Math.max(
+    1,
+    Number(nominalSinglePhaseVoltage) || 230,
+  );
+  const threePhaseVoltage = Math.max(
+    1,
+    Number(nominalThreePhaseVoltage) || 400,
+  );
+  const currentAmps =
+    phase === "3Φ"
+      ? apparentVa / (Math.sqrt(3) * threePhaseVoltage)
+      : apparentVa / singlePhaseVoltage;
+
+  return {
+    connectedWatts: safeConnectedWatts,
+    diversityPercent: safeDiversity,
+    diversifiedWatts,
+    powerFactor: selectedPowerFactor,
+    apparentVa,
+    currentAmps,
+  };
+}
+
+function advancedSettingsFor(plannerState: PlannerState) {
+  return {
+    calculationMethod:
+      plannerState.advancedElectrical?.calculationMethod ?? "real-power",
+    projectPowerFactor:
+      plannerState.advancedElectrical?.defaultPowerFactor ?? 1,
+    nominalSinglePhaseVoltage:
+      plannerState.advancedElectrical?.nominalSinglePhaseVoltage ?? 230,
+    nominalThreePhaseVoltage:
+      plannerState.advancedElectrical?.nominalThreePhaseVoltage ?? 400,
+  } as const;
+}
+
+function advancedOutputCalculation(
+  output: PlannerOutput,
+  plannerState: PlannerState,
+) {
+  const settings = advancedSettingsFor(plannerState);
+
+  return calculateAdvancedCircuit({
+    connectedWatts: outputOwnWatts(output),
+    phase: output.phase,
+    diversityPercent: output.diversityPercent,
+    calculationMethod: settings.calculationMethod,
+    projectPowerFactor: settings.projectPowerFactor,
+    powerFactorOverride: output.powerFactorOverride,
+    nominalSinglePhaseVoltage: settings.nominalSinglePhaseVoltage,
+    nominalThreePhaseVoltage: settings.nominalThreePhaseVoltage,
+  });
+}
+
+function equivalentStandardWatts(
+  output: PlannerOutput,
+  currentAmps: number,
+) {
+  return output.phase === "3Φ"
+    ? currentAmps * 230 * 3
+    : currentAmps * 230;
+}
+
+function advancedOutputForSummary(
+  output: PlannerOutput,
+  plannerState: PlannerState,
+): PlannerOutput {
+  if (output.phase === "Socapex") {
+    return {
+      ...output,
+      socaCircuits: (output.socaCircuits ?? []).map((socket) =>
+        advancedOutputForSummary(socket, plannerState),
+      ),
+    };
+  }
+
+  const calculation = advancedOutputCalculation(output, plannerState);
+  const equivalentWatts = equivalentStandardWatts(
+    output,
+    calculation.currentAmps,
+  );
+
+  return {
+    ...output,
+    items:
+      equivalentWatts > 0
+        ? [
+            {
+              id: `advanced_${output.id}`,
+              name: "Advanced design load",
+              watts: equivalentWatts,
+              quantity: 1,
+            },
+          ]
+        : [],
+  };
+}
+
+export function advancedPlannerStateForLoadSummary(
+  plannerState: PlannerState,
+): PlannerState {
+  return {
+    ...plannerState,
+    distros: plannerState.distros.map((distro) => ({
+      ...distro,
+      outputs: distro.outputs.map((output) =>
+        advancedOutputForSummary(output, plannerState),
+      ),
+    })),
+  };
+}
+
+function addAdvancedMetrics(
+  first: AdvancedLoadMetrics,
+  second: AdvancedLoadMetrics,
+): AdvancedLoadMetrics {
+  return {
+    connectedWatts: first.connectedWatts + second.connectedWatts,
+    designWatts: first.designWatts + second.designWatts,
+    apparentVa: first.apparentVa + second.apparentVa,
+  };
+}
+
+function ownAdvancedDistroMetrics(
+  distro: ProjectDistro,
+  plannerState: PlannerState,
+): AdvancedLoadMetrics {
+  const outputs = distro.outputs.flatMap((output) =>
+    output.phase === "Socapex" ? output.socaCircuits ?? [] : [output],
+  );
+
+  return outputs.reduce<AdvancedLoadMetrics>(
+    (total, output) => {
+      const calculation = advancedOutputCalculation(output, plannerState);
+      return addAdvancedMetrics(total, {
+        connectedWatts: calculation.connectedWatts,
+        designWatts: calculation.diversifiedWatts,
+        apparentVa: calculation.apparentVa,
+      });
+    },
+    { connectedWatts: 0, designWatts: 0, apparentVa: 0 },
+  );
+}
+
+export function advancedDistroLoadMetrics(
+  distro: ProjectDistro,
+  plannerState: PlannerState,
+  visited: Set<string> = new Set(),
+): AdvancedLoadMetrics {
+  if (visited.has(distro.id)) {
+    return { connectedWatts: 0, designWatts: 0, apparentVa: 0 };
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(distro.id);
+
+  return childDistrosForDistro(plannerState, distro).reduce(
+    (total, child) =>
+      addAdvancedMetrics(
+        total,
+        advancedDistroLoadMetrics(child, plannerState, nextVisited),
+      ),
+    ownAdvancedDistroMetrics(distro, plannerState),
+  );
+}
+
+export function advancedSourceLoadMetrics(
+  sourceId: string,
+  plannerState: PlannerState,
+): AdvancedLoadMetrics {
+  return plannerState.distros
+    .filter((distro) => distro.sourceId === sourceId)
+    .reduce(
+      (total, distro) =>
+        addAdvancedMetrics(
+          total,
+          advancedDistroLoadMetrics(distro, plannerState),
+        ),
+      { connectedWatts: 0, designWatts: 0, apparentVa: 0 },
+    );
 }
 
 export function createEmptyPhaseLoads(): PhaseLoads {

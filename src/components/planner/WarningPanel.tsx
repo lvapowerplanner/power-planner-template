@@ -9,6 +9,8 @@ type WarningPanelProps = {
   issues: ValidationIssue[];
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
+  renderIssueAction?: (issue: ValidationIssue) => ReactNode;
+  renderIssueDetails?: (issue: ValidationIssue) => ReactNode;
 };
 
 const dismissConfirmationStorageKey = "lva-warning-dismiss-confirmation-muted-until";
@@ -175,6 +177,8 @@ export function WarningPanel({
   issues,
   plannerState,
   setPlannerState,
+  renderIssueAction,
+  renderIssueDetails,
 }: WarningPanelProps) {
   const [activeOpen, setActiveOpen] = useState(true);
   const [dismissedOpen, setDismissedOpen] = useState(false);
@@ -294,9 +298,12 @@ export function WarningPanel({
                 }}
               >
                 <div>
-                  <strong>
-                    {issue.severity === "critical" ? "Critical" : "Warning"}
-                  </strong>
+                  <span style={styles.issueHeading}>
+                    <strong>
+                      {issue.severity === "critical" ? "Critical" : "Warning"}
+                    </strong>
+                    {renderIssueAction?.(issue)}
+                  </span>
                   <span style={styles.issueMessage}>{issue.message}</span>
                 </div>
                 {issue.severity === "warning" && (
@@ -310,6 +317,7 @@ export function WarningPanel({
                     <span>{reinstatementInfo.text}</span>
                   </div>
                 )}
+                {renderIssueDetails?.(issue)}
               </div>
               );
             })}
@@ -575,6 +583,12 @@ const styles: Record<string, CSSProperties> = {
     display: "block",
     marginTop: "2px",
     fontSize: "13px",
+  },
+  issueHeading: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    flexWrap: "wrap",
   },
   reinstatedNotice: {
     gridColumn: "1 / -1",
