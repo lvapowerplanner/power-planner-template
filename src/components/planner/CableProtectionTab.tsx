@@ -960,7 +960,7 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: "1px solid #DCE5EC",
     background: "#F8FAFC",
     color: "#526071",
-    textAlign: "right",
+    textAlign: "left",
     whiteSpace: "nowrap",
   },
   td: {
@@ -971,7 +971,7 @@ const styles: Record<string, React.CSSProperties> = {
   numberTd: {
     padding: "9px",
     borderBottom: "1px solid #EEF2F6",
-    textAlign: "right",
+    textAlign: "left",
     whiteSpace: "nowrap",
     verticalAlign: "top",
   },
