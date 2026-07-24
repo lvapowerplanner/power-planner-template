@@ -19,6 +19,41 @@ export type PlannerPhase = "L1" | "L2" | "L3" | "3Φ" | "Socapex";
 
 export type ConnectorStyle = "ceeform" | "powerlock" | "soca";
 
+export type CableDataStatus = "reference" | "verified" | "superseded";
+
+export type CableDataSnapshot = {
+  cableName: string;
+  ratingCode?: string;
+  application: "single_phase_ac" | "three_phase_ac" | "dc";
+  coreConfiguration: string;
+  conductorSizeMm2: number;
+  cableArrangement: string;
+  installationMethod: string;
+  currentCapacityA: number;
+  voltageDropMvPerAmpMetre: number;
+  resistanceMvPerAmpMetre?: number;
+  reactanceMvPerAmpMetre?: number;
+  sourceName: string;
+  sourceRevision: string;
+  dataStatus: CableDataStatus;
+};
+
+export type CircuitCableDesign = {
+  dataSource: "library" | "custom";
+  cableRatingId?: string;
+  snapshot: CableDataSnapshot;
+  lengthMetres: number;
+  parallelRuns: number;
+  deratingFactor: number;
+  voltageDropLimitPercent: number;
+  voltageDropCategory: "lighting" | "other" | "custom";
+  notes?: string;
+  designerVerified?: boolean;
+  designerVerifiedAt?: string;
+  designerVerifiedBy?: string;
+  designerVerificationFingerprint?: string;
+};
+
 export type PlannerOutput = {
   id: string;
   label: string;
@@ -37,6 +72,7 @@ export type PlannerOutput = {
   diversityPercent?: number;
   diversityReason?: string;
   powerFactorOverride?: number;
+  cableDesign?: CircuitCableDesign;
 };
 
 export type DistroDefinition = {

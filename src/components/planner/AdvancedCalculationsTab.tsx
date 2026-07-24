@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
+import { CableProtectionTab } from "@/components/planner/CableProtectionTab";
 import {
   calculateAdvancedCircuit,
   childDistroFedFromOutput,
@@ -134,9 +135,9 @@ export function AdvancedCalculationsTab({
   const settings = settingsFor(plannerState);
   const [selectedDistroId, setSelectedDistroId] = useState("all");
   const [collapsedDistroIds, setCollapsedDistroIds] = useState<string[]>([]);
-  const [activeSubTab, setActiveSubTab] = useState<"table" | "overview">(
-    "table",
-  );
+  const [activeSubTab, setActiveSubTab] = useState<
+    "overview" | "load-demand" | "cables"
+  >("overview");
 
   const visibleDistros = useMemo(
     () =>
@@ -245,7 +246,7 @@ export function AdvancedCalculationsTab({
             calculation assumptions can be changed here.
           </p>
         </div>
-        {activeSubTab === "table" && (
+        {activeSubTab === "load-demand" && (
           <button style={styles.secondaryButton} onClick={resetAllDiversity}>
             Reset all diversity
           </button>
@@ -256,20 +257,29 @@ export function AdvancedCalculationsTab({
         <button
           style={{
             ...styles.subTab,
-            ...(activeSubTab === "table" ? styles.activeSubTab : {}),
-          }}
-          onClick={() => setActiveSubTab("table")}
-        >
-          Calculation Table
-        </button>
-        <button
-          style={{
-            ...styles.subTab,
             ...(activeSubTab === "overview" ? styles.activeSubTab : {}),
           }}
           onClick={() => setActiveSubTab("overview")}
         >
           Advanced Overview
+        </button>
+        <button
+          style={{
+            ...styles.subTab,
+            ...(activeSubTab === "load-demand" ? styles.activeSubTab : {}),
+          }}
+          onClick={() => setActiveSubTab("load-demand")}
+        >
+          Load &amp; Demand
+        </button>
+        <button
+          style={{
+            ...styles.subTab,
+            ...(activeSubTab === "cables" ? styles.activeSubTab : {}),
+          }}
+          onClick={() => setActiveSubTab("cables")}
+        >
+          Cable & Protection
         </button>
       </div>
 
@@ -281,6 +291,11 @@ export function AdvancedCalculationsTab({
           calculationView="advanced"
           showProjectInformation={false}
           showHeader={false}
+        />
+      ) : activeSubTab === "cables" ? (
+        <CableProtectionTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
         />
       ) : (
         <>

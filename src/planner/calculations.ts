@@ -1,4 +1,5 @@
 import type {
+  CircuitCableDesign,
   PlannerOutput,
   PlannerState,
   ProjectDistro,
@@ -76,6 +77,20 @@ export type AdvancedLoadMetrics = {
   apparentVa: number;
 };
 
+export type CableCalculationStatus = "pass" | "review" | "fail";
+
+export type CableCalculationResult = {
+  adjustedCapacityA: number;
+  utilisationPercent: number;
+  sectionVoltageDropV: number;
+  sectionVoltageDropPercent: number;
+  cumulativeVoltageDropV: number;
+  cumulativeVoltageDropPercent: number;
+  endVoltageV: number;
+  status: CableCalculationStatus;
+  statusReasons: string[];
+};
+
 function autoSourceId(parentDistroId: string, outputId: string): string {
   return `auto_${parentDistroId}_${outputId}`;
 }
@@ -150,6 +165,108 @@ export function calculateAdvancedCircuit({
     apparentVa,
     currentAmps,
   };
+}
+
+export function calculateCableDesign({
+  cableDesign,
+  designCurrentA,
+  nominalVoltageV,
+  upstreamVoltageDropV = 0,
+}: {
+  cableDesign: CircuitCableDesign | undefined;
+  designCurrentA: number;
+  nominalVoltageV: number;
+  upstreamVoltageDropV?: number;
+}): CableCalculationResult | null {
+  if (!cableDesign) return null;
+
+  const parallelRuns = Math.max(1, cableDesign.parallelRuns || 1);
+  const deratingFactor = Math.min(
+    1,
+    Math.max(0.01, cableDesign.deratingFactor || 1),
+  );
+  const lengthMetres = Math.max(0, cableDesign.lengthMetres || 0);
+  const nominalVoltage = Math.max(1, nominalVoltageV || 230);
+  const adjustedCapacityA =
+    cableDesign.snapshot.currentCapacityA * parallelRuns * deratingFactor;
+  const utilisationPercent =
+    adjustedCapacityA > 0 ? (designCurrentA / adjustedCapacityA) * 100 : 0;
+  const sectionVoltageDropV =
+    (cableDesign.snapshot.voltageDropMvPerAmpMetre *
+      Math.max(0, designCurrentA) *
+      lengthMetres) /
+    1000 /
+    parallelRuns;
+  const cumulativeVoltageDropV =
+    Math.max(0, upstreamVoltageDropV) + sectionVoltageDropV;
+  const sectionVoltageDropPercent =
+    (sectionVoltageDropV / nominalVoltage) * 100;
+  const cumulativeVoltageDropPercent =
+    (cumulativeVoltageDropV / nominalVoltage) * 100;
+  const endVoltageV = Math.max(0, nominalVoltage - cumulativeVoltageDropV);
+  const statusReasons: string[] = [];
+
+  if (lengthMetres <= 0) {
+    statusReasons.push("Cable length is incomplete.");
+  }
+
+  if (designCurrentA > adjustedCapacityA) {
+    statusReasons.push("Design current exceeds adjusted cable capacity.");
+  }
+
+  if (
+    cumulativeVoltageDropPercent >
+    Math.max(0.1, cableDesign.voltageDropLimitPercent || 5)
+  ) {
+    statusReasons.push("Cumulative voltage drop exceeds the selected limit.");
+  }
+
+  if (
+    !cableDesign.designerVerified ||
+    cableDesign.designerVerificationFingerprint !==
+      cableVerificationFingerprint(cableDesign, designCurrentA)
+  ) {
+    statusReasons.push("Cable data and installation assumptions require designer verification.");
+  }
+
+  const hasFailure = statusReasons.some(
+    (reason) =>
+      reason.includes("exceeds adjusted") ||
+      reason.includes("exceeds the selected"),
+  );
+
+  return {
+    adjustedCapacityA,
+    utilisationPercent,
+    sectionVoltageDropV,
+    sectionVoltageDropPercent,
+    cumulativeVoltageDropV,
+    cumulativeVoltageDropPercent,
+    endVoltageV,
+    status: hasFailure
+      ? "fail"
+      : statusReasons.length > 0
+        ? "review"
+        : "pass",
+    statusReasons,
+  };
+}
+
+export function cableVerificationFingerprint(
+  cableDesign: CircuitCableDesign,
+  designCurrentA: number,
+) {
+  return JSON.stringify({
+    dataSource: cableDesign.dataSource,
+    cableRatingId: cableDesign.cableRatingId ?? null,
+    snapshot: cableDesign.snapshot,
+    lengthMetres: cableDesign.lengthMetres,
+    parallelRuns: cableDesign.parallelRuns,
+    deratingFactor: cableDesign.deratingFactor,
+    voltageDropLimitPercent: cableDesign.voltageDropLimitPercent,
+    voltageDropCategory: cableDesign.voltageDropCategory,
+    designCurrentA: Number(designCurrentA.toFixed(6)),
+  });
 }
 
 function advancedSettingsFor(plannerState: PlannerState) {
