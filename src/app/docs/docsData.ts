@@ -62,6 +62,15 @@ export const docCategories: DocCategory[] = [
     ],
   },
   {
+    title: "Advanced Calculations",
+    description: "Advanced demand, power-factor, cable and voltage-drop design tools.",
+    items: [
+      { title: "Advanced Calculations Overview", slug: "advanced-calculations", description: "Enable and navigate the advanced electrical design workspace." },
+      { title: "Load & Demand", slug: "load-and-demand", description: "Apply diversity and power factor to calculate design load, kVA and current." },
+      { title: "Cable & Protection", slug: "cable-and-protection", description: "Select cables, calculate capacity and voltage drop, and record designer verification." },
+    ],
+  },
+  {
     title: "Equipment & Templates",
     description: "Use company libraries and project-specific custom items.",
     items: [
@@ -1017,20 +1026,253 @@ export const docArticles: DocArticle[] = [
     related: ["system-overview", "power-sources", "calculations"],
   },
   {
+    title: "Advanced Calculations Overview",
+    slug: "advanced-calculations",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "8 min read",
+    description: "Use the workspace-controlled advanced electrical design tools.",
+    summary: "Advanced Calculations adds an advanced system overview, load and demand calculations, and cable sizing and voltage-drop design without changing the Distro Editor workflow.",
+    tags: ["advanced calculations", "advanced overview", "BS 7909", "power factor", "diversity", "cable", "voltage drop"],
+    sections: [
+      {
+        heading: "Availability",
+        body: [
+          "Advanced Calculations is an optional workspace feature. The tab appears only when advanced features are enabled for the current workspace.",
+          "The standard planning tabs remain unchanged. Equipment, quantities, output assignments and downstream distro connections continue to be managed only in the Distro Editor.",
+        ],
+        callout: {
+          type: "info",
+          title: "One project model",
+          body: "Advanced Calculations reads the live circuit structure from the Distro Editor. It stores calculation assumptions against those outputs rather than creating a second equipment schedule.",
+        },
+      },
+      {
+        heading: "Advanced Overview",
+        body: [
+          "Advanced Overview is the first subtab and opens by default. It shows project warnings followed by an overview calculated using advanced load and demand values.",
+          "Warnings with editable advanced assumptions can be expanded using Review. Make changes in the expanded row and select Save changes to commit them. This prevents a warning disappearing while a value is only partly entered.",
+        ],
+        bullets: [
+          "Review advanced warnings before issuing reports or cable calculations.",
+          "Expanded warning fields use a draft until Save changes is selected.",
+          "Changes saved from a warning are also reflected in Load & Demand.",
+        ],
+      },
+      {
+        heading: "Load & Demand",
+        body: [
+          "Load & Demand is the calculation table for project power factor, circuit diversity, apparent load and calculated current. Equipment and connected load are read-only because they come from the Distro Editor.",
+          "Use this subtab to enter design assumptions, compare connected and design loads, and review totals by distro and phase.",
+        ],
+      },
+      {
+        heading: "Cable & Protection",
+        body: [
+          "Cable & Protection uses the design current from Load & Demand to calculate adjusted cable capacity, utilisation, section and cumulative voltage drop, and estimated end voltage.",
+          "Cable values can come from the shared global cable library or from project-specific custom data. Library values are copied into the project as a snapshot so an existing design remains traceable if the library is revised later.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Current scope",
+          body: "The current release provides cable sizing and voltage-drop design. Protective-device and disconnection-time assessment is planned but is not yet calculated by this tab.",
+        },
+      },
+      {
+        heading: "Design responsibility",
+        body: [
+          "Advanced results are indicative design calculations. Cable selection, installation method, correction factors, protective devices, earthing arrangement and site conditions must be checked by a competent designer.",
+          "Designer verification records that the displayed cable data and installation assumptions have been reviewed; it is not an electrical completion certificate or a substitute for inspection and testing.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Competent verification required",
+          body: "Do not treat a Pass status as proof that an installed system complies with BS 7909, BS 7671 or site-specific requirements.",
+        },
+      },
+    ],
+    related: ["load-and-demand", "cable-and-protection", "warnings"],
+  },
+  {
+    title: "Load & Demand",
+    slug: "load-and-demand",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "10 min read",
+    description: "Calculate connected load, design load, apparent power and current.",
+    summary: "Load & Demand applies per-output diversity and optional power factor to the connected equipment load while preserving the original nameplate total.",
+    tags: ["load and demand", "connected load", "design load", "diversity", "power factor", "kVA", "current"],
+    sections: [
+      {
+        heading: "Connected load and design load",
+        body: [
+          "Connected load is the total real-power rating of the equipment assigned to an output in the Distro Editor. It remains unchanged by advanced design assumptions.",
+          "Design load is the connected load after circuit diversity has been applied. At 100% diversity the two columns are identical. Reducing diversity below 100% reduces design load, apparent load and calculated current, but does not alter the assigned equipment.",
+        ],
+        callout: {
+          type: "info",
+          title: "Why the values may match",
+          body: "Connected load and design load are expected to match when diversity is 100%. This is the safe default for every circuit.",
+        },
+      },
+      {
+        heading: "Calculation order",
+        body: [
+          "The planner totals equipment wattage first, applies diversity to produce the design real power, then applies power factor when that calculation method is enabled. Current is calculated last using the nominal circuit voltage.",
+        ],
+        steps: [
+          "Connected watts = assigned equipment watts multiplied by quantity.",
+          "Design watts = connected watts multiplied by diversity percentage divided by 100.",
+          "Apparent VA = design watts divided by the selected power factor.",
+          "Single-phase current = apparent VA divided by nominal single-phase voltage.",
+          "Three-phase current = apparent VA divided by the square root of 3 multiplied by nominal three-phase line voltage.",
+        ],
+      },
+      {
+        heading: "Power-factor settings",
+        body: [
+          "Real power only uses a power factor of 1.00, so design kW and apparent kVA have the same numeric value. Include power factor converts design real power to apparent power before current is calculated.",
+          "The project average power factor applies to all circuits unless a value is entered in a circuit PF override cell. Valid power-factor values are constrained between 0.10 and 1.00.",
+        ],
+        callout: {
+          type: "tip",
+          title: "Use evidence-based values",
+          body: "Use manufacturer information or a defensible design assumption for power factor. A lower power factor produces a higher apparent load and calculated current for the same design watts.",
+        },
+      },
+      {
+        heading: "Applying diversity",
+        body: [
+          "Enter a diversity percentage from 1% to 100% against an output. A reason can be recorded in the same row to explain the operating limitation or design assumption.",
+          "A reason is optional, but a circuit using diversity without a reason is highlighted yellow to draw attention to the undocumented assumption. Diversity warnings remain visible in the Advanced Overview.",
+        ],
+        callout: {
+          type: "best",
+          title: "Document the assumption",
+          body: "Although the planner allows saving without a reason, record why simultaneous full load is not expected whenever diversity is below 100%.",
+        },
+      },
+      {
+        heading: "Reading the table",
+        body: [
+          "Output, phase, connected equipment and connected load are read-only and update from the Distro Editor. Diversity, PF override and the diversity reason are calculation inputs.",
+          "Design load, apparent load and current recalculate immediately. Distro summaries show connected, design and apparent loads alongside phase currents.",
+        ],
+        bullets: [
+          "Use the distro filter to focus on one distribution unit.",
+          "Show unused outputs only when empty circuits need review.",
+          "Reset all diversity returns circuit diversity values to 100%.",
+        ],
+      },
+    ],
+    related: ["advanced-calculations", "cable-and-protection", "calculations"],
+  },
+  {
+    title: "Cable & Protection",
+    slug: "cable-and-protection",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "12 min read",
+    description: "Calculate cable capacity, utilisation and voltage drop for populated circuits.",
+    summary: "Select shared-library or custom cable data, enter installation assumptions, review feeder-aware voltage drop and record designer verification.",
+    tags: ["cable protection", "cable sizing", "voltage drop", "parallel runs", "derating", "utilisation", "designer verification"],
+    sections: [
+      {
+        heading: "Circuit schedule",
+        body: [
+          "The table lists populated distro outputs and takes each circuit's design current from Load & Demand. Equipment cannot be edited here.",
+          "Select All distros or filter the table to one distro. The floating horizontal scrollbar remains available while moving down a wide table.",
+        ],
+      },
+      {
+        heading: "Selecting cable data",
+        body: [
+          "Select a compatible cable from the shared global library. App users cannot add to or edit that library. The selected reference values are saved as an immutable snapshot within the project.",
+          "Choose Custom cable data where the required cable is not in the library. Enter a clear cable name, current capacity and voltage-drop value in mV/A/m. Custom values apply only to the current project.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Check source data",
+          body: "Library and custom values are design inputs. Confirm that conductor arrangement, installation method, temperature, grouping and manufacturer information match the intended installation.",
+        },
+      },
+      {
+        heading: "Installation inputs",
+        body: [
+          "Length is the cable section length in metres. Parallel runs is the number of equivalent cables sharing the circuit current. Derating is a factor between 0.01 and 1.00 applied to the combined cable capacity.",
+          "Adjusted capacity equals library capacity multiplied by parallel runs and the derating factor. Utilisation is design current divided by adjusted capacity, expressed as a percentage.",
+        ],
+        callout: {
+          type: "tip",
+          title: "Parallel means parallel",
+          body: "Enter 1 for a normal single run. Only enter a higher value where matched conductors are genuinely installed and operated in parallel and the arrangement has been competently assessed.",
+        },
+      },
+      {
+        heading: "Voltage-drop results",
+        body: [
+          "Section drop is calculated from the cable's mV/A/m value, circuit design current and section length, divided across parallel runs. Cumulative drop includes the calculated drop from upstream feeder sections.",
+          "End voltage is nominal voltage minus cumulative voltage drop. Choose Lighting 3%, Other 5% or enter a custom voltage-drop limit appropriate to the design basis.",
+        ],
+        bullets: [
+          "Section drop describes the current cable section only.",
+          "Cumulative drop follows the source and downstream distro hierarchy.",
+          "The selected limit is assessed against cumulative—not merely section—voltage drop.",
+        ],
+      },
+      {
+        heading: "Pass, Review and Fail",
+        body: [
+          "Pass means the cable length is complete, design current does not exceed adjusted capacity, cumulative voltage drop is within the selected limit, and the current cable data and assumptions have been designer verified.",
+          "Review means the cable length is incomplete or the current data and assumptions have not been verified. Hover over the status to see the recorded reasons.",
+          "Fail means design current exceeds adjusted cable capacity or cumulative voltage drop exceeds the selected limit. Change the design inputs or upstream arrangement and reassess; verification alone cannot turn a failed calculation into a Pass.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Pass is not certification",
+          body: "Pass reports only the checks implemented in this calculation. It does not assess protective-device characteristics, fault-loop impedance, disconnection time, RCD operation or the completed installation.",
+        },
+      },
+      {
+        heading: "Designer verification",
+        body: [
+          "Select Verify only after checking the cable data and installation assumptions. The planner records the authenticated designer identity, time and a fingerprint of the calculation inputs.",
+          "Changing the cable, length, parallel runs, derating, voltage-drop limit or design current invalidates the verification automatically. Review the revised calculation and select Verify again. Select Verified to remove an existing verification manually.",
+        ],
+      },
+      {
+        heading: "Resolving a result",
+        body: [
+          "Work through the circuit inputs in order, correcting any failed boundary before completing designer verification.",
+        ],
+        steps: [
+          "Select the correct library cable or enter complete custom cable data.",
+          "Enter the cable length, parallel runs and a justified derating factor.",
+          "Choose the applicable voltage-drop limit.",
+          "For Fail, increase suitable capacity, revise the circuit arrangement, reduce justified design demand, shorten the route or otherwise correct the design.",
+          "For Review, complete the missing length and check every cable and installation assumption.",
+          "Select Verify after the competent review. Confirm that the result changes to Pass and that no upstream failure remains.",
+        ],
+      },
+    ],
+    related: ["load-and-demand", "advanced-calculations", "best-practice"],
+  },
+  {
     title: "Calculations",
     slug: "calculations",
     category: "Reference",
-    updated: "June 2026",
-    readTime: "8 min read",
+    updated: "July 2026",
+    readTime: "10 min read",
     description: "How watts, amps, phase loading and imbalance are calculated.",
     summary: "This article explains the indicative calculations used by the planner.",
-    tags: ["calculations", "watts", "amps", "phase loading", "imbalance"],
+    tags: ["calculations", "watts", "amps", "phase loading", "imbalance", "power factor", "diversity", "kVA"],
     sections: [
-      { heading: "Watts to amps", body: ["The planner converts equipment wattage to current using a 230 V single-phase basis for indicative planning calculations."], },
+      { heading: "Standard watts to amps", body: ["Standard planner views convert equipment wattage to current using a 230 V single-phase basis for indicative planning calculations."], },
       { heading: "Three-phase outputs", body: ["For three-phase equipment assigned to a three-phase output, load is distributed evenly across L1, L2 and L3 for planning purposes."], },
       { heading: "Phase imbalance", body: ["Phase imbalance compares the highest and lowest phase loading. The planner reports the result as a percentage and identifies the reference phases where appropriate."], },
+      { heading: "Advanced calculations", body: ["Where Advanced Calculations is enabled, the project can apply per-output diversity and project or circuit power factor before calculating current. Nominal single-phase and three-phase voltages are configurable in the advanced settings."], callout: { type: "info", title: "Calculation views", body: "Standard views continue to show the original planner calculation. Advanced Overview, Load & Demand and Cable & Protection use the advanced calculation assumptions." } },
     ],
-    related: ["warnings", "power-sources", "system-overview"],
+    related: ["load-and-demand", "cable-and-protection", "warnings"],
   },
   {
     title: "Connector Reference",
@@ -1059,7 +1301,7 @@ export const docArticles: DocArticle[] = [
     tags: ["best practice", "workflow", "reports", "backup", "review"],
     sections: [
       { heading: "Recommended build order", body: ["Build projects in a consistent order: project information, manual sources, distros, source assignment, equipment assignment, downstream feeds, warning review and report export."], },
-      { heading: "Before exporting reports", body: ["Review System Overview, check unassigned distros, confirm report toggles, resolve critical warnings and export a JSON backup."], },
+      { heading: "Before exporting reports", body: ["Review System Overview, check unassigned distros, confirm report toggles, resolve critical warnings and export a JSON backup. In an advanced workspace, also review Advanced Overview, document diversity and power-factor assumptions, resolve cable failures and confirm that current cable inputs have been competently verified."], },
       { heading: "Record keeping", body: ["Keep dated project exports for major revisions so the design history can be recovered if needed."], },
     ],
     related: ["reports", "import-export", "warnings"],
@@ -1077,6 +1319,9 @@ export const docArticles: DocArticle[] = [
       { heading: "Why can I not assign a source?", body: ["The source may be incompatible, already assigned to another distro or belong to the distro's own output. Check connector type and existing assignments."], },
       { heading: "What is an Auto Source?", body: ["An Auto Source is a virtual source created from an eligible distro output. It allows downstream distros to be connected while still calculating load through the parent distro."], },
       { heading: "Why did my dismissed warning come back?", body: ["Dismissed warnings return when the underlying load changes significantly. This prevents an old dismissal from hiding a newly changed condition."], },
+      { heading: "Why can I not see Advanced Calculations?", body: ["Advanced Calculations is controlled at workspace level. If the tab is absent, ask the workspace administrator whether advanced features are enabled for your workspace."], },
+      { heading: "Why are connected load and design load the same?", body: ["They match when circuit diversity is 100%. Design load changes only when diversity below 100% is applied; connected load always retains the total assigned equipment rating."], },
+      { heading: "Why is a cable result still Review?", body: ["Enter a positive cable length, check the selected cable and installation assumptions, then select Verify. Any later change to relevant inputs or design current invalidates the verification and requires a new review."], },
       { heading: "Why is a report missing a distro?", body: ["Check the Report tab toggles. Sources and distros can be hidden from the report export without being removed from the project."], },
       { heading: "Why can I not share my project?", body: ["Project Sharing may be disabled for your workspace, or you may be using the individual app subdomain where sharing is not available."], },
       { heading: "Can I share a project with another company?", body: ["No. Projects can only be shared with users in the same workspace. Cross-company sharing is not currently supported."], },
@@ -1099,6 +1344,12 @@ export const docArticles: DocArticle[] = [
       { heading: "Distro", body: ["A distribution unit with an input connector and one or more outputs feeding equipment or downstream distribution."] },
       { heading: "Auto Source", body: ["A source automatically generated from an eligible distro output so another distro can be fed downstream."] },
       { heading: "Phase imbalance", body: ["A measure of uneven loading between L1, L2 and L3 on a three-phase supply."] },
+      { heading: "Connected load", body: ["The total real-power rating of equipment assigned to a circuit before diversity is applied."] },
+      { heading: "Design load", body: ["The connected real-power load after the circuit diversity percentage has been applied."] },
+      { heading: "Power factor", body: ["The ratio used to convert real power in watts to apparent power in volt-amperes for the advanced current calculation."] },
+      { heading: "Parallel runs", body: ["Two or more equivalent cable runs installed in parallel to share the circuit current."] },
+      { heading: "Derating factor", body: ["A multiplier applied to cable current capacity to account for relevant installation and environmental conditions."] },
+      { heading: "Cumulative voltage drop", body: ["The total calculated voltage drop across the upstream feeder path and the current cable section."] },
       { heading: "Report Hidden Source", body: ["A source that remains in the project but is excluded from the current report export."] },
     ],
     related: ["connector-reference", "calculations"],
@@ -1107,7 +1358,7 @@ export const docArticles: DocArticle[] = [
     title: "Release Notes",
     slug: "release-notes",
     category: "Reference",
-    updated: "June 2026",
+    updated: "July 2026",
     readTime: "4 min read",
     description: "Current documentation and product notes.",
     summary: "A customer-facing record of notable LVA Power Planner updates.",
@@ -1116,6 +1367,7 @@ export const docArticles: DocArticle[] = [
       { heading: "Documentation centre", body: ["Online documentation includes searchable articles, category navigation, article pages, metadata, callouts, related articles, previous/next navigation and command-palette search."], },
       { heading: "Current planner functionality", body: ["Current documented features include MFA login, branded workspaces, project dashboard, system overview, manual and auto sources, distro management, drag-and-drop equipment assignment, custom equipment, custom distros, warnings, report exports and JSON import/export."], },
       { heading: "Project Sharing", body: ["Project Sharing allows workspace users to keep projects private by default and share selected projects with chosen colleagues when workspace sharing is enabled. The feature includes My Projects, Projects Shared With Me, selected-user sharing and workspace-level sharing controls."], },
+      { heading: "Advanced Calculations", body: ["Workspace-controlled Advanced Calculations now includes Advanced Overview, Load & Demand, and Cable & Protection subtabs. Designers can apply project and circuit power factor, per-output diversity, shared-library or custom cable data, parallel runs, derating and voltage-drop limits. Cable results include feeder-aware cumulative voltage drop, Pass/Review/Fail status and input-sensitive designer verification."], },
     ],
     related: ["introduction", "project-sharing", "best-practice"],
   },
