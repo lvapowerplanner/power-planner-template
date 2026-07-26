@@ -1,6 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
-import type { GlobalCableLibraryRecord } from "@/planner/cableLibrary";
+import { applyWorkspaceCableOverrides } from "@/planner/cableLibrary";
+import type {
+  GlobalCableLibraryRecord,
+  WorkspaceCableOverride,
+} from "@/planner/cableLibrary";
 import type {
   PlannerOutput,
   PlannerState,
@@ -10,6 +14,7 @@ import type {
 type CableLibraryTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
+  workspaceId?: string | null;
 };
 
 type SourceFilter = "all" | "standard" | "project";
@@ -50,6 +55,28 @@ function applicationLabel(application: string) {
   return application === "three_phase_ac" ? "Three phase" : "Single phase";
 }
 
+function suitabilityLabel(value: string) {
+  if (value === "not_recommended") return "Not recommended";
+  if (value === "conditional") return "Conditional";
+  if (value === "project_custom") return "Project custom";
+  return "Reference";
+}
+
+function conditionSummary(record: GlobalCableLibraryRecord) {
+  const parts = [
+    record.mechanical_duty && record.mechanical_duty !== "unknown"
+      ? `${record.mechanical_duty} duty`
+      : "",
+    record.outdoor_suitable === true ? "outdoor" : "",
+    record.uv_resistant === true ? "UV resistant" : "",
+    record.minimum_flexed_temperature_c != null &&
+    record.maximum_flexed_temperature_c != null
+      ? `flexed ${record.minimum_flexed_temperature_c} to ${record.maximum_flexed_temperature_c} °C`
+      : "",
+  ].filter(Boolean);
+  return parts.join(" · ") || "See source data";
+}
+
 function newId() {
   return typeof crypto !== "undefined" && "randomUUID" in crypto
     ? crypto.randomUUID()
@@ -59,6 +86,7 @@ function newId() {
 export function CableLibraryTab({
   plannerState,
   setPlannerState,
+  workspaceId,
 }: CableLibraryTabProps) {
   const [globalLibrary, setGlobalLibrary] = useState<GlobalCableLibraryRecord[]>(
     [],
@@ -88,6 +116,44 @@ export function CableLibraryTab({
       ),
     [plannerState.distros],
   );
+  const sourceReferences = useMemo(() => {
+    const unique = new Map<
+      string,
+      { name: string; url: string; revision: string }
+    >();
+
+    globalLibrary.forEach((record) => {
+      const references = [
+        {
+          name: record.standard_source_name ?? record.source_name,
+          url: record.standard_source_url ?? record.source_url,
+          revision:
+            record.standard_source_revision ?? record.source_revision,
+        },
+        record.workspace_override_applied
+          ? {
+              name: record.source_name,
+              url: record.source_url,
+              revision: record.source_revision,
+            }
+          : null,
+      ];
+
+      references.forEach((reference) => {
+        const url = reference?.url?.trim();
+        if (!reference || !url || unique.has(url)) return;
+        unique.set(url, {
+          name: reference.name,
+          url,
+          revision: reference.revision,
+        });
+      });
+    });
+
+    return Array.from(unique.values()).sort((left, right) =>
+      left.name.localeCompare(right.name),
+    );
+  }, [globalLibrary]);
 
   useEffect(() => {
     let cancelled = false;
@@ -95,18 +161,35 @@ export function CableLibraryTab({
     async function loadLibrary() {
       setLoading(true);
       setLoadError("");
-      const { data, error } = await supabase
-        .from("planner_cable_library")
-        .select("*")
-        .order("application")
-        .order("conductor_size_mm2");
+      const [libraryResult, overrideResult] = await Promise.all([
+        supabase
+          .from("planner_cable_library")
+          .select("*")
+          .order("application")
+          .order("conductor_size_mm2"),
+        workspaceId
+          ? supabase
+              .from("planner_workspace_cable_overrides")
+              .select("*")
+              .eq("workspace_id", workspaceId)
+              .eq("active", true)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
       if (cancelled) return;
-      if (error) {
+      if (libraryResult.error) {
         setGlobalLibrary([]);
-        setLoadError(error.message);
+        setLoadError(libraryResult.error.message);
+      } else if (overrideResult.error) {
+        setGlobalLibrary([]);
+        setLoadError(overrideResult.error.message);
       } else {
-        setGlobalLibrary((data ?? []) as GlobalCableLibraryRecord[]);
+        setGlobalLibrary(
+          applyWorkspaceCableOverrides(
+            (libraryResult.data ?? []) as GlobalCableLibraryRecord[],
+            (overrideResult.data ?? []) as WorkspaceCableOverride[],
+          ),
+        );
       }
       setLoading(false);
     }
@@ -115,7 +198,7 @@ export function CableLibraryTab({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspaceId]);
 
   const rows = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -131,6 +214,9 @@ export function CableLibraryTab({
       voltageDropMvPerAmpMetre: Number(record.voltage_drop_mv_per_a_m),
       reference: record.standard_reference ?? record.source_name,
       status: record.data_status,
+      suitability: record.suitability_class ?? "reference",
+      conditions: conditionSummary(record),
+      workspaceOverrideApplied: Boolean(record.workspace_override_applied),
     }));
     const projectRows = projectLibrary.map((record) => ({
       id: record.id,
@@ -144,6 +230,9 @@ export function CableLibraryTab({
       voltageDropMvPerAmpMetre: record.voltageDropMvPerAmpMetre,
       reference: record.standardReference || record.sourceName || "User supplied",
       status: "project custom",
+      suitability: "project_custom",
+      conditions: record.installationMethod || "User supplied",
+      workspaceOverrideApplied: false,
     }));
 
     return [...standardRows, ...projectRows].filter((row) => {
@@ -155,7 +244,14 @@ export function CableLibraryTab({
         (visibilityFilter === "all" ||
           (visibilityFilter === "included" ? included : !included)) &&
         (!term ||
-          [row.name, row.designation, row.manufacturer, row.reference]
+          [
+            row.name,
+            row.designation,
+            row.manufacturer,
+            row.reference,
+            row.suitability,
+            row.conditions,
+          ]
             .join(" ")
             .toLowerCase()
             .includes(term))
@@ -393,8 +489,9 @@ export function CableLibraryTab({
               <th style={styles.th}>Size</th>
               <th style={styles.th}>Capacity</th>
               <th style={styles.th}>Voltage drop</th>
-              <th style={styles.th}>Reference</th>
-              <th style={styles.th}>Status</th>
+              <th style={styles.th}>Suitability</th>
+              <th style={styles.th}>Conditions</th>
+              <th style={styles.th}>Data status</th>
               <th style={styles.th}>Actions</th>
             </tr>
           </thead>
@@ -409,12 +506,34 @@ export function CableLibraryTab({
                     </button>
                   </td>
                   <td style={styles.nameTd}><strong>{row.name}</strong><span style={styles.subText}>{row.designation}</span></td>
-                  <td style={styles.td}>{row.source === "standard" ? "Standard library" : "Project custom"}</td>
+                  <td style={styles.td}>
+                    {row.source === "project"
+                      ? "Project custom"
+                      : row.workspaceOverrideApplied
+                        ? "Workspace override"
+                        : "Standard library"}
+                  </td>
                   <td style={styles.td}>{applicationLabel(row.application)}</td>
                   <td style={styles.td}>{row.conductorSizeMm2} mm²</td>
                   <td style={styles.td}>{row.currentCapacityA} A</td>
                   <td style={styles.td}>{row.voltageDropMvPerAmpMetre} mV/A/m</td>
-                  <td style={styles.td}>{row.reference}</td>
+                  <td style={styles.td}>
+                    <span
+                      style={{
+                        ...styles.suitabilityStatus,
+                        ...(row.suitability === "conditional"
+                          ? styles.conditionalStatus
+                          : row.suitability === "not_recommended"
+                            ? styles.notRecommendedStatus
+                            : row.suitability === "project_custom"
+                              ? styles.customStatus
+                              : styles.referenceStatus),
+                      }}
+                    >
+                      {suitabilityLabel(row.suitability)}
+                    </span>
+                  </td>
+                  <td style={styles.conditionsTd}>{row.conditions}</td>
                   <td style={styles.td}><span style={row.source === "project" ? styles.customStatus : styles.referenceStatus}>{row.status}</span></td>
                   <td style={styles.td}>
                     {row.source === "project" ? (
@@ -431,6 +550,34 @@ export function CableLibraryTab({
         </table>
       </div>
       {rows.length === 0 && !loading && <div style={styles.notice}>No cable records match the current filters.</div>}
+      {sourceReferences.length > 0 && (
+        <section style={styles.referenceMaterial}>
+          <strong style={styles.referenceTitle}>Reference material</strong>
+          <p style={styles.referenceIntro}>
+            Manufacturer and technical sources used by the standard cable
+            records currently loaded in this library.
+          </p>
+          <ul style={styles.referenceList}>
+            {sourceReferences.map((source) => (
+              <li key={source.url}>
+                <a
+                  href={source.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  style={styles.referenceLink}
+                >
+                  {source.name}
+                </a>
+                {source.revision && (
+                  <span style={styles.referenceRevision}>
+                    {" "}— {source.revision}
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <p style={styles.disclaimer}>
         Standard-library records are shared and read-only. Inclusion settings
         and project custom cables are saved only with this project, and all
@@ -463,17 +610,27 @@ const styles: Record<string, React.CSSProperties> = {
   editorActions: { display: "flex", justifyContent: "flex-end", gap: "8px" },
   filters: { display: "grid", gridTemplateColumns: "minmax(240px, 2fr) repeat(3, minmax(150px, 1fr))", gap: "10px", alignItems: "end" },
   tableWrap: { overflowX: "auto", border: "1px solid #DCE5EC", borderRadius: "14px" },
-  table: { width: "100%", minWidth: "1250px", borderCollapse: "collapse", fontSize: "12px" },
+  table: { width: "100%", minWidth: "1650px", borderCollapse: "collapse", fontSize: "12px" },
   th: { padding: "10px", borderBottom: "1px solid #DCE5EC", background: "#F8FAFC", color: "#526071", textAlign: "left", whiteSpace: "nowrap" },
   td: { padding: "10px", borderBottom: "1px solid #EEF2F6", textAlign: "left", verticalAlign: "top" },
   nameTd: { width: "270px", padding: "10px", borderBottom: "1px solid #EEF2F6", textAlign: "left", verticalAlign: "top" },
   subText: { display: "block", marginTop: "3px", color: "#637083" },
+  conditionsTd: { width: "190px", padding: "10px", borderBottom: "1px solid #EEF2F6", textAlign: "left", verticalAlign: "top", color: "#526071" },
   toggle: { minWidth: "76px", border: "1px solid #CBD5E1", borderRadius: "999px", padding: "6px 9px", background: "#F1F5F9", color: "#526071", cursor: "pointer", fontSize: "11px", fontWeight: 600 },
   toggleOn: { borderColor: "#86C69A", background: "#EAF7EE", color: "#176B34" },
   referenceStatus: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", background: "#EEF2F6", color: "#526071", fontWeight: 800, textTransform: "capitalize" },
   customStatus: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", background: "#EAF2FF", color: "#2457A6", fontWeight: 800, textTransform: "capitalize" },
+  suitabilityStatus: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", fontWeight: 700, whiteSpace: "nowrap" },
+  conditionalStatus: { background: "#FFF8E5", color: "#8A5A00" },
+  notRecommendedStatus: { background: "#FFF1F1", color: "#B42318" },
   rowActions: { display: "flex", gap: "8px" },
   textButton: { border: 0, padding: 0, background: "transparent", color: "#2457A6", cursor: "pointer", fontWeight: 600 },
   dangerButton: { border: 0, padding: 0, background: "transparent", color: "#B42318", cursor: "pointer", fontWeight: 600 },
+  referenceMaterial: { paddingTop: "14px", borderTop: "1px solid #E5E7EB" },
+  referenceTitle: { color: "#344054", fontSize: "13px" },
+  referenceIntro: { margin: "4px 0 8px", color: "#637083", fontSize: "12px" },
+  referenceList: { display: "grid", gap: "5px", margin: 0, paddingLeft: "20px", color: "#526071", fontSize: "12px" },
+  referenceLink: { color: "#2457A6", fontWeight: 600, textDecoration: "none" },
+  referenceRevision: { color: "#637083" },
   disclaimer: { margin: 0, color: "#637083", fontSize: "12px" },
 };

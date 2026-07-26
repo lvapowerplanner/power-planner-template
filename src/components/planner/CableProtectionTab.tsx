@@ -613,6 +613,11 @@ export function CableProtectionTab({
                               value={record.cable_rating_id}
                             >
                               {record.display_name}
+                              {record.suitability_class === "conditional"
+                                ? " — Conditional"
+                                : record.suitability_class === "not_recommended"
+                                  ? " — Not recommended"
+                                  : ""}
                             </option>
                           ))}
                         </optgroup>
@@ -629,13 +634,32 @@ export function CableProtectionTab({
                       <option value="custom">Custom cable data</option>
                     </select>
                     {design && (
-                      <small style={styles.sourceText}>
-                        {design.dataSource === "project-library"
-                          ? "Project custom · "
-                          : ""}
-                        {design.snapshot.sourceName} ·{" "}
-                        {design.snapshot.sourceRevision}
-                      </small>
+                      <>
+                        <small style={styles.sourceText}>
+                          {design.dataSource === "project-library"
+                            ? "Project custom · "
+                            : ""}
+                          {design.snapshot.sourceName} ·{" "}
+                          {design.snapshot.sourceRevision}
+                        </small>
+                        {design.snapshot.suitabilityClass === "conditional" && (
+                          <small
+                            style={styles.conditionalNotice}
+                            title={design.snapshot.suitabilityNotes}
+                          >
+                            Conditional suitability — review restrictions
+                          </small>
+                        )}
+                        {design.snapshot.suitabilityClass ===
+                          "not_recommended" && (
+                          <small
+                            style={styles.notRecommendedNotice}
+                            title={design.snapshot.suitabilityNotes}
+                          >
+                            Not recommended for general temporary distribution
+                          </small>
+                        )}
+                      </>
                     )}
                   </td>
                   <td style={styles.td}>
@@ -1021,6 +1045,20 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: "260px",
     marginTop: "4px",
     color: "#667085",
+  },
+  conditionalNotice: {
+    display: "block",
+    maxWidth: "260px",
+    marginTop: "5px",
+    color: "#8A5A00",
+    fontWeight: 700,
+  },
+  notRecommendedNotice: {
+    display: "block",
+    maxWidth: "260px",
+    marginTop: "5px",
+    color: "#B42318",
+    fontWeight: 700,
   },
   customGrid: {
     display: "grid",

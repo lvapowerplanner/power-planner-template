@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { AdminCableDataTab } from "@/components/AdminCableDataTab";
 import type {
   WorkspaceUser,
   UserRole,
@@ -27,7 +28,7 @@ type AdminPortalProps = {
   workspaceBranding?: WorkspaceBranding;
 };
 
-type AdminTab = "users" | "equipment" | "distros" | "activity";
+type AdminTab = "users" | "equipment" | "distros" | "cables" | "activity";
 
 type StockEquipmentRow = {
   id: string | number;
@@ -901,6 +902,15 @@ export function AdminPortal({
           <button
             style={{
               ...styles.tab,
+              ...(activeTab === "cables" ? styles.activeTab : {}),
+            }}
+            onClick={() => setActiveTab("cables")}
+          >
+            Cable Data
+          </button>
+          <button
+            style={{
+              ...styles.tab,
               ...(activeTab === "activity" ? styles.activeTab : {}),
             }}
             onClick={() => setActiveTab("activity")}
@@ -1322,6 +1332,12 @@ export function AdminPortal({
                 ))}
               </div>
             )}
+          </section>
+        )}
+
+        {activeTab === "cables" && (
+          <section style={styles.section}>
+            <AdminCableDataTab workspaceId={workspaceId} />
           </section>
         )}
 

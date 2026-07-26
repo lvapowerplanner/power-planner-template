@@ -36,6 +36,23 @@ export type CableDataSnapshot = {
   sourceName: string;
   sourceRevision: string;
   dataStatus: CableDataStatus;
+  suitabilityClass?: "reference" | "conditional" | "not_recommended";
+  suitabilityNotes?: string;
+  mechanicalDuty?: "heavy" | "medium" | "light" | "unknown";
+  indoorSuitable?: boolean;
+  outdoorSuitable?: boolean;
+  uvResistant?: boolean;
+  waterResistance?: string;
+  oilResistance?: string;
+  minimumFixedTemperatureC?: number;
+  maximumFixedTemperatureC?: number;
+  minimumFlexedTemperatureC?: number;
+  maximumFlexedTemperatureC?: number;
+  loadedConductors?: number;
+  neutralIncluded?: boolean;
+  cpcIncluded?: boolean;
+  voltageDropBasis?: string;
+  sourceCheckedOn?: string;
 };
 
 export type ProjectCableLibraryItem = {

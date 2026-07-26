@@ -229,6 +229,18 @@ export function calculateCableDesign({
     statusReasons.push("Cable data and installation assumptions require designer verification.");
   }
 
+  if (cableDesign.snapshot.suitabilityClass === "conditional") {
+    statusReasons.push(
+      "Cable library suitability is conditional and requires documented design review.",
+    );
+  }
+
+  if (cableDesign.snapshot.suitabilityClass === "not_recommended") {
+    statusReasons.push(
+      "Cable library classifies this cable as not recommended for general temporary-distribution use.",
+    );
+  }
+
   const hasFailure = statusReasons.some(
     (reason) =>
       reason.includes("exceeds adjusted") ||
