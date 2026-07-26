@@ -53,6 +53,14 @@ export type CableDataSnapshot = {
   cpcIncluded?: boolean;
   voltageDropBasis?: string;
   sourceCheckedOn?: string;
+  workspaceOverrideApplied?: boolean;
+  workspaceOverrideId?: string;
+  workspaceOverrideUpdatedAt?: string;
+  workspaceOverrideReason?: string;
+  standardCurrentCapacityA?: number;
+  standardVoltageDropMvPerAmpMetre?: number;
+  standardSourceName?: string;
+  standardSourceRevision?: string;
 };
 
 export type ProjectCableLibraryItem = {
