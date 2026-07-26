@@ -140,8 +140,18 @@ function outputFromConnector(
 }
 
 function mapDistroRow(row: any): DistroDefinition | null {
-  if (row.definition && typeof row.definition === "object") {
-    return row.definition as DistroDefinition;
+  let storedDefinition = row.definition;
+
+  if (typeof storedDefinition === "string") {
+    try {
+      storedDefinition = JSON.parse(storedDefinition);
+    } catch {
+      console.warn(`Could not parse stored definition for distro ${row.name}.`);
+    }
+  }
+
+  if (storedDefinition && typeof storedDefinition === "object") {
+    return storedDefinition as DistroDefinition;
   }
 
   const outputConnectors = Array.isArray(row.output_connectors)

@@ -499,10 +499,10 @@ export function CableProtectionTab({
     <section style={styles.page}>
       <div style={styles.intro}>
         <div>
-          <h3 style={styles.title}>Cable & Protection</h3>
+          <h3 style={styles.title}>Cable Design</h3>
           <p style={styles.muted}>
-            Cable sizing and voltage-drop design. Protective-device assessment
-            will be added in the next release.
+            Cable sizing and voltage-drop design. Protective-device
+            coordination is assessed in the Protection subtab.
           </p>
         </div>
         <label style={styles.filter}>

@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import type { DistroDefinition, PlannerOutput } from "@/planner/types";
+import type {
+  DistroDefinition,
+  PlannerOutput,
+  ProtectiveDevice,
+  ProtectiveDeviceKind,
+  RcdType,
+} from "@/planner/types";
 
 type DistroDefinitionBuilderProps = {
   initialDefinition?: DistroDefinition;
@@ -34,15 +40,33 @@ function createId(prefix: string) {
   return `${prefix}_${Math.random().toString(36).slice(2, 10)}`;
 }
 
-function copyOutputWithNewIds(output: PlannerOutput): PlannerOutput {
+function copyProtectiveDevice(
+  device: ProtectiveDevice | undefined,
+  deviceIds: Map<string, string>,
+) {
+  if (!device) return undefined;
+  const id = deviceIds.get(device.id) ?? createId("protection");
+  deviceIds.set(device.id, id);
+  return { ...device, id };
+}
+
+function copyOutputWithNewIds(
+  output: PlannerOutput,
+  deviceIds: Map<string, string>,
+): PlannerOutput {
   return {
     ...output,
     id: createId("custom_output"),
     items: [],
+    protectiveDevice: copyProtectiveDevice(output.protectiveDevice, deviceIds),
     socaCircuits: output.socaCircuits?.map((circuit) => ({
       ...circuit,
       id: createId("custom_soca_socket"),
       items: [],
+      protectiveDevice: copyProtectiveDevice(
+        circuit.protectiveDevice,
+        deviceIds,
+      ),
     })),
   };
 }
@@ -51,10 +75,17 @@ export function cloneDistroDefinition(
   definition: DistroDefinition,
   name = definition.name,
 ): DistroDefinition {
+  const deviceIds = new Map<string, string>();
   return {
     ...definition,
     name,
-    outputs: definition.outputs.map(copyOutputWithNewIds),
+    incomerProtection: copyProtectiveDevice(
+      definition.incomerProtection,
+      deviceIds,
+    ),
+    outputs: definition.outputs.map((output) =>
+      copyOutputWithNewIds(output, deviceIds),
+    ),
   };
 }
 
@@ -133,6 +164,333 @@ function outputLabel(output: PlannerOutput) {
   return `${output.label} - ${output.rating}A`;
 }
 
+function defaultProtectiveDevice(
+  rating: number,
+  poles: number,
+): ProtectiveDevice {
+  return {
+    id: createId("protection"),
+    deviceType: "mcb",
+    ratedCurrentA: rating,
+    poles,
+    curve: "C",
+  };
+}
+
+function deviceHasResidualProtection(device: ProtectiveDevice) {
+  return device.deviceType === "rcd" || device.deviceType === "rcbo";
+}
+
+function withDefaultResidualProtection(
+  device: ProtectiveDevice,
+): ProtectiveDevice {
+  return {
+    ...device,
+    residualProtection: device.residualProtection ?? {
+      rcdType: "A",
+      settingMode: "fixed",
+      residualCurrentMa: 30,
+      delayMode: "instantaneous",
+      timeDelayMs: 0,
+      selectiveType: false,
+    },
+  };
+}
+
+export function ProtectionEditor({
+  label,
+  device,
+  defaultRating,
+  defaultPoles,
+  onChange,
+}: {
+  label: string;
+  device: ProtectiveDevice | undefined;
+  defaultRating: number;
+  defaultPoles: number;
+  onChange: (device: ProtectiveDevice | undefined) => void;
+}) {
+  if (!device) {
+    return (
+      <div style={styles.protectionEmpty}>
+        <span>{label}: not configured</span>
+        <button
+          style={styles.compactButton}
+          onClick={() =>
+            onChange(defaultProtectiveDevice(defaultRating, defaultPoles))
+          }
+        >
+          Add Protection
+        </button>
+      </div>
+    );
+  }
+
+  const configuredDevice: ProtectiveDevice = device;
+  const residual = configuredDevice.residualProtection;
+  const showResidual = deviceHasResidualProtection(configuredDevice);
+
+  function patch(patchValue: Partial<ProtectiveDevice>) {
+    onChange({ ...configuredDevice, ...patchValue });
+  }
+
+  function setDeviceType(deviceType: ProtectiveDeviceKind) {
+    const next: ProtectiveDevice = { ...configuredDevice, deviceType };
+    onChange(
+      deviceType === "rcd" || deviceType === "rcbo"
+        ? withDefaultResidualProtection(next)
+        : { ...next, residualProtection: undefined },
+    );
+  }
+
+  return (
+    <details style={styles.protectionDetails}>
+      <summary style={styles.protectionSummary}>
+        {label}: {device.deviceType.toUpperCase()} · {device.ratedCurrentA}A
+        {residual
+          ? ` · ${residual.residualCurrentMa}mA / ${residual.timeDelayMs}ms`
+          : ""}
+      </summary>
+      <div style={styles.protectionGrid}>
+        <label style={styles.label}>
+          Device type
+          <select
+            style={styles.input}
+            value={device.deviceType}
+            onChange={(event) =>
+              setDeviceType(event.target.value as ProtectiveDeviceKind)
+            }
+          >
+            <option value="fuse">Fuse</option>
+            <option value="mcb">MCB</option>
+            <option value="mccb">MCCB</option>
+            <option value="rcd">RCD</option>
+            <option value="rcbo">RCBO</option>
+            <option value="other">Other</option>
+          </select>
+        </label>
+        <label style={styles.label}>
+          Rated current
+          <input
+            style={styles.input}
+            type="number"
+            min="0.1"
+            step="0.1"
+            value={device.ratedCurrentA}
+            onChange={(event) =>
+              patch({ ratedCurrentA: Math.max(0.1, Number(event.target.value)) })
+            }
+          />
+        </label>
+        <label style={styles.label}>
+          Poles
+          <input
+            style={styles.input}
+            type="number"
+            min="1"
+            max="4"
+            value={device.poles}
+            onChange={(event) =>
+              patch({ poles: Math.min(4, Math.max(1, Number(event.target.value))) })
+            }
+          />
+        </label>
+        {(device.deviceType === "mcb" ||
+          device.deviceType === "mccb" ||
+          device.deviceType === "rcbo") && (
+          <label style={styles.label}>
+            Curve
+            <select
+              style={styles.input}
+              value={device.curve ?? "C"}
+              onChange={(event) =>
+                patch({ curve: event.target.value as ProtectiveDevice["curve"] })
+              }
+            >
+              <option value="B">B</option>
+              <option value="C">C</option>
+              <option value="D">D</option>
+              <option value="manufacturer-specific">Manufacturer-specific</option>
+            </select>
+          </label>
+        )}
+        <label style={styles.label}>
+          Breaking capacity
+          <div style={styles.inputWithUnit}>
+            <input
+              style={styles.input}
+              type="number"
+              min="0"
+              step="0.1"
+              value={device.breakingCapacityKa ?? ""}
+              onChange={(event) =>
+                patch({
+                  breakingCapacityKa: event.target.value
+                    ? Math.max(0, Number(event.target.value))
+                    : undefined,
+                })
+              }
+            />
+            <span>kA</span>
+          </div>
+        </label>
+        <label style={styles.label}>
+          Manufacturer
+          <input
+            style={styles.input}
+            value={device.manufacturer ?? ""}
+            onChange={(event) => patch({ manufacturer: event.target.value })}
+          />
+        </label>
+        <label style={styles.label}>
+          Model
+          <input
+            style={styles.input}
+            value={device.model ?? ""}
+            onChange={(event) => patch({ model: event.target.value })}
+          />
+        </label>
+      </div>
+
+      {showResidual && residual && (
+        <div style={styles.residualPanel}>
+          <strong>Residual-current protection</strong>
+          <div style={styles.protectionGrid}>
+            <label style={styles.label}>
+              RCD type
+              <select
+                style={styles.input}
+                value={residual.rcdType}
+                onChange={(event) =>
+                  patch({
+                    residualProtection: {
+                      ...residual,
+                      rcdType: event.target.value as RcdType,
+                    },
+                  })
+                }
+              >
+                <option value="AC">AC</option>
+                <option value="A">A</option>
+                <option value="F">F</option>
+                <option value="B">B</option>
+                <option value="other">Other</option>
+              </select>
+            </label>
+            <label style={styles.label}>
+              mA setting
+              <select
+                style={styles.input}
+                value={residual.settingMode}
+                onChange={(event) =>
+                  patch({
+                    residualProtection: {
+                      ...residual,
+                      settingMode: event.target.value as "fixed" | "adjustable",
+                    },
+                  })
+                }
+              >
+                <option value="fixed">Fixed</option>
+                <option value="adjustable">Adjustable</option>
+              </select>
+            </label>
+            <label style={styles.label}>
+              Residual current
+              <div style={styles.inputWithUnit}>
+                <input
+                  style={styles.input}
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={residual.residualCurrentMa}
+                  onChange={(event) =>
+                    patch({
+                      residualProtection: {
+                        ...residual,
+                        residualCurrentMa: Math.max(1, Number(event.target.value)),
+                      },
+                    })
+                  }
+                />
+                <span>mA</span>
+              </div>
+            </label>
+            <label style={styles.label}>
+              Delay mode
+              <select
+                style={styles.input}
+                value={residual.delayMode}
+                onChange={(event) => {
+                  const delayMode = event.target.value as
+                    | "instantaneous"
+                    | "fixed-delay"
+                    | "adjustable-delay";
+                  patch({
+                    residualProtection: {
+                      ...residual,
+                      delayMode,
+                      timeDelayMs:
+                        delayMode === "instantaneous" ? 0 : residual.timeDelayMs,
+                    },
+                  });
+                }}
+              >
+                <option value="instantaneous">Instantaneous</option>
+                <option value="fixed-delay">Fixed delay</option>
+                <option value="adjustable-delay">Adjustable delay</option>
+              </select>
+            </label>
+            <label style={styles.label}>
+              Time delay
+              <div style={styles.inputWithUnit}>
+                <input
+                  style={styles.input}
+                  type="number"
+                  min="0"
+                  step="10"
+                  disabled={residual.delayMode === "instantaneous"}
+                  value={residual.timeDelayMs}
+                  onChange={(event) =>
+                    patch({
+                      residualProtection: {
+                        ...residual,
+                        timeDelayMs: Math.max(0, Number(event.target.value)),
+                      },
+                    })
+                  }
+                />
+                <span>ms</span>
+              </div>
+            </label>
+            <label style={styles.checkboxLabel}>
+              <input
+                type="checkbox"
+                checked={Boolean(residual.selectiveType)}
+                onChange={(event) =>
+                  patch({
+                    residualProtection: {
+                      ...residual,
+                      selectiveType: event.target.checked,
+                    },
+                  })
+                }
+              />
+              Selective / time-graded device
+            </label>
+          </div>
+        </div>
+      )}
+
+      <div style={styles.protectionFooter}>
+        <button style={styles.removeProtectionButton} onClick={() => onChange(undefined)}>
+          Remove Protection
+        </button>
+      </div>
+    </details>
+  );
+}
+
 export function DistroDefinitionBuilder({
   initialDefinition,
   saveLabel = "Save Distro",
@@ -149,13 +507,64 @@ export function DistroDefinitionBuilder({
   const [outputs, setOutputs] = useState<PlannerOutput[]>(
     initialDefinition?.outputs ?? [],
   );
+  const [incomerProtection, setIncomerProtection] =
+    useState<ProtectiveDevice | undefined>(
+      initialDefinition?.incomerProtection,
+    );
   const singlePhaseInput = isSinglePhaseInput(input);
 
   useEffect(() => {
     setName(initialDefinition?.name ?? "");
     setInput(initialDefinition?.input ?? "32A / 3");
     setOutputs(initialDefinition?.outputs ?? []);
+    setIncomerProtection(initialDefinition?.incomerProtection);
   }, [initialDefinition]);
+
+  function updateOutputProtection(
+    output: PlannerOutput,
+    protectiveDevice: ProtectiveDevice | undefined,
+  ) {
+    setOutputs((current) => {
+      if (output.phase !== "Socapex") {
+        return current.map((item) =>
+          item.id === output.id ? { ...item, protectiveDevice } : item,
+        );
+      }
+
+      const targetIds = new Map<number, string>();
+      (output.socaCircuits ?? []).forEach((socket) => {
+        if (typeof socket.circuitNo === "number") {
+          targetIds.set(
+            socket.circuitNo,
+            socket.protectiveDevice?.id ?? createId("protection"),
+          );
+        }
+      });
+
+      return current.map((item) => {
+        const sameProtectionGroup = output.breakerPair
+          ? item.breakerPair === output.breakerPair
+          : item.id === output.id;
+
+        if (!sameProtectionGroup || item.phase !== "Socapex") return item;
+
+        return {
+          ...item,
+          socaCircuits: (item.socaCircuits ?? []).map((socket) => ({
+            ...socket,
+            protectiveDevice: protectiveDevice
+              ? {
+                  ...protectiveDevice,
+                  id:
+                    targetIds.get(socket.circuitNo ?? 0) ??
+                    createId("protection"),
+                }
+              : undefined,
+          })),
+        };
+      });
+    });
+  }
 
   function addSinglePhaseOutput() {
     const rating = Number(singlePhaseRating);
@@ -210,6 +619,21 @@ export function DistroDefinitionBuilder({
     });
   }
 
+  function removeOutput(output: PlannerOutput) {
+    if (
+      output.breakerPair &&
+      !confirm("Remove both Socapex outputs in this shared-breaker twin?")
+    ) {
+      return;
+    }
+
+    setOutputs((current) =>
+      output.breakerPair
+        ? current.filter((item) => item.breakerPair !== output.breakerPair)
+        : current.filter((item) => item.id !== output.id),
+    );
+  }
+
   async function save() {
     const cleanName = name.trim();
     if (!cleanName) {
@@ -242,6 +666,7 @@ export function DistroDefinitionBuilder({
       input,
       inputA: sourceRating(input),
       outputs: normalisedOutputs,
+      incomerProtection,
       custom: initialDefinition?.custom,
     });
   }
@@ -264,6 +689,21 @@ export function DistroDefinitionBuilder({
           <input style={styles.input} value={sourceRating(input)} readOnly />
         </label>
       </div>
+
+      <section style={styles.panel}>
+        <h3 style={styles.heading}>Incomer Protection</h3>
+        <p style={styles.muted}>
+          Record the device built into this distro. Upstream supply protection
+          will be assessed separately in the project protection hierarchy.
+        </p>
+        <ProtectionEditor
+          label="Incomer"
+          device={incomerProtection}
+          defaultRating={sourceRating(input)}
+          defaultPoles={singlePhaseInput ? 2 : 4}
+          onChange={setIncomerProtection}
+        />
+      </section>
 
       <section style={styles.panel}>
         <h3 style={styles.heading}>Add Outputs</h3>
@@ -319,13 +759,34 @@ export function DistroDefinitionBuilder({
         {outputs.length === 0 ? <p style={styles.muted}>No outputs added yet.</p> : (
           <div style={styles.outputList}>
             {outputs.map((output, index) => (
-              <div key={output.id} style={styles.outputRow}>
-                <div><strong>{index + 1}. {outputLabel(output)}</strong><p style={styles.mutedSmall}>{output.phase} · {output.type} · {output.rating}A{output.breakerPair ? " · Twin shared breakers" : ""}</p></div>
-                <div style={styles.actions}>
-                  <button style={styles.iconButton} onClick={() => moveOutput(output.id, -1)} disabled={index === 0} aria-label="Move output up">↑</button>
-                  <button style={styles.iconButton} onClick={() => moveOutput(output.id, 1)} disabled={index === outputs.length - 1} aria-label="Move output down">↓</button>
-                  <button style={styles.dangerButton} onClick={() => setOutputs((current) => current.filter((item) => item.id !== output.id))}>Remove</button>
+              <div key={output.id} style={styles.outputCard}>
+                <div style={styles.outputRow}>
+                  <div><strong>{index + 1}. {outputLabel(output)}</strong><p style={styles.mutedSmall}>{output.phase} · {output.type} · {output.rating}A{output.breakerPair ? " · Twin shared breakers" : ""}</p></div>
+                  <div style={styles.actions}>
+                    <button style={styles.iconButton} onClick={() => moveOutput(output.id, -1)} disabled={index === 0} aria-label="Move output up">↑</button>
+                    <button style={styles.iconButton} onClick={() => moveOutput(output.id, 1)} disabled={index === outputs.length - 1} aria-label="Move output down">↓</button>
+                    <button style={styles.dangerButton} onClick={() => removeOutput(output)}>{output.breakerPair ? "Remove Twin" : "Remove"}</button>
+                  </div>
                 </div>
+                <ProtectionEditor
+                  label={
+                    output.phase === "Socapex"
+                      ? output.breakerPair
+                        ? "Twin shared circuit protection"
+                        : "Socapex circuit protection"
+                      : "Output protection"
+                  }
+                  device={
+                    output.phase === "Socapex"
+                      ? output.socaCircuits?.[0]?.protectiveDevice
+                      : output.protectiveDevice
+                  }
+                  defaultRating={
+                    output.phase === "Socapex" ? 16 : output.rating
+                  }
+                  defaultPoles={output.phase === "3Φ" ? 3 : 1}
+                  onChange={(device) => updateOutputProtection(output, device)}
+                />
               </div>
             ))}
           </div>
@@ -358,8 +819,19 @@ const styles: Record<string, React.CSSProperties> = {
   mutedSmall: { color: "#637083", margin: "4px 0 0", fontSize: "13px" },
   socapexActions: { display: "grid", gap: "8px" },
   outputList: { display: "grid", gap: "8px" },
-  outputRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "12px", border: "1px solid #d9e0ea", borderRadius: "12px", background: "#f8fafc" },
+  outputCard: { display: "grid", gap: "10px", padding: "12px", border: "1px solid #d9e0ea", borderRadius: "12px", background: "#f8fafc" },
+  outputRow: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px" },
   actions: { display: "flex", gap: "8px", flexWrap: "wrap" },
+  protectionEmpty: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: "12px", padding: "10px 12px", border: "1px dashed #cbd5e1", borderRadius: "10px", color: "#637083", background: "white" },
+  compactButton: { minHeight: "36px", padding: "0 12px", borderRadius: "9px", border: "1px solid #d9e0ea", background: "white", color: "#172033", cursor: "pointer", font: "inherit", fontWeight: 500 },
+  protectionDetails: { border: "1px solid #d9e0ea", borderRadius: "10px", background: "white", overflow: "hidden" },
+  protectionSummary: { padding: "11px 12px", cursor: "pointer", color: "#172033", fontWeight: 600 },
+  protectionGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "12px", padding: "12px" },
+  residualPanel: { borderTop: "1px solid #d9e0ea", padding: "14px 0 4px", background: "#f8fafc" },
+  inputWithUnit: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px" },
+  checkboxLabel: { display: "flex", alignItems: "center", gap: "8px", color: "#637083", fontWeight: 400, minHeight: "44px", marginTop: "22px" },
+  protectionFooter: { display: "flex", justifyContent: "flex-end", padding: "0 12px 12px" },
+  removeProtectionButton: { minHeight: "36px", padding: "0 12px", borderRadius: "9px", border: "1px solid #c53030", background: "#fff5f5", color: "#c53030", cursor: "pointer", font: "inherit", fontWeight: 500 },
   saveActions: { display: "flex", justifyContent: "flex-end", gap: "8px" },
   primaryButton: { minHeight: "44px", padding: "0 16px", borderRadius: "10px", border: "1px solid var(--lva-workspace-dark-button, #172033)", background: "var(--lva-workspace-dark-button, #172033)", color: "white", cursor: "pointer", font: "inherit", fontWeight: 600 },
   secondaryButton: { minHeight: "40px", marginTop: "12px", padding: "0 14px", borderRadius: "10px", border: "1px solid #d9e0ea", background: "white", color: "#172033", cursor: "pointer", font: "inherit", fontWeight: 500 },

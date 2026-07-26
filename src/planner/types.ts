@@ -102,6 +102,48 @@ export type CircuitCableDesign = {
   designerVerificationFingerprint?: string;
 };
 
+export type ProtectiveDeviceKind =
+  | "fuse"
+  | "mcb"
+  | "mccb"
+  | "rcd"
+  | "rcbo"
+  | "other";
+
+export type ProtectiveDeviceCurve =
+  | "B"
+  | "C"
+  | "D"
+  | "manufacturer-specific";
+
+export type RcdType = "AC" | "A" | "F" | "B" | "other";
+
+export type ResidualCurrentProtection = {
+  rcdType: RcdType;
+  settingMode: "fixed" | "adjustable";
+  residualCurrentMa: number;
+  availableResidualSettingsMa?: number[];
+  delayMode: "instantaneous" | "fixed-delay" | "adjustable-delay";
+  timeDelayMs: number;
+  availableDelaySettingsMs?: number[];
+  selectiveType?: boolean;
+};
+
+export type ProtectiveDevice = {
+  id: string;
+  deviceType: ProtectiveDeviceKind;
+  ratedCurrentA: number;
+  poles: number;
+  curve?: ProtectiveDeviceCurve;
+  breakingCapacityKa?: number;
+  manufacturer?: string;
+  model?: string;
+  standardReference?: string;
+  residualProtection?: ResidualCurrentProtection;
+  characteristicSource?: string;
+  notes?: string;
+};
+
 export type PlannerOutput = {
   id: string;
   label: string;
@@ -121,6 +163,7 @@ export type PlannerOutput = {
   diversityReason?: string;
   powerFactorOverride?: number;
   cableDesign?: CircuitCableDesign;
+  protectiveDevice?: ProtectiveDevice;
 };
 
 export type DistroDefinition = {
@@ -128,6 +171,7 @@ export type DistroDefinition = {
   input: string;
   inputA: number;
   outputs: PlannerOutput[];
+  incomerProtection?: ProtectiveDevice;
   connectorStyle?: ConnectorStyle;
   custom?: boolean;
 };

@@ -154,7 +154,16 @@ function mapEquipmentRows(rows: StockEquipmentRow[]): EditableEquipmentRow[] {
 }
 
 function normaliseDistroDefinition(row: StockDistroRow): DistroDefinition | null {
-  const value = row.definition;
+  let value = row.definition;
+
+  if (typeof value === "string") {
+    try {
+      value = JSON.parse(value);
+    } catch {
+      return null;
+    }
+  }
+
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
 
   const definition = value as Record<string, unknown>;
