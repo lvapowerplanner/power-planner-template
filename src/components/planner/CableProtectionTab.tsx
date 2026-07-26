@@ -1,10 +1,14 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  applyWorkspaceCableOverrides,
   snapshotFromGlobalCable,
   snapshotFromProjectCable,
 } from "@/planner/cableLibrary";
-import type { GlobalCableLibraryRecord } from "@/planner/cableLibrary";
+import type {
+  GlobalCableLibraryRecord,
+  WorkspaceCableOverride,
+} from "@/planner/cableLibrary";
 import {
   calculateAdvancedCircuit,
   calculateCableDesign,
@@ -25,6 +29,7 @@ import type {
 type CableProtectionTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
+  workspaceId?: string | null;
 };
 
 type CableCircuitRow = {
@@ -122,6 +127,7 @@ function formatNumber(value: number, decimals = 2) {
 export function CableProtectionTab({
   plannerState,
   setPlannerState,
+  workspaceId,
 }: CableProtectionTabProps) {
   const [library, setLibrary] = useState<GlobalCableLibraryRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -150,19 +156,36 @@ export function CableProtectionTab({
       setLoading(true);
       setLoadError("");
 
-      const { data, error } = await supabase
-        .from("planner_cable_library")
-        .select("*")
-        .order("application")
-        .order("conductor_size_mm2");
+      const [libraryResult, overrideResult] = await Promise.all([
+        supabase
+          .from("planner_cable_library")
+          .select("*")
+          .order("application")
+          .order("conductor_size_mm2"),
+        workspaceId
+          ? supabase
+              .from("planner_workspace_cable_overrides")
+              .select("*")
+              .eq("workspace_id", workspaceId)
+              .eq("active", true)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
 
       if (cancelled) return;
 
-      if (error) {
+      if (libraryResult.error) {
         setLibrary([]);
-        setLoadError(error.message);
+        setLoadError(libraryResult.error.message);
+      } else if (overrideResult.error) {
+        setLibrary([]);
+        setLoadError(overrideResult.error.message);
       } else {
-        setLibrary((data ?? []) as GlobalCableLibraryRecord[]);
+        setLibrary(
+          applyWorkspaceCableOverrides(
+            (libraryResult.data ?? []) as GlobalCableLibraryRecord[],
+            (overrideResult.data ?? []) as WorkspaceCableOverride[],
+          ),
+        );
       }
 
       setLoading(false);
@@ -173,7 +196,7 @@ export function CableProtectionTab({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [workspaceId]);
 
   useEffect(() => {
     function updateFloatingScrollbar() {
@@ -638,7 +661,9 @@ export function CableProtectionTab({
                         <small style={styles.sourceText}>
                           {design.dataSource === "project-library"
                             ? "Project custom · "
-                            : ""}
+                            : design.snapshot.workspaceOverrideApplied
+                              ? "Workspace override · "
+                              : "Standard library · "}
                           {design.snapshot.sourceName} ·{" "}
                           {design.snapshot.sourceRevision}
                         </small>

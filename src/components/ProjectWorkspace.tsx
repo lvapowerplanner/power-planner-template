@@ -23,6 +23,7 @@ type ProjectWorkspaceProps = {
   renameProject: (projectId: string, nextName: string) => Promise<boolean>;
   workspaceBranding?: WorkspaceBranding;
   advancedFeaturesEnabled?: boolean;
+  workspaceId?: string | null;
 };
 
 
@@ -64,6 +65,7 @@ export function ProjectWorkspace({
   renameProject,
   workspaceBranding,
   advancedFeaturesEnabled,
+  workspaceId,
 }: ProjectWorkspaceProps) {
   const [projectName, setProjectName] = useState(activeProject.name);
   const [renaming, setRenaming] = useState(false);
@@ -153,6 +155,7 @@ export function ProjectWorkspace({
           }
           workspaceBranding={workspaceBranding}
           advancedFeaturesEnabled={advancedFeaturesEnabled}
+          workspaceId={workspaceId}
         />
       </section>
     </main>

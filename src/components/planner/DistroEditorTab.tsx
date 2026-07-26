@@ -379,10 +379,14 @@ function outputPhaseLoads(output: PlannerOutput): PhaseLoads {
 }
 
 function distroPhaseLoads(distro: ProjectDistro): PhaseLoads {
-  return distro.outputs.reduce<PhaseLoads>(
+  const loads = distro.outputs.reduce<PhaseLoads>(
     (total, output) => addPhaseLoads(total, outputPhaseLoads(output)),
     emptyPhaseLoads()
   );
+
+  return normaliseConnection(distro.input).phase === "3"
+    ? loads
+    : { L1: loads.L1 + loads.L2 + loads.L3, L2: 0, L3: 0 };
 }
 
 export function DistroEditorTab({

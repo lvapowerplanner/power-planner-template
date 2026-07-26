@@ -17,6 +17,7 @@ type PowerPlannerAppProps = {
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
   advancedFeaturesEnabled?: boolean;
+  workspaceId?: string | null;
 };
 
 export function PowerPlannerApp({
@@ -24,6 +25,7 @@ export function PowerPlannerApp({
   setPlannerState,
   workspaceBranding,
   advancedFeaturesEnabled,
+  workspaceId,
 }: PowerPlannerAppProps) {
   return (
     <PlannerShell
@@ -31,6 +33,7 @@ export function PowerPlannerApp({
       setPlannerState={setPlannerState}
       workspaceBranding={workspaceBranding}
       advancedFeaturesEnabled={advancedFeaturesEnabled}
+      workspaceId={workspaceId}
     />
   );
 }

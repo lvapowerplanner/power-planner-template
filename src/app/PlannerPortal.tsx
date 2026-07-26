@@ -1455,6 +1455,7 @@ export default function PlannerPortal() {
         }}
         backToProjects={() => setAdminPortalOpen(false)}
         workspaceBranding={workspaceBranding}
+        advancedFeaturesEnabled={advancedFeaturesEnabled}
       />
     );
   }
@@ -1471,6 +1472,7 @@ export default function PlannerPortal() {
         renameProject={renameProject}
         workspaceBranding={workspaceBranding}
         advancedFeaturesEnabled={advancedFeaturesEnabled}
+        workspaceId={workspaceId}
       />
     );
   }

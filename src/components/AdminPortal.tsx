@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import { AdminCableDataTab } from "@/components/AdminCableDataTab";
+import {
+  cloneDistroDefinition,
+  DistroDefinitionBuilder,
+} from "@/components/planner/DistroDefinitionBuilder";
+import type { DistroDefinition, PlannerOutput } from "@/planner/types";
 import type {
   WorkspaceUser,
   UserRole,
@@ -26,6 +31,7 @@ type AdminPortalProps = {
   reloadWorkspaceUsers: () => Promise<void>;
   backToProjects: () => void;
   workspaceBranding?: WorkspaceBranding;
+  advancedFeaturesEnabled?: boolean;
 };
 
 type AdminTab = "users" | "equipment" | "distros" | "cables" | "activity";
@@ -54,8 +60,7 @@ type EditableEquipmentRow = StockEquipmentRow & {
 };
 
 type EditableDistroRow = StockDistroRow & {
-  editName: string;
-  editDefinition: string;
+  definitionValue: DistroDefinition | null;
 };
 
 type WorkspaceAuditRow = {
@@ -98,26 +103,6 @@ function companyPrefix() {
 
 function tableName(baseName: "stock_equipment" | "stock_distros") {
   return `${companyPrefix()}_${baseName}`;
-}
-
-function parseJson(value: string) {
-  if (!value.trim()) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return undefined;
-  }
-}
-
-function prettyJson(value: unknown) {
-  if (value === null || value === undefined || value === "") return "";
-
-  try {
-    return JSON.stringify(value, null, 2);
-  } catch {
-    return "";
-  }
 }
 
 function userLabel(user: WorkspaceUser) {
@@ -168,24 +153,36 @@ function mapEquipmentRows(rows: StockEquipmentRow[]): EditableEquipmentRow[] {
   }));
 }
 
-function distroDefinitionForEditing(row: StockDistroRow) {
-  if (row.definition && typeof row.definition === "object") {
-    return row.definition;
-  }
+function normaliseDistroDefinition(row: StockDistroRow): DistroDefinition | null {
+  const value = row.definition;
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+
+  const definition = value as Record<string, unknown>;
+  if (!Array.isArray(definition.outputs)) return null;
+
+  const outputs = definition.outputs.filter(
+    (output): output is PlannerOutput =>
+      Boolean(output) &&
+      typeof output === "object" &&
+      typeof (output as PlannerOutput).id === "string" &&
+      typeof (output as PlannerOutput).phase === "string",
+  );
+
+  if (outputs.length !== definition.outputs.length) return null;
 
   return {
-    name: row.name ?? "",
-    input: row.input_connector ?? "",
-    inputA: row.rating_amps ?? 0,
-    outputs: [],
+    ...(definition as unknown as DistroDefinition),
+    name: String(definition.name ?? row.name ?? ""),
+    input: String(definition.input ?? row.input_connector ?? "32A / 3"),
+    inputA: Number(definition.inputA ?? row.rating_amps ?? 0),
+    outputs,
   };
 }
 
 function mapDistroRows(rows: StockDistroRow[]): EditableDistroRow[] {
   return rows.map((row) => ({
     ...row,
-    editName: String(row.name ?? ""),
-    editDefinition: prettyJson(distroDefinitionForEditing(row)),
+    definitionValue: normaliseDistroDefinition(row),
   }));
 }
 
@@ -213,6 +210,7 @@ export function AdminPortal({
   reloadWorkspaceUsers,
   backToProjects,
   workspaceBranding,
+  advancedFeaturesEnabled = false,
 }: AdminPortalProps) {
   const [activeTab, setActiveTab] = useState<AdminTab>("users");
   const [inviteEmail, setInviteEmail] = useState("");
@@ -229,9 +227,11 @@ export function AdminPortal({
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentCategoryFilter, setEquipmentCategoryFilter] = useState("");
   const [distroRows, setDistroRows] = useState<EditableDistroRow[]>([]);
-  const [distroName, setDistroName] = useState("");
-  const [distroDefinition, setDistroDefinition] = useState("");
   const [distroSearch, setDistroSearch] = useState("");
+  const [addingDistro, setAddingDistro] = useState(false);
+  const [editingDistroId, setEditingDistroId] = useState<
+    string | number | null
+  >(null);
   const [loadingStock, setLoadingStock] = useState(false);
   const [auditRows, setAuditRows] = useState<WorkspaceAuditRow[]>([]);
   const [loadingAudit, setLoadingAudit] = useState(false);
@@ -282,7 +282,7 @@ export function AdminPortal({
     const search = distroSearch.trim().toLowerCase();
 
     return distroRows.filter((row) =>
-      search ? row.editName.toLowerCase().includes(search) : true,
+      search ? row.name.toLowerCase().includes(search) : true,
     );
   }, [distroRows, distroSearch]);
 
@@ -586,15 +586,6 @@ export function AdminPortal({
     );
   }
 
-  function patchDistroLocal(
-    rowId: string | number,
-    patch: Partial<EditableDistroRow>,
-  ) {
-    setDistroRows((rows) =>
-      rows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
-    );
-  }
-
   async function addEquipment() {
     const cleanName = equipmentName.trim();
     const watts = Number(equipmentWattsValue);
@@ -683,28 +674,10 @@ export function AdminPortal({
     await loadStock();
   }
 
-  async function addDistro() {
-    const cleanName = distroName.trim();
-    const parsedDefinition = parseJson(distroDefinition);
-
-    if (!cleanName) {
-      alert("Please enter a distro name.");
-      return;
-    }
-
-    if (parsedDefinition === undefined) {
-      alert("The distro definition is not valid JSON.");
-      return;
-    }
-
-    const definitionWithName =
-      parsedDefinition && typeof parsedDefinition === "object"
-        ? { ...(parsedDefinition as Record<string, unknown>), name: cleanName }
-        : parsedDefinition;
-
+  async function addDistro(definition: DistroDefinition) {
     const { error } = await supabase.from(tableName("stock_distros")).insert({
-      name: cleanName,
-      definition: definitionWithName,
+      name: definition.name,
+      definition,
     });
 
     if (error) {
@@ -712,35 +685,20 @@ export function AdminPortal({
       return;
     }
 
-    setDistroName("");
-    setDistroDefinition("");
+    setAddingDistro(false);
+    showToast("Distro added to the workspace library.");
     await loadStock();
   }
 
-  async function saveDistro(row: EditableDistroRow) {
-    const cleanName = row.editName.trim();
-    const parsedDefinition = parseJson(row.editDefinition);
-
-    if (!cleanName) {
-      alert("Please enter a distro name.");
-      return;
-    }
-
-    if (parsedDefinition === undefined) {
-      alert("The distro definition is not valid JSON.");
-      return;
-    }
-
-    const definitionWithName =
-      parsedDefinition && typeof parsedDefinition === "object"
-        ? { ...(parsedDefinition as Record<string, unknown>), name: cleanName }
-        : parsedDefinition;
-
+  async function saveDistro(
+    row: EditableDistroRow,
+    definition: DistroDefinition,
+  ) {
     setSavingStockId(row.id);
 
     const { error } = await supabase
       .from(tableName("stock_distros"))
-      .update({ name: cleanName, definition: definitionWithName })
+      .update({ name: definition.name, definition })
       .eq("id", row.id);
 
     setSavingStockId(null);
@@ -751,26 +709,26 @@ export function AdminPortal({
       return;
     }
 
+    setEditingDistroId(null);
+    showToast("Distro updated.");
     await loadStock();
   }
 
   async function duplicateDistro(row: EditableDistroRow) {
-    const parsedDefinition = parseJson(row.editDefinition);
-
-    if (parsedDefinition === undefined) {
-      alert("The distro definition is not valid JSON.");
+    if (!row.definitionValue) {
+      alert("This distro definition cannot be duplicated until it is rebuilt.");
       return;
     }
 
-    const nextName = `${row.editName || row.name} Copy`;
-    const definitionWithName =
-      parsedDefinition && typeof parsedDefinition === "object"
-        ? { ...(parsedDefinition as Record<string, unknown>), name: nextName }
-        : parsedDefinition;
+    const nextName = `${row.name} Copy`;
+    const copiedDefinition = cloneDistroDefinition(
+      row.definitionValue,
+      nextName,
+    );
 
     const { error } = await supabase.from(tableName("stock_distros")).insert({
       name: nextName,
-      definition: definitionWithName,
+      definition: copiedDefinition,
     });
 
     if (error) {
@@ -899,15 +857,17 @@ export function AdminPortal({
           >
             Distro Library
           </button>
-          <button
-            style={{
-              ...styles.tab,
-              ...(activeTab === "cables" ? styles.activeTab : {}),
-            }}
-            onClick={() => setActiveTab("cables")}
-          >
-            Cable Data
-          </button>
+          {advancedFeaturesEnabled && (
+            <button
+              style={{
+                ...styles.tab,
+                ...(activeTab === "cables" ? styles.activeTab : {}),
+              }}
+              onClick={() => setActiveTab("cables")}
+            >
+              Cable Data
+            </button>
+          )}
           <button
             style={{
               ...styles.tab,
@@ -1229,38 +1189,38 @@ export function AdminPortal({
                   distro.
                 </p>
               </div>
-              <button style={styles.secondaryButton} onClick={loadStock}>
-                Refresh
-              </button>
-            </div>
-
-            <div style={styles.formCard}>
-              <h3 style={styles.cardTitle}>Add Distro</h3>
-              <div style={styles.distroFormGrid}>
-                <label style={styles.label}>
-                  Name
-                  <input
-                    style={styles.input}
-                    value={distroName}
-                    onChange={(event) => setDistroName(event.target.value)}
-                  />
-                </label>
-                <label style={styles.label}>
-                  Definition JSON
-                  <textarea
-                    style={styles.textarea}
-                    value={distroDefinition}
-                    onChange={(event) =>
-                      setDistroDefinition(event.target.value)
-                    }
-                    placeholder='{ "name": "32/3 Type 1", "input": "32A / 3", "inputA": 32, "outputs": [] }'
-                  />
-                </label>
-                <button style={styles.button} onClick={addDistro}>
-                  Add Distro
+              <div style={styles.rowActions}>
+                <button
+                  style={styles.button}
+                  onClick={() => {
+                    setAddingDistro((open) => !open);
+                    setEditingDistroId(null);
+                  }}
+                >
+                  {addingDistro ? "Close Builder" : "Add Distro"}
+                </button>
+                <button style={styles.secondaryButton} onClick={loadStock}>
+                  Refresh
                 </button>
               </div>
             </div>
+
+            {addingDistro && (
+              <div style={styles.formCard}>
+                <h3 style={styles.cardTitle}>Add Workspace Distro</h3>
+                <p style={styles.mutedSmall}>
+                  This template will be available to every project in this
+                  workspace.
+                </p>
+                <div style={styles.builderSpacing}>
+                  <DistroDefinitionBuilder
+                    saveLabel="Add to Workspace Library"
+                    onSave={addDistro}
+                    onCancel={() => setAddingDistro(false)}
+                  />
+                </div>
+              </div>
+            )}
 
             <div style={styles.filterRow}>
               <input
@@ -1279,35 +1239,37 @@ export function AdminPortal({
                 {filteredDistroRows.map((row) => (
                   <div key={row.id} style={styles.distroRowCard}>
                     <div style={styles.distroRowHeader}>
-                      <input
-                        style={styles.inlineInput}
-                        value={row.editName}
-                        onChange={(event) =>
-                          patchDistroLocal(row.id, {
-                            editName: event.target.value,
-                          })
-                        }
-                        placeholder="Distro name"
-                      />
+                      <div>
+                        <strong>{row.name}</strong>
+                        {row.definitionValue ? (
+                          <p style={styles.mutedSmall}>
+                            Input {row.definitionValue.input} ·{" "}
+                            {row.definitionValue.outputs.length} outputs
+                          </p>
+                        ) : (
+                          <p style={styles.invalidDefinition}>
+                            This legacy definition cannot be opened in the
+                            visual builder.
+                          </p>
+                        )}
+                      </div>
                       <div style={styles.rowActions}>
                         <button
                           style={styles.secondaryButton}
-                          onClick={() =>
-                            navigator.clipboard.writeText(row.editDefinition)
-                          }
+                          onClick={() => {
+                            setEditingDistroId((current) =>
+                              current === row.id ? null : row.id,
+                            );
+                            setAddingDistro(false);
+                          }}
+                          disabled={!row.definitionValue}
                         >
-                          Copy JSON
-                        </button>
-                        <button
-                          style={styles.secondaryButton}
-                          onClick={() => saveDistro(row)}
-                          disabled={savingStockId === row.id}
-                        >
-                          {savingStockId === row.id ? "Saving…" : "Save"}
+                          {editingDistroId === row.id ? "Close" : "Edit"}
                         </button>
                         <button
                           style={styles.secondaryButton}
                           onClick={() => duplicateDistro(row)}
+                          disabled={!row.definitionValue}
                         >
                           Duplicate
                         </button>
@@ -1319,15 +1281,17 @@ export function AdminPortal({
                         </button>
                       </div>
                     </div>
-                    <textarea
-                      style={styles.distroEditTextarea}
-                      value={row.editDefinition}
-                      onChange={(event) =>
-                        patchDistroLocal(row.id, {
-                          editDefinition: event.target.value,
-                        })
-                      }
-                    />
+                    {editingDistroId === row.id && row.definitionValue && (
+                      <div style={styles.expandedBuilder}>
+                        <DistroDefinitionBuilder
+                          initialDefinition={row.definitionValue}
+                          saveLabel="Save Workspace Distro"
+                          saving={savingStockId === row.id}
+                          onSave={(definition) => saveDistro(row, definition)}
+                          onCancel={() => setEditingDistroId(null)}
+                        />
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -1335,7 +1299,7 @@ export function AdminPortal({
           </section>
         )}
 
-        {activeTab === "cables" && (
+        {advancedFeaturesEnabled && activeTab === "cables" && (
           <section style={styles.section}>
             <AdminCableDataTab workspaceId={workspaceId} />
           </section>
@@ -1758,6 +1722,18 @@ const styles: Record<string, React.CSSProperties> = {
     gridTemplateColumns: "minmax(220px, 1fr) auto",
     gap: "10px",
     alignItems: "center",
+  },
+  builderSpacing: { marginTop: "18px" },
+  expandedBuilder: {
+    marginTop: "4px",
+    padding: "16px",
+    borderTop: "1px solid #d9e0ea",
+    background: "#fbfcfe",
+  },
+  invalidDefinition: {
+    color: "#92400e",
+    margin: "4px 0 0",
+    fontSize: "13px",
   },
   rowActions: {
     display: "flex",

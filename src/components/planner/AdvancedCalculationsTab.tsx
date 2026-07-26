@@ -21,6 +21,7 @@ type AdvancedCalculationsTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   openDistroEditor: (distroId: string) => void;
+  workspaceId?: string | null;
 };
 
 type CircuitRow = {
@@ -132,6 +133,7 @@ export function AdvancedCalculationsTab({
   plannerState,
   setPlannerState,
   openDistroEditor,
+  workspaceId,
 }: AdvancedCalculationsTabProps) {
   const settings = settingsFor(plannerState);
   const [selectedDistroId, setSelectedDistroId] = useState("all");
@@ -306,11 +308,13 @@ export function AdvancedCalculationsTab({
         <CableProtectionTab
           plannerState={plannerState}
           setPlannerState={setPlannerState}
+          workspaceId={workspaceId}
         />
       ) : activeSubTab === "cable-library" ? (
         <CableLibraryTab
           plannerState={plannerState}
           setPlannerState={setPlannerState}
+          workspaceId={workspaceId}
         />
       ) : (
         <>

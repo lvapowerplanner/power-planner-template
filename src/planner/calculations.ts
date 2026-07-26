@@ -651,13 +651,17 @@ export function outputWatts(
 }
 
 export function distroOwnPhaseLoads(distro: ProjectDistro): PhaseLoads {
-  return distro.outputs.reduce<PhaseLoads>((total, output) => {
+  const loads = distro.outputs.reduce<PhaseLoads>((total, output) => {
     if (output.phase === "Socapex") {
       return addPhaseLoads(total, socapexOutputPhaseLoads(output));
     }
 
     return addPhaseLoads(total, outputOwnPhaseLoads(output));
   }, createEmptyPhaseLoads());
+
+  return isThreePhaseConnection(distro.input)
+    ? loads
+    : { L1: phaseLoadTotal(loads), L2: 0, L3: 0 };
 }
 
 export function distroPhaseLoads(
@@ -670,7 +674,7 @@ export function distroPhaseLoads(
   const nextVisited = new Set(visited);
   nextVisited.add(distro.id);
 
-  return distro.outputs.reduce<PhaseLoads>((total, output) => {
+  const loads = distro.outputs.reduce<PhaseLoads>((total, output) => {
     if (output.phase === "Socapex") {
       return addPhaseLoads(total, socapexOutputPhaseLoads(output));
     }
@@ -680,6 +684,10 @@ export function distroPhaseLoads(
       outputPhaseLoads(output, plannerState, distro, nextVisited),
     );
   }, createEmptyPhaseLoads());
+
+  return isThreePhaseConnection(distro.input)
+    ? loads
+    : { L1: phaseLoadTotal(loads), L2: 0, L3: 0 };
 }
 
 export function distroOwnWatts(distro: ProjectDistro): number {

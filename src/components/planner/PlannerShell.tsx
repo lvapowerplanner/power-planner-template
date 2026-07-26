@@ -27,6 +27,7 @@ type PlannerShellProps = {
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
   advancedFeaturesEnabled?: boolean;
+  workspaceId?: string | null;
 };
 
 type PlannerTab =
@@ -135,6 +136,8 @@ function normaliseImportedPlannerState(value: PlannerState): PlannerState {
       showUnusedOutputs:
         value.advancedElectrical?.showUnusedOutputs ?? false,
     },
+    projectCableLibrary: value.projectCableLibrary ?? [],
+    excludedCableRatingIds: value.excludedCableRatingIds ?? [],
   });
 }
 
@@ -143,6 +146,7 @@ export function PlannerShell({
   setPlannerState,
   workspaceBranding,
   advancedFeaturesEnabled = false,
+  workspaceId,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
   const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
@@ -360,6 +364,7 @@ export function PlannerShell({
               plannerState={plannerState}
               setPlannerState={setPlannerState}
               openDistroEditor={openDistroEditor}
+              workspaceId={workspaceId}
             />
           )}
 

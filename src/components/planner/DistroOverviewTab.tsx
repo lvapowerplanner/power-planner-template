@@ -450,15 +450,29 @@ export function DistroOverviewTab({
 }
 
 function DistroPhaseSummary({ summary }: { summary: DistroLoadSummary }) {
+  const singlePhase = normaliseConnection(summary.distro.input).phase !== "3";
+
   return (
     <section style={styles.phaseSummaryBox}>
       <div style={styles.phaseSummaryHeader}>
-        <strong>Phase Balance</strong>
+        <strong>{singlePhase ? "Single-Phase Load" : "Phase Balance"}</strong>
       </div>
-      <div style={styles.phaseGrid}>
-        <PhaseCard phase="L1" amps={summary.phaseLoads.L1} rating={summary.distro.inputA} />
-        <PhaseCard phase="L2" amps={summary.phaseLoads.L2} rating={summary.distro.inputA} />
-        <PhaseCard phase="L3" amps={summary.phaseLoads.L3} rating={summary.distro.inputA} />
+      <div
+        style={
+          singlePhase
+            ? { ...styles.phaseGrid, gridTemplateColumns: "minmax(0, 1fr)" }
+            : styles.phaseGrid
+        }
+      >
+        {singlePhase ? (
+          <PhaseCard phase="Line" amps={summary.phaseLoads.L1} rating={summary.distro.inputA} />
+        ) : (
+          <>
+            <PhaseCard phase="L1" amps={summary.phaseLoads.L1} rating={summary.distro.inputA} />
+            <PhaseCard phase="L2" amps={summary.phaseLoads.L2} rating={summary.distro.inputA} />
+            <PhaseCard phase="L3" amps={summary.phaseLoads.L3} rating={summary.distro.inputA} />
+          </>
+        )}
       </div>
     </section>
   );
