@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import { CableProtectionTab } from "@/components/planner/CableProtectionTab";
+import { CableLibraryTab } from "@/components/planner/CableLibraryTab";
 import {
   calculateAdvancedCircuit,
   childDistroFedFromOutput,
@@ -136,7 +137,7 @@ export function AdvancedCalculationsTab({
   const [selectedDistroId, setSelectedDistroId] = useState("all");
   const [collapsedDistroIds, setCollapsedDistroIds] = useState<string[]>([]);
   const [activeSubTab, setActiveSubTab] = useState<
-    "overview" | "load-demand" | "cables"
+    "overview" | "load-demand" | "cables" | "cable-library"
   >("overview");
 
   const visibleDistros = useMemo(
@@ -281,6 +282,15 @@ export function AdvancedCalculationsTab({
         >
           Cable & Protection
         </button>
+        <button
+          style={{
+            ...styles.subTab,
+            ...(activeSubTab === "cable-library" ? styles.activeSubTab : {}),
+          }}
+          onClick={() => setActiveSubTab("cable-library")}
+        >
+          Cable Library
+        </button>
       </div>
 
       {activeSubTab === "overview" ? (
@@ -294,6 +304,11 @@ export function AdvancedCalculationsTab({
         />
       ) : activeSubTab === "cables" ? (
         <CableProtectionTab
+          plannerState={plannerState}
+          setPlannerState={setPlannerState}
+        />
+      ) : activeSubTab === "cable-library" ? (
+        <CableLibraryTab
           plannerState={plannerState}
           setPlannerState={setPlannerState}
         />

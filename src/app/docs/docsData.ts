@@ -68,6 +68,7 @@ export const docCategories: DocCategory[] = [
       { title: "Advanced Calculations Overview", slug: "advanced-calculations", description: "Enable and navigate the advanced electrical design workspace." },
       { title: "Load & Demand", slug: "load-and-demand", description: "Apply diversity and power factor to calculate design load, kVA and current." },
       { title: "Cable & Protection", slug: "cable-and-protection", description: "Select cables, calculate capacity and voltage drop, and record designer verification." },
+      { title: "Cable Library", slug: "cable-library", description: "Control project cable choices and create reusable project-only cable records." },
     ],
   },
   {
@@ -1079,6 +1080,13 @@ export const docArticles: DocArticle[] = [
         },
       },
       {
+        heading: "Cable Library",
+        body: [
+          "Cable Library is the final Advanced Calculations subtab. It is an administration-style project view for controlling which cable ratings appear in Cable & Protection and for creating reusable custom records for the current project.",
+          "All active standard-library and project custom records are included by default. Inclusion choices and custom records are saved with the project and do not affect other projects.",
+        ],
+      },
+      {
         heading: "Design responsibility",
         body: [
           "Advanced results are indicative design calculations. Cable selection, installation method, correction factors, protective devices, earthing arrangement and site conditions must be checked by a competent designer.",
@@ -1091,7 +1099,7 @@ export const docArticles: DocArticle[] = [
         },
       },
     ],
-    related: ["load-and-demand", "cable-and-protection", "warnings"],
+    related: ["load-and-demand", "cable-and-protection", "cable-library"],
   },
   {
     title: "Load & Demand",
@@ -1187,7 +1195,8 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Selecting cable data",
         body: [
-          "Select a compatible cable from the shared global library. App users cannot add to or edit that library. The selected reference values are saved as an immutable snapshot within the project.",
+          "Select a compatible cable from the shared standard library or the current project's cable library. Standard records are centrally maintained and read-only, while project records are created from the Cable Library subtab.",
+          "Only ratings included for the current project appear for new selections. An excluded rating remains visible on a circuit already using it, and the selected reference values are saved as an immutable snapshot within the project.",
           "Choose Custom cable data where the required cable is not in the library. Enter a clear cable name, current capacity and voltage-drop value in mV/A/m. Custom values apply only to the current project.",
         ],
         callout: {
@@ -1255,7 +1264,97 @@ export const docArticles: DocArticle[] = [
         ],
       },
     ],
-    related: ["load-and-demand", "advanced-calculations", "best-practice"],
+    related: ["load-and-demand", "cable-library", "advanced-calculations"],
+  },
+  {
+    title: "Cable Library",
+    slug: "cable-library",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "9 min read",
+    description: "Manage the cable ratings available within an individual project.",
+    summary: "Cable Library combines the shared read-only standard library with reusable project-only cable records and project-specific inclusion settings.",
+    tags: ["cable library", "project cable", "custom cable", "exclude cable", "standard library", "cable dropdown"],
+    sections: [
+      {
+        heading: "Library scope",
+        body: [
+          "Cable Library is the final subtab in Advanced Calculations. It controls cable choices for the current project without changing the centrally maintained standard library.",
+          "Standard-library records are shared across the application and are read-only. Project custom cables and inclusion settings are stored only in the current project, including its exported backup data.",
+        ],
+        callout: {
+          type: "info",
+          title: "Project-specific settings",
+          body: "Creating or excluding a cable in one project does not alter the cable choices in any other project or workspace.",
+        },
+      },
+      {
+        heading: "Included and excluded ratings",
+        body: [
+          "Every active standard and project custom rating is included by default. Select Included against a row to exclude that rating from new Cable & Protection selections. Select Excluded to include it again.",
+          "Use Include all to clear every project exclusion. Search and the Source, Application and Availability filters can be combined to find a particular rating.",
+        ],
+        bullets: [
+          "Inclusion is stored at individual rating level, not for an entire cable family.",
+          "Excluded ratings do not appear as new dropdown choices.",
+          "An existing circuit continues to show and calculate from its saved cable snapshot.",
+          "Including a rating does not confirm that it is suitable for the installation.",
+        ],
+      },
+      {
+        heading: "Adding a project cable",
+        body: [
+          "Select Add project cable to expand the editor. The same header button closes the editor when it is open. Complete the required name, conductor size, current capacity and voltage-drop value before saving.",
+          "Application determines whether the cable is offered for single-phase or three-phase circuits. Core configuration, cable arrangement and installation method provide the context required to interpret the numerical data.",
+        ],
+        steps: [
+          "Select Add project cable.",
+          "Enter a clear cable name and choose its application.",
+          "Enter conductor size, current capacity and voltage drop in mV/A/m.",
+          "Record the core configuration, arrangement and reference installation method.",
+          "Add manufacturer, standard and source details where available.",
+          "Select Save project cable.",
+        ],
+        callout: {
+          type: "best",
+          title: "Record the source",
+          body: "Use manufacturer or standards data and record its name and revision. Avoid deriving current capacity or voltage-drop values from connector ratings alone.",
+        },
+      },
+      {
+        heading: "Project library versus one-off custom data",
+        body: [
+          "Create a project cable when the same custom rating will be selected on multiple circuits. It appears in a separate Project cable library group in the Cable & Protection dropdown.",
+          "Use Custom cable data directly in Cable & Protection for a one-off circuit that does not need a reusable library record. Both methods remain limited to the current project.",
+        ],
+      },
+      {
+        heading: "Editing and removing project cables",
+        body: [
+          "Project custom records can be edited or removed from the table. Standard-library records remain read-only.",
+          "Editing a project cable changes the choice offered for future selections but does not silently rewrite cable snapshots already saved against circuits. Select the revised cable again on a circuit where the new values should apply.",
+          "If a project cable is removed while in use, the existing circuit retains and displays its saved snapshot. The removed record is no longer offered for new selections.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Existing designs remain traceable",
+          body: "A library change does not update existing circuit calculations automatically. This prevents revised reference data from silently changing a previously reviewed design.",
+        },
+      },
+      {
+        heading: "Standards and suitability",
+        body: [
+          "The standard library contains sourced reference data; it is not a list of cables approved by BS 7909. Cable suitability depends on the complete design, applicable cable and installation standards, environmental conditions, mechanical protection and competent judgement.",
+          "The designer remains responsible for checking capacity, voltage-drop data, correction factors and intended use before completing designer verification in Cable & Protection.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Inclusion is not approval",
+          body: "An Included status controls dropdown visibility only. It is not a compliance decision or confirmation that the cable is appropriate for a particular installation.",
+        },
+      },
+    ],
+    related: ["cable-and-protection", "advanced-calculations", "best-practice"],
   },
   {
     title: "Calculations",
@@ -1367,7 +1466,8 @@ export const docArticles: DocArticle[] = [
       { heading: "Documentation centre", body: ["Online documentation includes searchable articles, category navigation, article pages, metadata, callouts, related articles, previous/next navigation and command-palette search."], },
       { heading: "Current planner functionality", body: ["Current documented features include MFA login, branded workspaces, project dashboard, system overview, manual and auto sources, distro management, drag-and-drop equipment assignment, custom equipment, custom distros, warnings, report exports and JSON import/export."], },
       { heading: "Project Sharing", body: ["Project Sharing allows workspace users to keep projects private by default and share selected projects with chosen colleagues when workspace sharing is enabled. The feature includes My Projects, Projects Shared With Me, selected-user sharing and workspace-level sharing controls."], },
-      { heading: "Advanced Calculations", body: ["Workspace-controlled Advanced Calculations now includes Advanced Overview, Load & Demand, and Cable & Protection subtabs. Designers can apply project and circuit power factor, per-output diversity, shared-library or custom cable data, parallel runs, derating and voltage-drop limits. Cable results include feeder-aware cumulative voltage drop, Pass/Review/Fail status and input-sensitive designer verification."], },
+      { heading: "Advanced Calculations", body: ["Workspace-controlled Advanced Calculations now includes Advanced Overview, Load & Demand, Cable & Protection, and Cable Library subtabs. Designers can apply project and circuit power factor, per-output diversity, shared-library or custom cable data, parallel runs, derating and voltage-drop limits. Cable results include feeder-aware cumulative voltage drop, Pass/Review/Fail status and input-sensitive designer verification."], },
+      { heading: "Project Cable Library", body: ["The final Advanced Calculations subtab now allows designers to include or exclude individual cable ratings for the current project and create reusable project-only cable records. The shared standard library remains read-only, existing circuits retain immutable cable snapshots, and removed or excluded records do not silently alter previous designs."], },
     ],
     related: ["introduction", "project-sharing", "best-practice"],
   },

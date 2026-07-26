@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 import {
+  snapshotFromGlobalCable,
+  snapshotFromProjectCable,
+} from "@/planner/cableLibrary";
+import type { GlobalCableLibraryRecord } from "@/planner/cableLibrary";
+import {
   calculateAdvancedCircuit,
   calculateCableDesign,
   cableVerificationFingerprint,
@@ -20,24 +25,6 @@ import type {
 type CableProtectionTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
-};
-
-type CableLibraryRecord = {
-  cable_rating_id: string;
-  rating_code: string;
-  display_name: string;
-  application: "single_phase_ac" | "three_phase_ac" | "dc";
-  core_configuration: string;
-  conductor_size_mm2: number;
-  cable_arrangement: string;
-  installation_method: string;
-  current_capacity_a: number;
-  voltage_drop_mv_per_a_m: number;
-  resistance_mv_per_a_m?: number | null;
-  reactance_mv_per_a_m?: number | null;
-  source_name: string;
-  source_revision: string;
-  data_status: "reference" | "verified" | "superseded";
 };
 
 type CableCircuitRow = {
@@ -93,36 +80,9 @@ function applicationForOutput(output: PlannerOutput) {
   return output.phase === "3Φ" ? "three_phase_ac" : "single_phase_ac";
 }
 
-function snapshotFromLibrary(
-  record: CableLibraryRecord,
-): CableDataSnapshot {
-  return {
-    cableName: record.display_name,
-    ratingCode: record.rating_code,
-    application: record.application,
-    coreConfiguration: record.core_configuration,
-    conductorSizeMm2: Number(record.conductor_size_mm2),
-    cableArrangement: record.cable_arrangement,
-    installationMethod: record.installation_method,
-    currentCapacityA: Number(record.current_capacity_a),
-    voltageDropMvPerAmpMetre: Number(record.voltage_drop_mv_per_a_m),
-    resistanceMvPerAmpMetre:
-      record.resistance_mv_per_a_m == null
-        ? undefined
-        : Number(record.resistance_mv_per_a_m),
-    reactanceMvPerAmpMetre:
-      record.reactance_mv_per_a_m == null
-        ? undefined
-        : Number(record.reactance_mv_per_a_m),
-    sourceName: record.source_name,
-    sourceRevision: record.source_revision,
-    dataStatus: record.data_status,
-  };
-}
-
 function defaultCableDesign(
   snapshot: CableDataSnapshot,
-  dataSource: "library" | "custom",
+  dataSource: "library" | "project-library" | "custom",
   cableRatingId?: string,
 ): CircuitCableDesign {
   return {
@@ -163,7 +123,7 @@ export function CableProtectionTab({
   plannerState,
   setPlannerState,
 }: CableProtectionTabProps) {
-  const [library, setLibrary] = useState<CableLibraryRecord[]>([]);
+  const [library, setLibrary] = useState<GlobalCableLibraryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
   const [selectedDistroId, setSelectedDistroId] = useState("all");
@@ -202,7 +162,7 @@ export function CableProtectionTab({
         setLibrary([]);
         setLoadError(error.message);
       } else {
-        setLibrary((data ?? []) as CableLibraryRecord[]);
+        setLibrary((data ?? []) as GlobalCableLibraryRecord[]);
       }
 
       setLoading(false);
@@ -325,6 +285,31 @@ export function CableProtectionTab({
       return;
     }
 
+    const projectRecord = (plannerState.projectCableLibrary ?? []).find(
+      (candidate) => candidate.id === selection,
+    );
+    if (projectRecord) {
+      updateDesign(row, (current) => {
+        const next = defaultCableDesign(
+          snapshotFromProjectCable(projectRecord),
+          "project-library",
+          projectRecord.id,
+        );
+        return current
+          ? {
+              ...next,
+              lengthMetres: current.lengthMetres,
+              parallelRuns: current.parallelRuns,
+              deratingFactor: current.deratingFactor,
+              voltageDropLimitPercent: current.voltageDropLimitPercent,
+              voltageDropCategory: current.voltageDropCategory,
+              notes: current.notes,
+            }
+          : next;
+      });
+      return;
+    }
+
     const record = library.find(
       (candidate) => candidate.cable_rating_id === selection,
     );
@@ -332,7 +317,7 @@ export function CableProtectionTab({
 
     updateDesign(row, (current) => {
       const next = defaultCableDesign(
-        snapshotFromLibrary(record),
+        snapshotFromGlobalCable(record),
         "library",
         record.cable_rating_id,
       );
@@ -567,7 +552,29 @@ export function CableProtectionTab({
               );
               const compatibleLibrary = library.filter(
                 (record) =>
-                  record.application === applicationForOutput(row.output),
+                  record.application === applicationForOutput(row.output) &&
+                  (!(plannerState.excludedCableRatingIds ?? []).includes(
+                    record.cable_rating_id,
+                  ) || design?.cableRatingId === record.cable_rating_id),
+              );
+              const compatibleProjectLibrary = (
+                plannerState.projectCableLibrary ?? []
+              ).filter(
+                (record) =>
+                  record.application === applicationForOutput(row.output) &&
+                  (!(plannerState.excludedCableRatingIds ?? []).includes(
+                    record.id,
+                  ) || design?.cableRatingId === record.id),
+              );
+              const selectedRecordAvailable = Boolean(
+                !design?.cableRatingId ||
+                  compatibleLibrary.some(
+                    (record) =>
+                      record.cable_rating_id === design.cableRatingId,
+                  ) ||
+                  compatibleProjectLibrary.some(
+                    (record) => record.id === design.cableRatingId,
+                  ),
               );
 
               return (
@@ -593,18 +600,39 @@ export function CableProtectionTab({
                       }
                     >
                       <option value="">Select cable</option>
-                      {compatibleLibrary.map((record) => (
-                        <option
-                          key={record.cable_rating_id}
-                          value={record.cable_rating_id}
-                        >
-                          {record.display_name}
+                      {!selectedRecordAvailable && design?.cableRatingId && (
+                        <option value={design.cableRatingId}>
+                          {design.snapshot.cableName} (saved snapshot)
                         </option>
-                      ))}
+                      )}
+                      {compatibleLibrary.length > 0 && (
+                        <optgroup label="Standard library">
+                          {compatibleLibrary.map((record) => (
+                            <option
+                              key={record.cable_rating_id}
+                              value={record.cable_rating_id}
+                            >
+                              {record.display_name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {compatibleProjectLibrary.length > 0 && (
+                        <optgroup label="Project cable library">
+                          {compatibleProjectLibrary.map((record) => (
+                            <option key={record.id} value={record.id}>
+                              {record.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
                       <option value="custom">Custom cable data</option>
                     </select>
                     {design && (
                       <small style={styles.sourceText}>
+                        {design.dataSource === "project-library"
+                          ? "Project custom · "
+                          : ""}
                         {design.snapshot.sourceName} ·{" "}
                         {design.snapshot.sourceRevision}
                       </small>

@@ -38,8 +38,31 @@ export type CableDataSnapshot = {
   dataStatus: CableDataStatus;
 };
 
+export type ProjectCableLibraryItem = {
+  id: string;
+  name: string;
+  designation?: string;
+  manufacturer?: string;
+  productRange?: string;
+  standardReference?: string;
+  application: "single_phase_ac" | "three_phase_ac";
+  coreConfiguration: string;
+  conductorSizeMm2: number;
+  cableArrangement: string;
+  installationMethod: string;
+  currentCapacityA: number;
+  voltageDropMvPerAmpMetre: number;
+  resistanceMvPerAmpMetre?: number;
+  reactanceMvPerAmpMetre?: number;
+  sourceName?: string;
+  sourceRevision?: string;
+  sourceNotes?: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CircuitCableDesign = {
-  dataSource: "library" | "custom";
+  dataSource: "library" | "project-library" | "custom";
   cableRatingId?: string;
   snapshot: CableDataSnapshot;
   lengthMetres: number;
@@ -147,4 +170,6 @@ export type PlannerState = {
   reportHiddenDistros?: string[];
   dismissedWarnings?: DismissedWarning[];
   advancedElectrical?: AdvancedElectricalSettings;
+  projectCableLibrary?: ProjectCableLibraryItem[];
+  excludedCableRatingIds?: string[];
 };
