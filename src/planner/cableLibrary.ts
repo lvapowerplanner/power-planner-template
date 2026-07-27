@@ -121,8 +121,15 @@ export function applyWorkspaceCableOverrides(
 export function snapshotFromGlobalCable(
   record: GlobalCableLibraryRecord,
 ): CableDataSnapshot {
+  const conductorSize = `${Number(record.conductor_size_mm2)} mm²`;
+  const cableName = record.display_name
+    .toLowerCase()
+    .includes(conductorSize.toLowerCase())
+    ? record.display_name
+    : `${record.display_name} · ${conductorSize}`;
+
   return {
-    cableName: record.display_name,
+    cableName,
     ratingCode: record.rating_code,
     application: record.application,
     coreConfiguration: record.core_configuration,

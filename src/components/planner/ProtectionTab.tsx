@@ -6,6 +6,12 @@ import type { PlannerOutput, PlannerState, ProjectDistro, ProtectiveDevice, Resi
 type ProtectionTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
+  selectedDistroId: string;
+  setSelectedDistroId: (value: string) => void;
+  showUnusedOutputs: boolean;
+  setShowUnusedOutputs: (value: boolean) => void;
+  collapsedDistroIds: string[];
+  setCollapsedDistroIds: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 type CircuitRow = {
@@ -42,9 +48,7 @@ function circuitRows(plannerState: PlannerState): CircuitRow[] {
   return plannerState.distros.flatMap((distro) =>
     distro.outputs.flatMap<CircuitRow>((output, outputIndex) => {
       const children = output.phase === "Socapex" ? output.socaCircuits ?? [] : [output];
-      return children
-        .filter((circuit) => outputWatts(circuit, plannerState, distro) > 0)
-        .map((circuit) => {
+      return children.map((circuit) => {
           const watts = outputWatts(circuit, plannerState, distro);
           const calculation = calculateAdvancedCircuit({
             connectedWatts: watts,
@@ -129,6 +133,15 @@ function residualLabel(device: ProtectiveDevice) {
   return `${residual.residualCurrentMa}mA / ${residual.timeDelayMs}ms · Type ${residual.rcdType}`;
 }
 
+function circuitInformation(row: CircuitRow) {
+  const details = row.output.items.map((item) =>
+    `${item.quantity} × ${item.name}${item.notes?.trim() ? ` — ${item.notes.trim()}` : ""}`,
+  );
+  if (row.output.notes?.trim()) details.push(`Output notes: ${row.output.notes.trim()}`);
+  if (row.parentOutput?.notes?.trim()) details.push(`Socapex notes: ${row.parentOutput.notes.trim()}`);
+  return details.length ? details.join("\n") : "No connected-load or output notes.";
+}
+
 function adjustedCableCapacity(output: PlannerOutput) {
   const design = output.cableDesign;
   if (!design) return null;
@@ -171,8 +184,17 @@ function pairAssessment(pair: SelectivityPair) {
   };
 }
 
-export function ProtectionTab({ plannerState, setPlannerState }: ProtectionTabProps) {
-  const rows = useMemo(() => circuitRows(plannerState), [plannerState]);
+export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId, setSelectedDistroId, showUnusedOutputs, setShowUnusedOutputs, collapsedDistroIds, setCollapsedDistroIds }: ProtectionTabProps) {
+  const allRows = useMemo(() => circuitRows(plannerState), [plannerState]);
+  const visibleDistros = plannerState.distros.filter(
+    (distro) => selectedDistroId === "all" || distro.id === selectedDistroId,
+  );
+  const rows = allRows.filter(
+    (row) =>
+      (showUnusedOutputs || outputWatts(row.output, plannerState, row.distro) > 0) &&
+      (selectedDistroId === "all" || row.distro.id === selectedDistroId) &&
+      !collapsedDistroIds.includes(row.distro.id),
+  );
   const pairs = useMemo(() => selectivityPairs(rows, plannerState), [rows, plannerState]);
 
   function updateDevice(deviceId: string, residual: ResidualCurrentProtection) {
@@ -266,51 +288,54 @@ export function ProtectionTab({ plannerState, setPlannerState }: ProtectionTabPr
         <p style={styles.muted}>Design coordination from the protective devices stored in each distro. Results are indicative unless confirmed by exact manufacturer data.</p>
       </div>
 
+      <div style={styles.toolbar}>
+        <label style={styles.compactField}><span style={styles.toolbarLabel}>View</span>
+          <select style={styles.filterInput} value={selectedDistroId} onChange={(event) => setSelectedDistroId(event.target.value)}>
+            <option value="all">All distros</option>
+            {plannerState.distros.map((distro) => <option key={distro.id} value={distro.id}>{displayDistroName(distro)}</option>)}
+          </select>
+        </label>
+        <label style={styles.checkboxLabel}><input type="checkbox" checked={showUnusedOutputs} onChange={(event) => setShowUnusedOutputs(event.target.checked)} />Show unused outputs</label>
+        <button style={styles.textButton} onClick={() => setCollapsedDistroIds([])}>Expand all</button>
+        <button style={styles.textButton} onClick={() => setCollapsedDistroIds(visibleDistros.map((distro) => distro.id))}>Collapse all</button>
+      </div>
+
       <div style={styles.summaryGrid}>
         <div style={styles.summary}><span>Populated circuits</span><strong>{rows.length}</strong></div>
         <div style={styles.summary}><span>RCD selectivity pairs</span><strong>{pairs.length}</strong></div>
         <div style={styles.summary}><span>Protection conflicts</span><strong>{rows.filter((row) => coordinationResult(row).status === "Conflict").length + pairs.filter((pair) => pairAssessment(pair).status === "Conflict").length}</strong></div>
       </div>
 
-      <section style={styles.card}>
-        <h4 style={styles.cardTitle}>Distro incomer protection</h4>
-        <p style={styles.sectionHelp}>
-          Library protection is copied into the project when a distro is
-          added. Configure or amend this project’s incomer records here.
-        </p>
-        <div style={styles.incomerGrid}>
-          {plannerState.distros.map((distro) => (
-            <div key={distro.id} style={styles.incomerCard}>
-              <strong>{displayDistroName(distro)}</strong>
-              <small style={styles.small}>Input {distro.input}</small>
-              <ProtectionEditor
-                label="Incomer protection"
-                device={distro.incomerProtection}
-                defaultRating={distro.inputA}
-                defaultPoles={distro.input.includes("/ 3") ? 3 : 1}
-                onChange={(device) =>
-                  updateIncomerProtection(distro.id, device)
-                }
-              />
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <section style={styles.card}>
-        <h4 style={styles.cardTitle}>Circuit protection coordination</h4>
-        <div style={styles.tableWrap}>
-          <table style={styles.table}>
-            <thead><tr><th style={styles.th}>Circuit</th><th style={styles.th}>Device</th><th style={styles.th}>Ib</th><th style={styles.th}>In</th><th style={styles.th}>Iz</th><th style={styles.th}>Result</th></tr></thead>
-            <tbody>{rows.map((row) => {
-              const device = row.output.protectiveDevice;
-              const capacity = adjustedCableCapacity(row.output);
-              const result = coordinationResult(row);
-              return <tr key={row.key}><td style={styles.td}><strong>{displayDistroName(row.distro)}</strong><small style={styles.small}>{row.label}</small></td><td style={styles.deviceTd}>{device && <span>{deviceLabel(device)}</span>}<ProtectionEditor label="Circuit protection" device={device} defaultRating={row.output.rating} defaultPoles={row.output.phase === "3Φ" ? 3 : 1} onChange={(nextDevice) => updateCircuitProtection(row, nextDevice)} /></td><td style={styles.td}>{row.designCurrentA.toFixed(2)}A</td><td style={styles.td}>{device && device.deviceType !== "rcd" ? `${device.ratedCurrentA}A` : "—"}</td><td style={styles.td}>{capacity === null ? "—" : `${capacity.toFixed(2)}A`}</td><td style={styles.td}><span style={result.status === "Conflict" ? styles.conflict : result.status === "Indicative" ? styles.indicative : styles.incomplete}>{result.status}</span><small style={styles.small}>{result.detail}</small></td></tr>;
-            })}</tbody>
-          </table>
-        </div>
-      </section>
+      {visibleDistros.map((distro) => {
+        const collapsed = collapsedDistroIds.includes(distro.id);
+        const distroRows = rows.filter((row) => row.distro.id === distro.id);
+        return (
+          <article key={distro.id} style={styles.card}>
+            <button style={styles.distroHeader} onClick={() => setCollapsedDistroIds((current) => collapsed ? current.filter((id) => id !== distro.id) : [...current, distro.id])}>
+              <strong>{displayDistroName(distro)}</strong><span>{collapsed ? "Expand" : "Collapse"}</span>
+            </button>
+            {!collapsed && (
+              <>
+                <div style={styles.incomerCard}>
+                  <small style={styles.small}>Input {distro.input}</small>
+                  <ProtectionEditor label="Incomer protection" device={distro.incomerProtection} defaultRating={distro.inputA} defaultPoles={distro.input.includes("/ 3") ? 3 : 1} onChange={(device) => updateIncomerProtection(distro.id, device)} />
+                </div>
+                <div style={styles.tableWrap}>
+                  <table style={styles.table}>
+                    <thead><tr><th style={styles.th}>Circuit</th><th style={styles.th}>Device</th><th style={styles.th}>Ib</th><th style={styles.th}>In</th><th style={styles.th}>Iz</th><th style={styles.th}>Result</th></tr></thead>
+                    <tbody>{distroRows.map((row) => {
+                      const device = row.output.protectiveDevice;
+                      const capacity = adjustedCableCapacity(row.output);
+                      const result = coordinationResult(row);
+                      return <tr key={row.key}><td style={styles.td}><strong>{row.label}</strong><span style={styles.infoIcon} title={circuitInformation(row)} aria-label="Circuit information">i</span></td><td style={styles.deviceTd}>{device && <span>{deviceLabel(device)}</span>}<ProtectionEditor label="Circuit protection" device={device} defaultRating={row.output.rating} defaultPoles={row.output.phase === "3Φ" ? 3 : 1} onChange={(nextDevice) => updateCircuitProtection(row, nextDevice)} /></td><td style={styles.td}>{row.designCurrentA.toFixed(2)}A</td><td style={styles.td}>{device && device.deviceType !== "rcd" ? `${device.ratedCurrentA}A` : "—"}</td><td style={styles.td}>{capacity === null ? "—" : `${capacity.toFixed(2)}A`}</td><td style={styles.td}><span style={result.status === "Conflict" ? styles.conflict : result.status === "Indicative" ? styles.indicative : styles.incomplete}>{result.status}</span><small style={styles.small}>{result.detail}</small></td></tr>;
+                    })}</tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </article>
+        );
+      })}
 
       <section style={styles.card}>
         <h4 style={styles.cardTitle}>Residual-current selectivity</h4>
@@ -331,13 +356,17 @@ export function ProtectionTab({ plannerState, setPlannerState }: ProtectionTabPr
 
 const styles: Record<string, React.CSSProperties> = {
   page: { display: "grid", gap: "16px" }, title: { margin: 0 }, muted: { margin: "6px 0 0", color: "#637083" },
+  toolbar: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px" }, compactField: { display: "flex", alignItems: "center", gap: "8px" }, toolbarLabel: { fontSize: "12px", color: "#526071", fontWeight: 600 }, filterLabel: { display: "grid", gap: "5px", color: "#637083", fontSize: "13px" }, filterInput: { minWidth: "220px", minHeight: "40px", padding: "7px 10px", border: "1px solid #cbd5e1", borderRadius: "9px", background: "white" }, checkboxLabel: { display: "flex", alignItems: "center", gap: "7px", minHeight: "40px", fontSize: "14px" }, textButton: { padding: "7px 9px", border: 0, background: "transparent", color: "#334155", textDecoration: "underline", cursor: "pointer" },
+  distroSections: { display: "grid", gap: "8px" }, distroSectionButton: { width: "100%", display: "flex", justifyContent: "space-between", padding: "12px 14px", border: "1px solid #dce5ec", borderRadius: "11px", background: "#f8fafc", color: "#111827", cursor: "pointer", textAlign: "left" },
   summaryGrid: { display: "grid", gridTemplateColumns: "repeat(3, minmax(0, 1fr))", gap: "10px" }, summary: { display: "grid", gap: "4px", padding: "14px", border: "1px solid #dce5ec", borderRadius: "12px", background: "#f8fafc" },
   card: { border: "1px solid #dce5ec", borderRadius: "14px", background: "white", overflow: "hidden" }, cardTitle: { margin: 0, padding: "14px 16px", background: "#f8fafc", borderBottom: "1px solid #dce5ec" },
+  distroHeader: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", border: 0, borderBottom: "1px solid #e5e7eb", background: "#f8fafc", color: "#111827", textAlign: "left", cursor: "pointer" },
   sectionHelp: { margin: 0, padding: "12px 16px 0", color: "#637083", fontSize: "13px" },
   incomerGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "12px", padding: "16px" },
-  incomerCard: { display: "grid", gap: "8px", padding: "12px", border: "1px solid #dce5ec", borderRadius: "12px", background: "#f8fafc" },
+  incomerCard: { display: "grid", gap: "8px", padding: "12px 16px", borderBottom: "1px solid #dce5ec", background: "#f8fafc" },
   tableWrap: { overflowX: "auto" }, table: { width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: "13px" }, th: { padding: "10px", borderBottom: "1px solid #dce5ec", textAlign: "left", color: "#526071", whiteSpace: "nowrap" }, td: { padding: "10px", borderBottom: "1px solid #eef2f6", textAlign: "left", verticalAlign: "top" }, small: { display: "block", marginTop: "4px", color: "#637083", lineHeight: 1.35 },
   deviceTd: { width: "390px", padding: "10px", borderBottom: "1px solid #eef2f6", textAlign: "left", verticalAlign: "top" },
+  infoIcon: { display: "inline-grid", placeItems: "center", width: "17px", height: "17px", marginLeft: "7px", border: "1px solid #94a3b8", borderRadius: "50%", color: "#526071", fontSize: "11px", fontWeight: 700, cursor: "help" },
   indicative: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#ecfdf3", color: "#027a48" }, conflict: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#fff1f1", color: "#c53030" }, incomplete: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#fff7e6", color: "#92400e" },
   button: { minHeight: "36px", padding: "0 12px", border: "1px solid #cbd5e1", borderRadius: "9px", background: "white", cursor: "pointer" }, disclaimer: { margin: 0, color: "#637083", fontSize: "12px" },
 };

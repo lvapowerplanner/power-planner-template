@@ -30,6 +30,12 @@ type CableProtectionTabProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   workspaceId?: string | null;
+  selectedDistroId: string;
+  setSelectedDistroId: (value: string) => void;
+  showUnusedOutputs: boolean;
+  setShowUnusedOutputs: (value: boolean) => void;
+  collapsedDistroIds: string[];
+  setCollapsedDistroIds: React.Dispatch<React.SetStateAction<string[]>>;
 };
 
 type CableCircuitRow = {
@@ -124,15 +130,36 @@ function formatNumber(value: number, decimals = 2) {
   return Number.isFinite(value) ? value.toFixed(decimals) : "-";
 }
 
+function standardCableName(record: GlobalCableLibraryRecord) {
+  const size = `${record.conductor_size_mm2} mm²`;
+  return record.display_name.toLowerCase().includes(size.toLowerCase())
+    ? record.display_name
+    : `${record.display_name} · ${size}`;
+}
+
+function circuitInformation(row: CableCircuitRow) {
+  const details = row.output.items.map((item) =>
+    `${item.quantity} × ${item.name}${item.notes?.trim() ? ` — ${item.notes.trim()}` : ""}`,
+  );
+  if (row.output.notes?.trim()) details.push(`Output notes: ${row.output.notes.trim()}`);
+  if (row.parentOutput?.notes?.trim()) details.push(`Socapex notes: ${row.parentOutput.notes.trim()}`);
+  return details.length ? details.join("\n") : "No connected-load or output notes.";
+}
+
 export function CableProtectionTab({
   plannerState,
   setPlannerState,
   workspaceId,
+  selectedDistroId,
+  setSelectedDistroId,
+  showUnusedOutputs,
+  setShowUnusedOutputs,
+  collapsedDistroIds,
+  setCollapsedDistroIds,
 }: CableProtectionTabProps) {
   const [library, setLibrary] = useState<GlobalCableLibraryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
-  const [selectedDistroId, setSelectedDistroId] = useState("all");
   const [floatingScrollbar, setFloatingScrollbar] = useState({
     visible: false,
     left: 0,
@@ -145,8 +172,26 @@ export function CableProtectionTab({
   const allRows = useMemo(() => rowsForState(plannerState), [plannerState]);
   const visibleRows = allRows.filter(
     (row) =>
-      row.connectedWatts > 0 &&
-      (selectedDistroId === "all" || row.distro.id === selectedDistroId),
+      (showUnusedOutputs || row.connectedWatts > 0) &&
+      (selectedDistroId === "all" || row.distro.id === selectedDistroId) &&
+      !collapsedDistroIds.includes(row.distro.id),
+  );
+  const visibleDistros = plannerState.distros.filter(
+    (distro) => selectedDistroId === "all" || distro.id === selectedDistroId,
+  );
+  const standardSourceReferences = Array.from(
+    new Map(
+      allRows
+        .map((row) => row.output.cableDesign)
+        .filter(
+          (design): design is CircuitCableDesign =>
+            Boolean(design && design.dataSource === "library"),
+        )
+        .map((design) => [
+          `${design.snapshot.sourceName}:${design.snapshot.sourceRevision}`,
+          `${design.snapshot.sourceName} · ${design.snapshot.sourceRevision}`,
+        ]),
+    ).values(),
   );
 
   useEffect(() => {
@@ -505,21 +550,22 @@ export function CableProtectionTab({
             coordination is assessed in the Protection subtab.
           </p>
         </div>
-        <label style={styles.filter}>
-          Distro
-          <select
-            style={styles.input}
-            value={selectedDistroId}
-            onChange={(event) => setSelectedDistroId(event.target.value)}
-          >
+      </div>
+
+      <div style={styles.toolbar}>
+        <label style={styles.compactField}>
+          <span style={styles.toolbarLabel}>View</span>
+          <select style={styles.input} value={selectedDistroId} onChange={(event) => setSelectedDistroId(event.target.value)}>
             <option value="all">All distros</option>
-            {plannerState.distros.map((distro) => (
-              <option key={distro.id} value={distro.id}>
-                {displayDistroName(distro)}
-              </option>
-            ))}
+            {plannerState.distros.map((distro) => <option key={distro.id} value={distro.id}>{displayDistroName(distro)}</option>)}
           </select>
         </label>
+        <label style={styles.checkboxLabel}>
+          <input type="checkbox" checked={showUnusedOutputs} onChange={(event) => setShowUnusedOutputs(event.target.checked)} />
+          Show unused outputs
+        </label>
+        <button style={styles.textButton} onClick={() => setCollapsedDistroIds([])}>Expand all</button>
+        <button style={styles.textButton} onClick={() => setCollapsedDistroIds(visibleDistros.map((distro) => distro.id))}>Collapse all</button>
       </div>
 
       {loading && <div style={styles.notice}>Loading global cable library…</div>}
@@ -529,6 +575,25 @@ export function CableProtectionTab({
         </div>
       )}
 
+      {visibleDistros.map((distro) => {
+        const collapsed = collapsedDistroIds.includes(distro.id);
+        const distroRows = visibleRows.filter((row) => row.distro.id === distro.id);
+        return (
+          <article key={distro.id} style={styles.distroCard}>
+            <button
+              style={styles.distroHeader}
+              onClick={() =>
+                setCollapsedDistroIds((current) =>
+                  collapsed
+                    ? current.filter((id) => id !== distro.id)
+                    : [...current, distro.id],
+                )
+              }
+            >
+              <strong>{displayDistroName(distro)}</strong>
+              <span>{collapsed ? "Expand" : "Collapse"}</span>
+            </button>
+            {!collapsed && (
       <div
         ref={tableScrollRef}
         style={styles.tableWrap}
@@ -562,7 +627,7 @@ export function CableProtectionTab({
             </tr>
           </thead>
           <tbody>
-            {visibleRows.map((row) => {
+            {distroRows.map((row) => {
               const design = row.output.cableDesign;
               const result = resultForRow(row);
               const verificationValid = Boolean(
@@ -603,8 +668,8 @@ export function CableProtectionTab({
               return (
                 <tr key={row.key}>
                   <td style={styles.circuitTd}>
-                    <strong>{displayDistroName(row.distro)}</strong>
-                    <span>{row.label}</span>
+                    <strong>{row.label}</strong>
+                    <span style={styles.infoIcon} title={circuitInformation(row)} aria-label="Circuit information">i</span>
                   </td>
                   <td style={styles.td}>{row.output.phase}</td>
                   <td style={styles.numberTd}>
@@ -635,7 +700,7 @@ export function CableProtectionTab({
                               key={record.cable_rating_id}
                               value={record.cable_rating_id}
                             >
-                              {record.display_name}
+                              {standardCableName(record)}
                               {record.suitability_class === "conditional"
                                 ? " — Conditional"
                                 : record.suitability_class === "not_recommended"
@@ -656,7 +721,7 @@ export function CableProtectionTab({
                       )}
                       <option value="custom">Custom cable data</option>
                     </select>
-                    {design && (
+                    {design && design.dataSource !== "library" && (
                       <>
                         <small style={styles.sourceText}>
                           {design.dataSource === "project-library"
@@ -939,6 +1004,10 @@ export function CableProtectionTab({
           </tbody>
         </table>
       </div>
+            )}
+          </article>
+        );
+      })}
 
       {floatingScrollbar.visible && (
         <div
@@ -963,7 +1032,21 @@ export function CableProtectionTab({
 
       {visibleRows.length === 0 && (
         <div style={styles.notice}>
-          No populated circuits are available for cable calculation.
+          {visibleDistros.length > 0 &&
+          visibleDistros.every((distro) =>
+            collapsedDistroIds.includes(distro.id),
+          )
+            ? "All selected distro sections are collapsed. Expand a distro to view its circuits."
+            : "No circuits are available for cable calculation with the current view options."}
+        </div>
+      )}
+
+      {standardSourceReferences.length > 0 && (
+        <div style={styles.sourceFooter}>
+          <strong>Standard-library source data</strong>
+          {standardSourceReferences.map((reference) => (
+            <span key={reference}>{reference}</span>
+          ))}
         </div>
       )}
 
@@ -992,6 +1075,17 @@ const styles: Record<string, React.CSSProperties> = {
     color: "#526071",
     fontSize: "12px",
   },
+  toolbar: { display: "flex", alignItems: "center", flexWrap: "wrap", gap: "12px" },
+  compactField: { display: "flex", alignItems: "center", gap: "8px" },
+  toolbarLabel: { fontSize: "12px", color: "#526071", fontWeight: 600 },
+  checkboxLabel: { display: "flex", alignItems: "center", gap: "7px", fontSize: "14px" },
+  textButton: { padding: "7px 9px", border: 0, background: "transparent", color: "#334155", textDecoration: "underline", cursor: "pointer" },
+  distroSections: { display: "grid", gap: "8px" },
+  distroSectionButton: { width: "100%", display: "flex", justifyContent: "space-between", padding: "12px 14px", border: "1px solid #DCE5EC", borderRadius: "11px", background: "#F8FAFC", color: "#111827", cursor: "pointer", textAlign: "left" },
+  distroCard: { border: "1px solid #DCE5EC", borderRadius: "16px", overflow: "hidden", background: "#FFFFFF" },
+  distroHeader: { width: "100%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "14px 16px", border: 0, borderBottom: "1px solid #E5E7EB", background: "#F8FAFC", color: "#111827", textAlign: "left", cursor: "pointer" },
+  infoIcon: { display: "inline-grid", placeItems: "center", width: "17px", height: "17px", marginLeft: "7px", border: "1px solid #94A3B8", borderRadius: "50%", color: "#526071", fontSize: "11px", fontWeight: 700, cursor: "help" },
+  sourceFooter: { display: "grid", gap: "4px", padding: "12px 14px", border: "1px solid #DCE5EC", borderRadius: "11px", background: "#F8FAFC", color: "#637083", fontSize: "12px" },
   input: {
     minHeight: "38px",
     padding: "7px 9px",

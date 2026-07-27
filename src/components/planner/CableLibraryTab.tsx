@@ -205,7 +205,11 @@ export function CableLibraryTab({
     const standardRows = globalLibrary.map((record) => ({
       id: record.cable_rating_id,
       source: "standard" as const,
-      name: record.display_name,
+      name: record.display_name.toLowerCase().includes(
+        `${Number(record.conductor_size_mm2)} mm²`.toLowerCase(),
+      )
+        ? record.display_name
+        : `${record.display_name} · ${Number(record.conductor_size_mm2)} mm²`,
       designation: record.designation ?? record.cable_type_name ?? "-",
       manufacturer: record.manufacturer ?? "-",
       application: record.application,

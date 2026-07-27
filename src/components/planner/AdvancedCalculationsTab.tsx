@@ -138,10 +138,13 @@ export function AdvancedCalculationsTab({
 }: AdvancedCalculationsTabProps) {
   const settings = settingsFor(plannerState);
   const [selectedDistroId, setSelectedDistroId] = useState("all");
-  const [collapsedDistroIds, setCollapsedDistroIds] = useState<string[]>([]);
+  const [collapsedDistroIds, setCollapsedDistroIds] = useState<string[]>(() =>
+    plannerState.distros.map((distro) => distro.id),
+  );
   const [activeSubTab, setActiveSubTab] = useState<
     "overview" | "load-demand" | "cables" | "protection" | "cable-library"
   >("overview");
+  const [hoveredSubTab, setHoveredSubTab] = useState<string | null>(null);
 
   const visibleDistros = useMemo(
     () =>
@@ -210,6 +213,25 @@ export function AdvancedCalculationsTab({
     );
   }
 
+  function selectSubTab(
+    subTab: "overview" | "load-demand" | "cables" | "protection" | "cable-library",
+    button: HTMLButtonElement,
+  ) {
+    setActiveSubTab(subTab);
+    button.blur();
+  }
+
+  function subTabStyle(subTab: string) {
+    return {
+      ...styles.subTab,
+      ...(activeSubTab === subTab
+        ? styles.activeSubTab
+        : hoveredSubTab === subTab
+          ? styles.hoveredSubTab
+          : styles.inactiveSubTab),
+    };
+  }
+
   function resetAllDiversity() {
     if (
       !confirm(
@@ -259,66 +281,102 @@ export function AdvancedCalculationsTab({
 
       <div style={styles.subTabs}>
         <button
-          style={{
-            ...styles.subTab,
-            ...(activeSubTab === "overview" ? styles.activeSubTab : {}),
-          }}
-          onClick={() => setActiveSubTab("overview")}
+          style={subTabStyle("overview")}
+          onMouseEnter={() => setHoveredSubTab("overview")}
+          onMouseLeave={() => setHoveredSubTab(null)}
+          onClick={(event) => selectSubTab("overview", event.currentTarget)}
         >
           Advanced Overview
         </button>
         <button
-          style={{
-            ...styles.subTab,
-            ...(activeSubTab === "load-demand" ? styles.activeSubTab : {}),
-          }}
-          onClick={() => setActiveSubTab("load-demand")}
+          style={subTabStyle("load-demand")}
+          onMouseEnter={() => setHoveredSubTab("load-demand")}
+          onMouseLeave={() => setHoveredSubTab(null)}
+          onClick={(event) => selectSubTab("load-demand", event.currentTarget)}
         >
           Load &amp; Demand
         </button>
         <button
-          style={{
-            ...styles.subTab,
-            ...(activeSubTab === "cables" ? styles.activeSubTab : {}),
-          }}
-          onClick={() => setActiveSubTab("cables")}
+          style={subTabStyle("cables")}
+          onMouseEnter={() => setHoveredSubTab("cables")}
+          onMouseLeave={() => setHoveredSubTab(null)}
+          onClick={(event) => selectSubTab("cables", event.currentTarget)}
         >
           Cable Design
         </button>
         <button
-          style={{
-            ...styles.subTab,
-            ...(activeSubTab === "protection" ? styles.activeSubTab : {}),
-          }}
-          onClick={() => setActiveSubTab("protection")}
+          style={subTabStyle("protection")}
+          onMouseEnter={() => setHoveredSubTab("protection")}
+          onMouseLeave={() => setHoveredSubTab(null)}
+          onClick={(event) => selectSubTab("protection", event.currentTarget)}
         >
           Protection
         </button>
         <button
-          style={{
-            ...styles.subTab,
-            ...(activeSubTab === "cable-library" ? styles.activeSubTab : {}),
-          }}
-          onClick={() => setActiveSubTab("cable-library")}
+          style={subTabStyle("cable-library")}
+          onMouseEnter={() => setHoveredSubTab("cable-library")}
+          onMouseLeave={() => setHoveredSubTab(null)}
+          onClick={(event) => selectSubTab("cable-library", event.currentTarget)}
         >
           Cable Library
         </button>
       </div>
 
       {activeSubTab === "overview" ? (
-        <SystemOverviewTab
-          plannerState={plannerState}
-          setPlannerState={setPlannerState}
-          openDistroEditor={openDistroEditor}
-          calculationView="advanced"
-          showProjectInformation={false}
-          showHeader={false}
-        />
+        <>
+          <div style={styles.settingsCard}>
+            <label style={styles.field}>
+              <span style={styles.label}>Calculation method</span>
+              <select
+                style={styles.input}
+                value={settings.calculationMethod}
+                onChange={(event) =>
+                  updateSettings({
+                    calculationMethod: event.target.value as
+                      | "real-power"
+                      | "include-power-factor",
+                  })
+                }
+              >
+                <option value="real-power">Real power only</option>
+                <option value="include-power-factor">Include power factor</option>
+              </select>
+            </label>
+            <label style={styles.field}>
+              <span style={styles.label}>Project average power factor</span>
+              <input style={styles.input} type="number" min="0.1" max="1" step="0.01" disabled={!powerFactorEnabled} value={numericInputValue(settings.defaultPowerFactor, 1)} onChange={(event) => updateSettings({ defaultPowerFactor: Math.min(1, Math.max(0.1, Number(event.target.value) || 0.1)) })} />
+            </label>
+            <label style={styles.field}>
+              <span style={styles.label}>Single-phase voltage</span>
+              <div style={styles.inputWithUnit}><input style={styles.input} type="number" min="1" step="1" value={numericInputValue(settings.nominalSinglePhaseVoltage, 230)} onChange={(event) => updateSettings({ nominalSinglePhaseVoltage: Math.max(1, Number(event.target.value) || 230) })} /><span>V</span></div>
+            </label>
+            <label style={styles.field}>
+              <span style={styles.label}>Three-phase voltage</span>
+              <div style={styles.inputWithUnit}><input style={styles.input} type="number" min="1" step="1" value={numericInputValue(settings.nominalThreePhaseVoltage, 400)} onChange={(event) => updateSettings({ nominalThreePhaseVoltage: Math.max(1, Number(event.target.value) || 400) })} /><span>V</span></div>
+            </label>
+          </div>
+          <SystemOverviewTab
+            plannerState={plannerState}
+            setPlannerState={setPlannerState}
+            openDistroEditor={openDistroEditor}
+            calculationView="advanced"
+            showProjectInformation={false}
+            showHeader={false}
+          />
+        </>
       ) : activeSubTab === "cables" ? (
         <CableProtectionTab
           plannerState={plannerState}
           setPlannerState={setPlannerState}
           workspaceId={workspaceId}
+          selectedDistroId={selectedDistroId}
+          setSelectedDistroId={setSelectedDistroId}
+          showUnusedOutputs={settings.showUnusedOutputs}
+          setShowUnusedOutputs={(showUnusedOutputs) =>
+            updateSettings({ showUnusedOutputs })
+          }
+          collapsedDistroIds={collapsedDistroIds}
+          setCollapsedDistroIds={setCollapsedDistroIds}
         />
       ) : activeSubTab === "cable-library" ? (
         <CableLibraryTab
@@ -330,6 +388,14 @@ export function AdvancedCalculationsTab({
         <ProtectionTab
           plannerState={plannerState}
           setPlannerState={setPlannerState}
+          selectedDistroId={selectedDistroId}
+          setSelectedDistroId={setSelectedDistroId}
+          showUnusedOutputs={settings.showUnusedOutputs}
+          setShowUnusedOutputs={(showUnusedOutputs) =>
+            updateSettings({ showUnusedOutputs })
+          }
+          collapsedDistroIds={collapsedDistroIds}
+          setCollapsedDistroIds={setCollapsedDistroIds}
         />
       ) : (
         <>
@@ -753,6 +819,7 @@ const styles: Record<string, React.CSSProperties> = {
   subtitle: { margin: "6px 0 0", color: "#637083" },
   subTabs: {
     display: "flex",
+    flexWrap: "wrap",
     gap: "4px",
     padding: "5px",
     border: "1px solid #DCE5EC",
@@ -766,12 +833,16 @@ const styles: Record<string, React.CSSProperties> = {
     background: "transparent",
     color: "#526071",
     cursor: "pointer",
+    boxShadow: "none",
+    outline: "none",
   },
   activeSubTab: {
     borderColor: "var(--lva-workspace-highlight-border, #242424)",
     background: "var(--lva-workspace-highlight, #ececec)",
     color: "#111827",
   },
+  inactiveSubTab: { borderColor: "transparent", background: "#F8FAFC", color: "#526071", boxShadow: "none" },
+  hoveredSubTab: { borderColor: "#CBD5E1", background: "#EEF2F6", color: "#111827", boxShadow: "none" },
   settingsCard: {
     display: "grid",
     gridTemplateColumns: "repeat(auto-fit, minmax(190px, 1fr))",
