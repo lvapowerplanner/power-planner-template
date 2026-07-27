@@ -12,15 +12,36 @@ export function CustomDistrosTab({
   setPlannerState,
 }: CustomDistrosTabProps) {
   const [builderKey, setBuilderKey] = useState(0);
+  const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   function saveCustomDistro(definition: DistroDefinition) {
+    const savedDefinition = { ...definition, custom: true };
+
     setPlannerState({
       ...plannerState,
-      customDistros: [
-        ...plannerState.customDistros,
-        { ...definition, custom: true },
-      ],
+      customDistros:
+        editingIndex == null
+          ? [...plannerState.customDistros, savedDefinition]
+          : plannerState.customDistros.map((distro, index) =>
+              index === editingIndex ? savedDefinition : distro,
+            ),
     });
+    setEditingIndex(null);
+    setBuilderKey((value) => value + 1);
+  }
+
+  function editCustomDistro(index: number) {
+    setEditingIndex(index);
+    setBuilderKey((value) => value + 1);
+    window.setTimeout(() => {
+      document
+        .getElementById("custom-distro-builder")
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
+  }
+
+  function cancelEdit() {
+    setEditingIndex(null);
     setBuilderKey((value) => value + 1);
   }
 
@@ -33,6 +54,12 @@ export function CustomDistrosTab({
         (_distro, distroIndex) => distroIndex !== index,
       ),
     });
+
+    if (editingIndex === index) {
+      cancelEdit();
+    } else if (editingIndex != null && editingIndex > index) {
+      setEditingIndex(editingIndex - 1);
+    }
   }
 
   return (
@@ -44,11 +71,31 @@ export function CustomDistrosTab({
         with “Custom:”.
       </p>
 
-      <div style={styles.builderPanel}>
+      <div id="custom-distro-builder" style={styles.builderPanel}>
+        <div style={styles.builderHeading}>
+          <h3 style={styles.builderTitle}>
+            {editingIndex == null
+              ? "Build a custom distro"
+              : `Editing: ${plannerState.customDistros[editingIndex]?.name ?? "Custom distro"}`}
+          </h3>
+          {editingIndex != null && (
+            <span style={styles.editingBadge}>Editing saved distro</span>
+          )}
+        </div>
         <DistroDefinitionBuilder
           key={builderKey}
-          saveLabel="Save Custom Distro"
+          initialDefinition={
+            editingIndex == null
+              ? undefined
+              : plannerState.customDistros[editingIndex]
+          }
+          saveLabel={
+            editingIndex == null
+              ? "Save Custom Distro"
+              : "Update Custom Distro"
+          }
           onSave={saveCustomDistro}
+          onCancel={editingIndex == null ? undefined : cancelEdit}
         />
       </div>
 
@@ -67,12 +114,20 @@ export function CustomDistrosTab({
                   Input {distro.input} · {distro.outputs.length} outputs
                 </p>
               </div>
-              <button
-                style={styles.dangerButton}
-                onClick={() => deleteCustomDistro(index)}
-              >
-                Delete
-              </button>
+              <div style={styles.actions}>
+                <button
+                  style={styles.editButton}
+                  onClick={() => editCustomDistro(index)}
+                >
+                  Edit
+                </button>
+                <button
+                  style={styles.dangerButton}
+                  onClick={() => deleteCustomDistro(index)}
+                >
+                  Delete
+                </button>
+              </div>
             </div>
           ))}
         </div>
@@ -98,6 +153,22 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "16px",
     background: "#F5F7FA",
   },
+  builderHeading: {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    gap: "12px",
+    marginBottom: "14px",
+  },
+  builderTitle: { margin: 0 },
+  editingBadge: {
+    padding: "5px 9px",
+    borderRadius: "999px",
+    background: "#DBEAFE",
+    color: "#1D4ED8",
+    fontSize: "12px",
+    fontWeight: 600,
+  },
   divider: { border: 0, borderTop: "1px solid #DCE5EC", margin: "22px 0" },
   savedList: { display: "grid", gap: "10px" },
   savedCard: {
@@ -109,6 +180,18 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     gap: "12px",
     alignItems: "center",
+  },
+  actions: { display: "flex", alignItems: "center", gap: "8px" },
+  editButton: {
+    minHeight: "40px",
+    padding: "0 12px",
+    borderRadius: "10px",
+    border: "1px solid #CBD5E1",
+    background: "#FFFFFF",
+    color: "#334155",
+    cursor: "pointer",
+    font: "inherit",
+    fontWeight: 500,
   },
   dangerButton: {
     minHeight: "40px",

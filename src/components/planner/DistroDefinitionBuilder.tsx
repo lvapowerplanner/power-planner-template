@@ -50,6 +50,29 @@ function copyProtectiveDevice(
   return { ...device, id };
 }
 
+function duplicateProtectiveDevice(
+  device: ProtectiveDevice,
+  id = createId("protection"),
+) {
+  return {
+    ...device,
+    id,
+    residualProtection: device.residualProtection
+      ? {
+          ...device.residualProtection,
+          availableResidualSettingsMa:
+            device.residualProtection.availableResidualSettingsMa
+              ? [...device.residualProtection.availableResidualSettingsMa]
+              : undefined,
+          availableDelaySettingsMs:
+            device.residualProtection.availableDelaySettingsMs
+              ? [...device.residualProtection.availableDelaySettingsMs]
+              : undefined,
+        }
+      : undefined,
+  };
+}
+
 function copyOutputWithNewIds(
   output: PlannerOutput,
   deviceIds: Map<string, string>,
@@ -203,12 +226,14 @@ export function ProtectionEditor({
   defaultRating,
   defaultPoles,
   onChange,
+  onPasteToOutputs,
 }: {
   label: string;
   device: ProtectiveDevice | undefined;
   defaultRating: number;
   defaultPoles: number;
   onChange: (device: ProtectiveDevice | undefined) => void;
+  onPasteToOutputs?: (device: ProtectiveDevice) => void;
 }) {
   if (!device) {
     return (
@@ -483,6 +508,15 @@ export function ProtectionEditor({
       )}
 
       <div style={styles.protectionFooter}>
+        {onPasteToOutputs && (
+          <button
+            type="button"
+            style={styles.compactButton}
+            onClick={() => onPasteToOutputs(configuredDevice)}
+          >
+            Paste to outputs
+          </button>
+        )}
         <button style={styles.removeProtectionButton} onClick={() => onChange(undefined)}>
           Remove Protection
         </button>
@@ -511,6 +545,11 @@ export function DistroDefinitionBuilder({
     useState<ProtectiveDevice | undefined>(
       initialDefinition?.incomerProtection,
     );
+  const [protectionPaste, setProtectionPaste] = useState<{
+    sourceOutput: PlannerOutput;
+    device: ProtectiveDevice;
+    selectedOutputIds: string[];
+  } | null>(null);
   const singlePhaseInput = isSinglePhaseInput(input);
 
   useEffect(() => {
@@ -518,7 +557,93 @@ export function DistroDefinitionBuilder({
     setInput(initialDefinition?.input ?? "32A / 3");
     setOutputs(initialDefinition?.outputs ?? []);
     setIncomerProtection(initialDefinition?.incomerProtection);
+    setProtectionPaste(null);
   }, [initialDefinition]);
+
+  function protectionRating(output: PlannerOutput) {
+    return output.phase === "Socapex" ? 16 : output.rating;
+  }
+
+  function openProtectionPaste(
+    sourceOutput: PlannerOutput,
+    device: ProtectiveDevice,
+  ) {
+    setProtectionPaste({
+      sourceOutput,
+      device,
+      selectedOutputIds: [],
+    });
+  }
+
+  function toggleProtectionPasteTarget(outputId: string) {
+    setProtectionPaste((current) =>
+      current
+        ? {
+            ...current,
+            selectedOutputIds: current.selectedOutputIds.includes(outputId)
+              ? current.selectedOutputIds.filter((id) => id !== outputId)
+              : [...current.selectedOutputIds, outputId],
+          }
+        : current,
+    );
+  }
+
+  function applyProtectionPaste() {
+    if (!protectionPaste || protectionPaste.selectedOutputIds.length === 0) {
+      return;
+    }
+
+    setOutputs((current) => {
+      const selected = new Set(protectionPaste.selectedOutputIds);
+      const pastedDeviceIds = new Map<string, string>();
+      const selectedBreakerPairs = new Set(
+        current
+          .filter(
+            (output) => selected.has(output.id) && output.breakerPair,
+          )
+          .map((output) => output.breakerPair as string),
+      );
+
+      return current.map((output) => {
+        const targeted =
+          selected.has(output.id) ||
+          Boolean(
+            output.breakerPair &&
+              selectedBreakerPairs.has(output.breakerPair),
+          );
+        if (!targeted) return output;
+
+        if (output.phase !== "Socapex") {
+          return {
+            ...output,
+            protectiveDevice: duplicateProtectiveDevice(
+              protectionPaste.device,
+            ),
+          };
+        }
+
+        return {
+          ...output,
+          socaCircuits: (output.socaCircuits ?? []).map((circuit) => ({
+            ...circuit,
+            protectiveDevice: duplicateProtectiveDevice(
+              protectionPaste.device,
+              (() => {
+                const key = `${output.breakerPair ?? output.id}:${circuit.circuitNo ?? circuit.id}`;
+                const existing = pastedDeviceIds.get(key);
+                if (existing) return existing;
+                const id = createId("protection");
+                pastedDeviceIds.set(key, id);
+                return id;
+              })(),
+            ),
+          })),
+        };
+      });
+    });
+
+    setProtectionPaste(null);
+  }
 
   function updateOutputProtection(
     output: PlannerOutput,
@@ -786,12 +911,114 @@ export function DistroDefinitionBuilder({
                   }
                   defaultPoles={output.phase === "3Φ" ? 3 : 1}
                   onChange={(device) => updateOutputProtection(output, device)}
+                  onPasteToOutputs={(device) =>
+                    openProtectionPaste(output, device)
+                  }
                 />
               </div>
             ))}
           </div>
         )}
       </section>
+
+      {protectionPaste && (
+        <div
+          style={styles.modalBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) {
+              setProtectionPaste(null);
+            }
+          }}
+        >
+          <section
+            style={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="paste-protection-title"
+          >
+            <div style={styles.modalHeader}>
+              <div>
+                <h3 id="paste-protection-title" style={styles.heading}>
+                  Paste protection to outputs
+                </h3>
+                <p style={styles.mutedSmall}>
+                  Copying {protectionPaste.device.deviceType.toUpperCase()} ·{" "}
+                  {protectionPaste.device.ratedCurrentA}A from{" "}
+                  {outputLabel(protectionPaste.sourceOutput)}. Only outputs
+                  with a matching {protectionRating(protectionPaste.sourceOutput)}A
+                  circuit rating are available.
+                </p>
+              </div>
+              <button
+                type="button"
+                style={styles.modalCloseButton}
+                onClick={() => setProtectionPaste(null)}
+                aria-label="Close protection paste dialog"
+              >
+                ×
+              </button>
+            </div>
+
+            <div style={styles.pasteTargetList}>
+              {outputs
+                .filter(
+                  (output) =>
+                    output.id !== protectionPaste.sourceOutput.id &&
+                    protectionRating(output) ===
+                      protectionRating(protectionPaste.sourceOutput),
+                )
+                .map((output) => (
+                  <label key={output.id} style={styles.pasteTarget}>
+                    <input
+                      type="checkbox"
+                      checked={protectionPaste.selectedOutputIds.includes(
+                        output.id,
+                      )}
+                      onChange={() => toggleProtectionPasteTarget(output.id)}
+                    />
+                    <span>
+                      <strong>{outputLabel(output)}</strong>
+                      <small style={styles.pasteTargetDetail}>
+                        {output.phase === "Socapex"
+                          ? `Socapex output · six ${protectionRating(output)}A circuits${output.breakerPair ? " · twin shared breakers" : ""}`
+                          : `${output.phase} · ${output.type} · ${output.rating}A`}
+                      </small>
+                    </span>
+                  </label>
+                ))}
+              {outputs.filter(
+                (output) =>
+                  output.id !== protectionPaste.sourceOutput.id &&
+                  protectionRating(output) ===
+                    protectionRating(protectionPaste.sourceOutput),
+              ).length === 0 && (
+                <div style={styles.protectionEmpty}>
+                  No other outputs in this distro have the same circuit rating.
+                </div>
+              )}
+            </div>
+
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                style={styles.cancelButton}
+                onClick={() => setProtectionPaste(null)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={styles.primaryButton}
+                disabled={protectionPaste.selectedOutputIds.length === 0}
+                onClick={applyProtectionPaste}
+              >
+                Paste protection
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
 
       <div style={styles.saveActions}>
         {onCancel && (
@@ -830,7 +1057,7 @@ const styles: Record<string, React.CSSProperties> = {
   residualPanel: { borderTop: "1px solid #d9e0ea", padding: "14px 0 4px", background: "#f8fafc" },
   inputWithUnit: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "center", gap: "8px" },
   checkboxLabel: { display: "flex", alignItems: "center", gap: "8px", color: "#637083", fontWeight: 400, minHeight: "44px", marginTop: "22px" },
-  protectionFooter: { display: "flex", justifyContent: "flex-end", padding: "0 12px 12px" },
+  protectionFooter: { display: "flex", justifyContent: "flex-end", gap: "8px", padding: "0 12px 12px" },
   removeProtectionButton: { minHeight: "36px", padding: "0 12px", borderRadius: "9px", border: "1px solid #c53030", background: "#fff5f5", color: "#c53030", cursor: "pointer", font: "inherit", fontWeight: 500 },
   saveActions: { display: "flex", justifyContent: "flex-end", gap: "8px" },
   primaryButton: { minHeight: "44px", padding: "0 16px", borderRadius: "10px", border: "1px solid var(--lva-workspace-dark-button, #172033)", background: "var(--lva-workspace-dark-button, #172033)", color: "white", cursor: "pointer", font: "inherit", fontWeight: 600 },
@@ -838,4 +1065,12 @@ const styles: Record<string, React.CSSProperties> = {
   cancelButton: { minHeight: "44px", marginTop: 0, padding: "0 16px", borderRadius: "10px", border: "1px solid #d9e0ea", background: "white", color: "#172033", cursor: "pointer", font: "inherit", fontWeight: 500 },
   iconButton: { width: "38px", height: "38px", borderRadius: "9px", border: "1px solid #d9e0ea", background: "white", cursor: "pointer" },
   dangerButton: { minHeight: "38px", padding: "0 12px", borderRadius: "9px", border: "1px solid #c53030", background: "#fff5f5", color: "#c53030", cursor: "pointer", font: "inherit", fontWeight: 500 },
+  modalBackdrop: { position: "fixed", inset: 0, zIndex: 1000, display: "grid", placeItems: "center", padding: "20px", background: "rgba(15, 23, 42, 0.48)" },
+  modal: { width: "min(620px, 100%)", maxHeight: "min(760px, calc(100vh - 40px))", display: "grid", gap: "16px", padding: "20px", overflowY: "auto", borderRadius: "16px", background: "white", boxShadow: "0 24px 70px rgba(15, 23, 42, 0.28)" },
+  modalHeader: { display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: "16px" },
+  modalCloseButton: { width: "36px", height: "36px", flex: "0 0 auto", border: "1px solid #d9e0ea", borderRadius: "9px", background: "white", color: "#526071", cursor: "pointer", fontSize: "22px", lineHeight: 1 },
+  pasteTargetList: { display: "grid", gap: "8px" },
+  pasteTarget: { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", alignItems: "start", gap: "10px", padding: "12px", border: "1px solid #d9e0ea", borderRadius: "10px", background: "#f8fafc", cursor: "pointer" },
+  pasteTargetDetail: { display: "block", marginTop: "3px", color: "#637083", fontWeight: 400 },
+  modalActions: { display: "flex", justifyContent: "flex-end", gap: "8px", paddingTop: "4px", borderTop: "1px solid #e5e7eb" },
 };
