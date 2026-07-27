@@ -15,7 +15,13 @@ export function CustomDistrosTab({
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
 
   function saveCustomDistro(definition: DistroDefinition) {
-    const savedDefinition = { ...definition, custom: true };
+    const savedDefinition = {
+      ...definition,
+      libraryReferenceId:
+        definition.libraryReferenceId ??
+        `project-custom_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      custom: true,
+    };
 
     setPlannerState({
       ...plannerState,

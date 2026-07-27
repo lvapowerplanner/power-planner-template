@@ -151,7 +151,11 @@ function mapDistroRow(row: any): DistroDefinition | null {
   }
 
   if (storedDefinition && typeof storedDefinition === "object") {
-    return storedDefinition as DistroDefinition;
+    return {
+      ...(storedDefinition as DistroDefinition),
+      name: String(row.name ?? (storedDefinition as DistroDefinition).name),
+      libraryReferenceId: String(row.id),
+    };
   }
 
   const outputConnectors = Array.isArray(row.output_connectors)
@@ -166,6 +170,7 @@ function mapDistroRow(row: any): DistroDefinition | null {
 
   return {
     name: String(row.name),
+    libraryReferenceId: String(row.id),
     input: normaliseInputConnector(row.input_connector),
     inputA: Number(row.rating_amps ?? 0),
     outputs: outputConnectors.map((connector: string, index: number) =>

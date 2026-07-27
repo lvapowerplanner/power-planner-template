@@ -118,6 +118,13 @@ export type ProtectiveDeviceCurve =
 
 export type RcdType = "AC" | "A" | "F" | "B" | "other";
 
+export type ResidualCoordinationOverride = {
+  residualCurrentOverridden?: boolean;
+  timeDelayOverridden?: boolean;
+  reason?: string;
+  updatedAt?: string;
+};
+
 export type ResidualCurrentProtection = {
   rcdType: RcdType;
   settingMode: "fixed" | "adjustable";
@@ -127,6 +134,7 @@ export type ResidualCurrentProtection = {
   timeDelayMs: number;
   availableDelaySettingsMs?: number[];
   selectiveType?: boolean;
+  coordinationOverride?: ResidualCoordinationOverride;
 };
 
 export type ProtectiveDevice = {
@@ -168,6 +176,7 @@ export type PlannerOutput = {
 
 export type DistroDefinition = {
   name: string;
+  libraryReferenceId?: string;
   input: string;
   inputA: number;
   outputs: PlannerOutput[];

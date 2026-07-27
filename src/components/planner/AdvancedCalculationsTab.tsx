@@ -1,8 +1,9 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import { CableProtectionTab } from "@/components/planner/CableProtectionTab";
 import { CableLibraryTab } from "@/components/planner/CableLibraryTab";
 import { ProtectionTab } from "@/components/planner/ProtectionTab";
+import { useCompanyDistroLibrary } from "@/planner/companyStock";
 import {
   calculateAdvancedCircuit,
   childDistroFedFromOutput,
@@ -130,12 +131,147 @@ function supplyLabelForDistro(
     : source.name;
 }
 
+function normalisedModelName(value: string) {
+  return value
+    .replace(/^custom:\s*/i, "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase();
+}
+
+function referencedModelName(distro: ProjectDistro) {
+  const instanceName = distro.instanceName.trim();
+  const storedName = distro.name.trim();
+
+  if (instanceName) {
+    const prefixPattern = new RegExp(
+      `^${instanceName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\s*[-–—]\s*`,
+      "i",
+    );
+    return normalisedModelName(storedName.replace(prefixPattern, ""));
+  }
+
+  return normalisedModelName(storedName);
+}
+
+function outputHasAssignments(output: PlannerOutput) {
+  return (
+    output.items.length > 0 ||
+    Boolean(
+      output.notes?.trim() ||
+        output.cableDesign ||
+        output.diversityPercent != null ||
+        output.powerFactorOverride != null,
+    ) ||
+    (output.socaCircuits ?? []).some(
+      (circuit) =>
+        circuit.items.length > 0 ||
+        Boolean(
+          circuit.notes?.trim() ||
+            circuit.cableDesign ||
+            circuit.diversityPercent != null ||
+            circuit.powerFactorOverride != null,
+        ),
+    )
+  );
+}
+
+function matchingOutput(
+  modelOutput: PlannerOutput,
+  modelIndex: number,
+  existingOutputs: PlannerOutput[],
+  usedIds: Set<string>,
+) {
+  const available = existingOutputs.filter((output) => !usedIds.has(output.id));
+  return (
+    available.find((output) => output.id === modelOutput.id) ??
+    available.find(
+      (output) =>
+        modelOutput.outputNumber != null &&
+        output.outputNumber === modelOutput.outputNumber &&
+        output.phase === modelOutput.phase,
+    ) ??
+    available.find(
+      (output) =>
+        output.label === modelOutput.label &&
+        output.phase === modelOutput.phase &&
+        output.rating === modelOutput.rating,
+    ) ??
+    (existingOutputs[modelIndex] &&
+    !usedIds.has(existingOutputs[modelIndex].id) &&
+    existingOutputs[modelIndex].phase === modelOutput.phase &&
+    existingOutputs[modelIndex].rating === modelOutput.rating
+      ? existingOutputs[modelIndex]
+      : undefined)
+  );
+}
+
+function mergeCircuitModel(
+  modelCircuit: PlannerOutput,
+  existingCircuit: PlannerOutput | undefined,
+) {
+  if (!existingCircuit) return { ...modelCircuit, items: [], notes: modelCircuit.notes ?? "" };
+  return {
+    ...modelCircuit,
+    id: existingCircuit.id,
+    items: existingCircuit.items,
+    notes: existingCircuit.notes ?? "",
+    diversityPercent: existingCircuit.diversityPercent,
+    diversityReason: existingCircuit.diversityReason,
+    powerFactorOverride: existingCircuit.powerFactorOverride,
+    cableDesign: existingCircuit.cableDesign,
+  };
+}
+
+function mergeOutputModel(
+  modelOutput: PlannerOutput,
+  existingOutput: PlannerOutput | undefined,
+) {
+  if (!existingOutput) {
+    return {
+      ...modelOutput,
+      items: [],
+      notes: modelOutput.notes ?? "",
+      socaCircuits: modelOutput.socaCircuits?.map((circuit) => ({
+        ...circuit,
+        items: [],
+        notes: circuit.notes ?? "",
+      })),
+    };
+  }
+
+  const existingCircuits = existingOutput.socaCircuits ?? [];
+  return {
+    ...modelOutput,
+    id: existingOutput.id,
+    items: existingOutput.items,
+    notes: existingOutput.notes ?? "",
+    diversityPercent: existingOutput.diversityPercent,
+    diversityReason: existingOutput.diversityReason,
+    powerFactorOverride: existingOutput.powerFactorOverride,
+    cableDesign: existingOutput.cableDesign,
+    socaCircuits: modelOutput.socaCircuits?.map((circuit, index) =>
+      mergeCircuitModel(
+        circuit,
+        existingCircuits.find((current) => current.id === circuit.id) ??
+          existingCircuits.find(
+            (current) =>
+              current.circuitNo != null &&
+              current.circuitNo === circuit.circuitNo,
+          ) ??
+          existingCircuits[index],
+      ),
+    ),
+  };
+}
+
 export function AdvancedCalculationsTab({
   plannerState,
   setPlannerState,
   openDistroEditor,
   workspaceId,
 }: AdvancedCalculationsTabProps) {
+  const { distroLibrary, loadingDistros } = useCompanyDistroLibrary();
   const settings = settingsFor(plannerState);
   const [selectedDistroId, setSelectedDistroId] = useState("all");
   const [collapsedDistroIds, setCollapsedDistroIds] = useState<string[]>(() =>
@@ -145,6 +281,9 @@ export function AdvancedCalculationsTab({
     "overview" | "load-demand" | "cables" | "protection" | "cable-library"
   >("overview");
   const [hoveredSubTab, setHoveredSubTab] = useState<string | null>(null);
+  const [refreshDistroId, setRefreshDistroId] = useState(
+    plannerState.distros[0]?.id ?? "",
+  );
 
   const visibleDistros = useMemo(
     () =>
@@ -155,6 +294,15 @@ export function AdvancedCalculationsTab({
           ),
     [plannerState.distros, selectedDistroId],
   );
+
+  useEffect(() => {
+    if (
+      plannerState.distros.length > 0 &&
+      !plannerState.distros.some((distro) => distro.id === refreshDistroId)
+    ) {
+      setRefreshDistroId(plannerState.distros[0].id);
+    }
+  }, [plannerState.distros, refreshDistroId]);
 
   function updateSettings(patch: Partial<AdvancedElectricalSettings>) {
     setPlannerState({
@@ -259,6 +407,93 @@ export function AdvancedCalculationsTab({
     });
   }
 
+  function refreshDistroModel() {
+    const distro = plannerState.distros.find(
+      (candidate) => candidate.id === refreshDistroId,
+    );
+    if (!distro) return;
+
+    const modelName = referencedModelName(distro);
+
+    const referencedModel =
+      distroLibrary.find(
+        (definition) =>
+          definition.libraryReferenceId &&
+          definition.libraryReferenceId === distro.libraryReferenceId,
+      ) ??
+      plannerState.customDistros.find(
+        (definition) =>
+          definition.libraryReferenceId &&
+          definition.libraryReferenceId === distro.libraryReferenceId,
+      ) ??
+      distroLibrary.find(
+        (definition) => normalisedModelName(definition.name) === modelName,
+      ) ??
+      plannerState.customDistros.find(
+        (definition) => normalisedModelName(definition.name) === modelName,
+      );
+
+    if (!referencedModel) {
+      alert(
+        "The referenced distro model could not be found in the current workspace or project library.",
+      );
+      return;
+    }
+
+    const usedOutputIds = new Set<string>();
+    const outputMatches = referencedModel.outputs.map((modelOutput, index) => {
+      const match = matchingOutput(
+        modelOutput,
+        index,
+        distro.outputs,
+        usedOutputIds,
+      );
+      if (match) usedOutputIds.add(match.id);
+      return { modelOutput, match };
+    });
+    const assignedRemovedOutputs = distro.outputs.filter(
+      (output) => !usedOutputIds.has(output.id) && outputHasAssignments(output),
+    );
+
+    if (assignedRemovedOutputs.length > 0) {
+      alert(
+        `The model cannot be refreshed because ${assignedRemovedOutputs.length} removed or unmatched output${assignedRemovedOutputs.length === 1 ? " still contains" : "s still contain"} equipment assignments. Move those assignments before refreshing.`,
+      );
+      return;
+    }
+
+    if (
+      !confirm(
+        `Refresh ${displayDistroName(distro)} from ${referencedModel.name}? Output assignments and project calculation settings will be retained. Model structure and built-in protection will be updated.`,
+      )
+    ) {
+      return;
+    }
+
+    const refreshedDistro: ProjectDistro = {
+      ...distro,
+      ...referencedModel,
+      id: distro.id,
+      libraryReferenceId:
+        referencedModel.libraryReferenceId ?? distro.libraryReferenceId,
+      instanceName: distro.instanceName,
+      sourceId: distro.sourceId,
+      location: distro.location,
+      notes: distro.notes,
+      inboundCableDesign: distro.inboundCableDesign,
+      outputs: outputMatches.map(({ modelOutput, match }) =>
+        mergeOutputModel(modelOutput, match),
+      ),
+    };
+
+    setPlannerState({
+      ...plannerState,
+      distros: plannerState.distros.map((candidate) =>
+        candidate.id === distro.id ? refreshedDistro : candidate,
+      ),
+    });
+  }
+
   const powerFactorEnabled =
     settings.calculationMethod === "include-power-factor";
 
@@ -319,6 +554,35 @@ export function AdvancedCalculationsTab({
           onClick={(event) => selectSubTab("cable-library", event.currentTarget)}
         >
           Cable Library
+        </button>
+      </div>
+
+      <div style={styles.modelRefreshBar}>
+        <div>
+          <strong>Refresh distro model</strong>
+          <small style={styles.modelRefreshHelp}>
+            Pull updated outputs and built-in protection from the referenced library item while retaining project assignments and calculation settings.
+          </small>
+        </div>
+        <select
+          style={styles.modelRefreshSelect}
+          value={refreshDistroId}
+          onChange={(event) => setRefreshDistroId(event.target.value)}
+          disabled={plannerState.distros.length === 0 || loadingDistros}
+        >
+          {plannerState.distros.length === 0 && <option value="">No distros</option>}
+          {plannerState.distros.map((distro) => (
+            <option key={distro.id} value={distro.id}>
+              {displayDistroName(distro)}
+            </option>
+          ))}
+        </select>
+        <button
+          style={styles.secondaryButton}
+          onClick={refreshDistroModel}
+          disabled={!refreshDistroId || loadingDistros}
+        >
+          {loadingDistros ? "Loading library…" : "Refresh model"}
         </button>
       </div>
 
@@ -892,6 +1156,31 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "10px",
     background: "#FFFFFF",
     cursor: "pointer",
+  },
+  modelRefreshBar: {
+    display: "grid",
+    gridTemplateColumns: "minmax(260px, 1fr) minmax(220px, 320px) auto",
+    alignItems: "center",
+    gap: "12px",
+    padding: "12px 14px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "12px",
+    background: "#F8FAFC",
+  },
+  modelRefreshHelp: {
+    display: "block",
+    marginTop: "3px",
+    color: "#637083",
+    fontWeight: 400,
+    lineHeight: 1.35,
+  },
+  modelRefreshSelect: {
+    width: "100%",
+    minHeight: "40px",
+    padding: "7px 9px",
+    border: "1px solid #CBD5E1",
+    borderRadius: "9px",
+    background: "#FFFFFF",
   },
   textButton: {
     padding: "7px 9px",

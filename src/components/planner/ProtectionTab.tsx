@@ -173,15 +173,49 @@ function pairAssessment(pair: SelectivityPair) {
   const currentRatioOkay = upstream.residualCurrentMa >= downstream.residualCurrentMa * 3;
   const delayOkay = upstream.delayMode !== "instantaneous" && upstream.timeDelayMs > downstream.timeDelayMs;
   const typeConflict = upstream.rcdType === "AC" && downstream.rcdType !== "AC";
+  const residualSettingAvailable =
+    !upstream.availableResidualSettingsMa?.length ||
+    upstream.availableResidualSettingsMa.includes(upstream.residualCurrentMa);
+  const delaySettingAvailable =
+    !upstream.availableDelaySettingsMs?.length ||
+    upstream.availableDelaySettingsMs.includes(upstream.timeDelayMs);
+  const settingsKnown = Boolean(
+    upstream.availableResidualSettingsMa?.length &&
+      upstream.availableDelaySettingsMs?.length,
+  );
+  const conflict =
+    !currentRatioOkay ||
+    !delayOkay ||
+    typeConflict ||
+    !residualSettingAvailable ||
+    !delaySettingAvailable;
   return {
-    status: currentRatioOkay && delayOkay && !typeConflict ? "Indicative" : "Conflict",
+    status: conflict ? "Conflict" : settingsKnown ? "Coordinated" : "Indicative",
     suggestedResidualMa,
     suggestedDelayMs,
     typeConflict,
+    currentRatioOkay,
+    delayOkay,
+    residualSettingAvailable,
+    delaySettingAvailable,
+    settingsKnown,
     canApply:
       (upstream.settingMode === "adjustable" && upstream.residualCurrentMa !== suggestedResidualMa) ||
       (upstream.delayMode === "adjustable-delay" && upstream.timeDelayMs !== suggestedDelayMs),
   };
+}
+
+function assessmentDetail(assessment: ReturnType<typeof pairAssessment>) {
+  const issues: string[] = [];
+  if (!assessment.currentRatioOkay) issues.push("Residual-current sensitivity is below the generic 3:1 grading screen.");
+  if (!assessment.delayOkay) issues.push("The upstream delay is not greater than the downstream delay.");
+  if (assessment.typeConflict) issues.push("Upstream Type AC requires review against the downstream RCD type.");
+  if (!assessment.residualSettingAvailable) issues.push("Selected residual-current value is outside the declared device settings.");
+  if (!assessment.delaySettingAvailable) issues.push("Selected delay is outside the declared device settings.");
+  if (issues.length) return issues.join(" ");
+  return assessment.settingsKnown
+    ? "Selected settings pass the generic grading screen and match the declared device settings. Confirm manufacturer coordination data."
+    : "Selected settings pass the generic grading screen. Available device settings or manufacturer coordination data are incomplete.";
 }
 
 export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId, setSelectedDistroId, showUnusedOutputs, setShowUnusedOutputs, collapsedDistroIds, setCollapsedDistroIds }: ProtectionTabProps) {
@@ -278,6 +312,48 @@ export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId,
         current.settingMode === "adjustable" ? assessment.suggestedResidualMa : current.residualCurrentMa,
       timeDelayMs:
         current.delayMode === "adjustable-delay" ? assessment.suggestedDelayMs : current.timeDelayMs,
+      coordinationOverride: {
+        residualCurrentOverridden: false,
+        timeDelayOverridden: false,
+        reason: undefined,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  function overrideSetting(
+    pair: SelectivityPair,
+    field: "residualCurrentMa" | "timeDelayMs",
+    value: number,
+  ) {
+    const current = pair.upstream.residualProtection!;
+    updateDevice(pair.upstream.id, {
+      ...current,
+      [field]: Math.max(0, value),
+      coordinationOverride: {
+        ...current.coordinationOverride,
+        residualCurrentOverridden:
+          field === "residualCurrentMa"
+            ? true
+            : current.coordinationOverride?.residualCurrentOverridden,
+        timeDelayOverridden:
+          field === "timeDelayMs"
+            ? true
+            : current.coordinationOverride?.timeDelayOverridden,
+        updatedAt: new Date().toISOString(),
+      },
+    });
+  }
+
+  function updateOverrideReason(pair: SelectivityPair, reason: string) {
+    const current = pair.upstream.residualProtection!;
+    updateDevice(pair.upstream.id, {
+      ...current,
+      coordinationOverride: {
+        ...current.coordinationOverride,
+        reason,
+        updatedAt: new Date().toISOString(),
+      },
     });
   }
 
@@ -340,10 +416,128 @@ export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId,
       <section style={styles.card}>
         <h4 style={styles.cardTitle}>Residual-current selectivity</h4>
         {pairs.length === 0 ? <p style={styles.muted}>No series-connected RCD pairs were found on populated circuit paths.</p> : (
-          <div style={styles.tableWrap}><table style={{ ...styles.table, minWidth: "1100px" }}><thead><tr><th style={styles.th}>Protected circuits</th><th style={styles.th}>Downstream</th><th style={styles.th}>Upstream</th><th style={styles.th}>Suggested upstream</th><th style={styles.th}>Assessment</th><th style={styles.th}>Action</th></tr></thead><tbody>
+          <div style={styles.tableWrap}><table style={{ ...styles.table, minWidth: "1550px" }}><thead><tr><th style={styles.th}>Protected circuits</th><th style={styles.th}>Downstream</th><th style={styles.th}>Upstream</th><th style={styles.th}>Suggested upstream</th><th style={styles.th}>Selected upstream settings</th><th style={styles.th}>Setting source</th><th style={styles.th}>Assessment</th><th style={styles.th}>Action</th></tr></thead><tbody>
             {pairs.map((pair) => {
               const assessment = pairAssessment(pair);
-              return <tr key={pair.key}><td style={styles.td}>{pair.circuits.slice(0, 2).map((circuit) => <small key={circuit} style={styles.small}>{circuit}</small>)}{pair.circuits.length > 2 && <small style={styles.small}>+ {pair.circuits.length - 2} more</small>}</td><td style={styles.td}><strong>{deviceLabel(pair.downstream)}</strong><small style={styles.small}>{residualLabel(pair.downstream)}</small></td><td style={styles.td}><strong>{deviceLabel(pair.upstream)}</strong><small style={styles.small}>{residualLabel(pair.upstream)}</small></td><td style={styles.td}>{assessment.suggestedResidualMa}mA / {assessment.suggestedDelayMs}ms<small style={styles.small}>Generic 3:1 sensitivity and time-grading screen</small></td><td style={styles.td}><span style={assessment.status === "Conflict" ? styles.conflict : styles.indicative}>{assessment.status}</span><small style={styles.small}>{assessment.typeConflict ? "Upstream Type AC is incompatible with the downstream RCD hierarchy." : assessment.status === "Indicative" ? "Generic settings are graded; confirm manufacturer coordination." : "Current sensitivity or delay is not adequately graded."}</small></td><td style={styles.td}><button style={styles.button} disabled={!assessment.canApply} onClick={() => applySuggestion(pair)}>{assessment.canApply ? "Apply suggestion" : "No adjustable change"}</button></td></tr>;
+              const upstream = pair.upstream.residualProtection!;
+              const override = upstream.coordinationOverride;
+              const residualOverridden = Boolean(override?.residualCurrentOverridden);
+              const delayOverridden = Boolean(override?.timeDelayOverridden);
+              const hasOverride = residualOverridden || delayOverridden;
+              const hasAdjustableSetting =
+                upstream.settingMode === "adjustable" ||
+                upstream.delayMode === "adjustable-delay";
+              const residualListId = `residual-settings-${pair.key}`;
+              const delayListId = `delay-settings-${pair.key}`;
+
+              return (
+                <tr key={pair.key}>
+                  <td style={styles.td}>
+                    {pair.circuits.slice(0, 2).map((circuit) => <small key={circuit} style={styles.small}>{circuit}</small>)}
+                    {pair.circuits.length > 2 && <small style={styles.small}>+ {pair.circuits.length - 2} more</small>}
+                  </td>
+                  <td style={styles.td}>
+                    <strong>{deviceLabel(pair.downstream)}</strong>
+                    <small style={styles.small}>{residualLabel(pair.downstream)}</small>
+                  </td>
+                  <td style={styles.td}>
+                    <strong>{deviceLabel(pair.upstream)}</strong>
+                    <small style={styles.small}>{residualLabel(pair.upstream)}</small>
+                  </td>
+                  <td style={styles.td}>
+                    <strong>{assessment.suggestedResidualMa}mA / {assessment.suggestedDelayMs}ms</strong>
+                    <small style={styles.small}>Generic 3:1 sensitivity and 100ms time-gap screen.</small>
+                  </td>
+                  <td style={styles.td}>
+                    <div style={styles.settingGrid}>
+                      <label style={styles.settingLabel}>
+                        Residual current
+                        {upstream.settingMode === "adjustable" ? (
+                          <span style={styles.inputWithUnit}>
+                            <input
+                              style={styles.settingInput}
+                              type="number"
+                              min="1"
+                              step="1"
+                              list={residualListId}
+                              value={upstream.residualCurrentMa}
+                              onChange={(event) => overrideSetting(pair, "residualCurrentMa", Number(event.target.value) || 0)}
+                            />
+                            <span>mA</span>
+                            <datalist id={residualListId}>
+                              {(upstream.availableResidualSettingsMa ?? []).map((value) => <option key={value} value={value} />)}
+                            </datalist>
+                          </span>
+                        ) : (
+                          <span style={styles.fixedSetting}>{upstream.residualCurrentMa}mA · Fixed</span>
+                        )}
+                      </label>
+                      <label style={styles.settingLabel}>
+                        Time delay
+                        {upstream.delayMode === "adjustable-delay" ? (
+                          <span style={styles.inputWithUnit}>
+                            <input
+                              style={styles.settingInput}
+                              type="number"
+                              min="0"
+                              step="10"
+                              list={delayListId}
+                              value={upstream.timeDelayMs}
+                              onChange={(event) => overrideSetting(pair, "timeDelayMs", Number(event.target.value) || 0)}
+                            />
+                            <span>ms</span>
+                            <datalist id={delayListId}>
+                              {(upstream.availableDelaySettingsMs ?? []).map((value) => <option key={value} value={value} />)}
+                            </datalist>
+                          </span>
+                        ) : (
+                          <span style={styles.fixedSetting}>{upstream.timeDelayMs}ms · {upstream.delayMode === "instantaneous" ? "Instantaneous" : "Fixed"}</span>
+                        )}
+                      </label>
+                    </div>
+                    {upstream.availableResidualSettingsMa?.length ? <small style={styles.small}>Available mA: {upstream.availableResidualSettingsMa.join(", ")}</small> : <small style={styles.small}>Available residual-current settings not declared.</small>}
+                    {upstream.availableDelaySettingsMs?.length ? <small style={styles.small}>Available ms: {upstream.availableDelaySettingsMs.join(", ")}</small> : <small style={styles.small}>Available delay settings not declared.</small>}
+                  </td>
+                  <td style={styles.td}>
+                    <span style={hasOverride ? styles.overrideBadge : styles.suggestedBadge}>
+                      {hasOverride ? "Designer override" : upstream.settingMode === "fixed" && upstream.delayMode !== "adjustable-delay" ? "Fixed device" : "Suggested settings"}
+                    </span>
+                    {hasOverride && (
+                      <label style={styles.overrideReasonLabel}>
+                        Override reason
+                        <textarea
+                          style={{ ...styles.settingInput, width: "210px", minHeight: "64px", resize: "vertical" }}
+                          value={override?.reason ?? ""}
+                          placeholder="Record the design reason"
+                          onChange={(event) => updateOverrideReason(pair, event.target.value)}
+                        />
+                      </label>
+                    )}
+                  </td>
+                  <td style={styles.td}>
+                    <span style={assessment.status === "Conflict" ? styles.conflict : styles.indicative}>{assessment.status}</span>
+                    <small style={styles.small}>{assessmentDetail(assessment)}</small>
+                  </td>
+                  <td style={styles.td}>
+                    <button
+                      style={styles.button}
+                      disabled={
+                        !hasAdjustableSetting ||
+                        (!assessment.canApply && !hasOverride)
+                      }
+                      onClick={() => applySuggestion(pair)}
+                    >
+                      {!hasAdjustableSetting
+                        ? "Fixed device"
+                        : hasOverride
+                          ? "Reset to suggestion"
+                          : assessment.canApply
+                            ? "Use suggestion"
+                            : "Suggestion selected"}
+                    </button>
+                  </td>
+                </tr>
+              );
             })}
           </tbody></table></div>
         )}
@@ -368,5 +562,13 @@ const styles: Record<string, React.CSSProperties> = {
   deviceTd: { width: "390px", padding: "10px", borderBottom: "1px solid #eef2f6", textAlign: "left", verticalAlign: "top" },
   infoIcon: { display: "inline-grid", placeItems: "center", width: "17px", height: "17px", marginLeft: "7px", border: "1px solid #94a3b8", borderRadius: "50%", color: "#526071", fontSize: "11px", fontWeight: 700, cursor: "help" },
   indicative: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#ecfdf3", color: "#027a48" }, conflict: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#fff1f1", color: "#c53030" }, incomplete: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#fff7e6", color: "#92400e" },
+  settingGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(120px, 1fr))", gap: "8px" },
+  settingLabel: { display: "grid", gap: "4px", color: "#526071", fontSize: "11px", fontWeight: 600 },
+  inputWithUnit: { display: "flex", alignItems: "center", gap: "5px", color: "#637083", fontWeight: 400 },
+  settingInput: { width: "88px", minHeight: "34px", padding: "5px 7px", border: "1px solid #cbd5e1", borderRadius: "8px", background: "white", color: "#172033", font: "inherit", fontWeight: 400, boxSizing: "border-box" },
+  fixedSetting: { minHeight: "34px", display: "flex", alignItems: "center", color: "#637083", fontWeight: 500 },
+  overrideBadge: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", background: "#fff7e6", color: "#92400e", fontSize: "11px", fontWeight: 600 },
+  suggestedBadge: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: 600 },
+  overrideReasonLabel: { display: "grid", gap: "5px", marginTop: "8px", color: "#637083", fontSize: "11px", fontWeight: 600 },
   button: { minHeight: "36px", padding: "0 12px", border: "1px solid #cbd5e1", borderRadius: "9px", background: "white", cursor: "pointer" }, disclaimer: { margin: 0, color: "#637083", fontSize: "12px" },
 };
