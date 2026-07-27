@@ -182,6 +182,7 @@ export type ProjectDistro = DistroDefinition & {
   sourceId: string;
   location: string;
   notes: string;
+  inboundCableDesign?: CircuitCableDesign;
 };
 
 export type PowerSource = {

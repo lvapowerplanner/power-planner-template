@@ -13,7 +13,9 @@ import {
   calculateAdvancedCircuit,
   calculateCableDesign,
   cableVerificationFingerprint,
+  advancedDistroLoadMetrics,
   displayDistroName,
+  isThreePhaseConnection,
   outputDisplayName,
   outputWatts,
 } from "@/planner/calculations";
@@ -45,6 +47,14 @@ type CableCircuitRow = {
   parentOutput?: PlannerOutput;
   label: string;
   connectedWatts: number;
+  designCurrentOverride?: number;
+  rowKind: "inbound" | "output";
+  feedsDistro?: boolean;
+  linkedDistroName?: string;
+  autoInbound?: boolean;
+  configuredAtDistroId?: string;
+  configuredAtDistroName?: string;
+  configuredAtOutputLabel?: string;
 };
 
 function settingsFor(plannerState: PlannerState) {
@@ -61,8 +71,102 @@ function settingsFor(plannerState: PlannerState) {
 }
 
 function rowsForState(plannerState: PlannerState): CableCircuitRow[] {
-  return plannerState.distros.flatMap((distro) =>
-    distro.outputs.flatMap<CableCircuitRow>((output, outputIndex) => {
+  return plannerState.distros.flatMap((distro) => {
+    const source = plannerState.sources.find(
+      (candidate) => candidate.id === distro.sourceId,
+    );
+    const inboundRows: CableCircuitRow[] =
+      source && !source.auto
+        ? (() => {
+            const threePhase =
+              source.phaseType === "Three-Phase" ||
+              isThreePhaseConnection(source.conn) ||
+              isThreePhaseConnection(distro.input);
+            const metrics = advancedDistroLoadMetrics(distro, plannerState);
+            const voltage = threePhase
+              ? plannerState.advancedElectrical?.nominalThreePhaseVoltage ?? 400
+              : plannerState.advancedElectrical?.nominalSinglePhaseVoltage ?? 230;
+            const current = threePhase
+              ? metrics.apparentVa / (Math.sqrt(3) * voltage)
+              : metrics.apparentVa / voltage;
+
+            return [
+              {
+                key: `${distro.id}:inbound`,
+                distro,
+                output: {
+                  id: `inbound-${distro.id}`,
+                  label: "Inbound supply",
+                  phase: threePhase ? "3Φ" : "L1",
+                  type: source.conn || distro.input,
+                  rating: Math.max(1, distro.inputA || source.rating),
+                  connectorStyle:
+                    source.connectorStyle ?? distro.connectorStyle,
+                  items: [],
+                },
+                label: `${source.name} → ${displayDistroName(distro)}`,
+                connectedWatts: metrics.connectedWatts,
+                designCurrentOverride: current,
+                rowKind: "inbound" as const,
+              },
+            ];
+          })()
+        : source?.auto && source.parentDistroId && source.parentOutputId
+          ? (() => {
+              const parentDistro = plannerState.distros.find(
+                (candidate) => candidate.id === source.parentDistroId,
+              );
+              const parentOutputIndex = parentDistro?.outputs.findIndex(
+                (candidate) => candidate.id === source.parentOutputId,
+              );
+              const parentOutput =
+                parentOutputIndex != null && parentOutputIndex >= 0
+                  ? parentDistro?.outputs[parentOutputIndex]
+                  : undefined;
+
+              if (!parentDistro || !parentOutput) return [];
+
+              const outputLabel = outputDisplayName(
+                parentOutput,
+                parentOutputIndex ?? 0,
+              );
+
+              return [
+                {
+                  key: `${distro.id}:auto-inbound`,
+                  distro,
+                  output: parentOutput,
+                  label: `${source.name} → ${displayDistroName(distro)}`,
+                  connectedWatts: outputWatts(
+                    parentOutput,
+                    plannerState,
+                    parentDistro,
+                  ),
+                  rowKind: "inbound" as const,
+                  autoInbound: true,
+                  configuredAtDistroId: parentDistro.id,
+                  configuredAtDistroName: displayDistroName(parentDistro),
+                  configuredAtOutputLabel: outputLabel,
+                },
+              ];
+            })()
+          : [];
+
+    const outputRows = distro.outputs.flatMap<CableCircuitRow>(
+      (output, outputIndex) => {
+      const linkedSource = plannerState.sources.find(
+        (candidate) =>
+          candidate.auto &&
+          candidate.parentDistroId === distro.id &&
+          candidate.parentOutputId === output.id,
+      );
+      const linkedDistro = linkedSource
+        ? plannerState.distros.find(
+            (child) => child.sourceId === linkedSource.id,
+          )
+        : undefined;
+      const feedsDistro = Boolean(linkedDistro);
+
       if (output.phase === "Socapex") {
         return (output.socaCircuits ?? []).map((socket) => ({
           key: `${distro.id}:${output.id}:${socket.id}`,
@@ -71,6 +175,7 @@ function rowsForState(plannerState: PlannerState): CableCircuitRow[] {
           parentOutput: output,
           label: `${outputDisplayName(output, outputIndex)} / ${socket.label}`,
           connectedWatts: outputWatts(socket),
+          rowKind: "output" as const,
         }));
       }
 
@@ -81,14 +186,91 @@ function rowsForState(plannerState: PlannerState): CableCircuitRow[] {
           output,
           label: outputDisplayName(output, outputIndex),
           connectedWatts: outputWatts(output, plannerState, distro),
+          rowKind: "output",
+          feedsDistro,
+          linkedDistroName: linkedDistro
+            ? displayDistroName(linkedDistro)
+            : undefined,
         },
       ];
-    }),
-  );
+    });
+
+    return [...inboundRows, ...outputRows];
+  });
+}
+
+function cableDesignForRow(row: CableCircuitRow) {
+  return row.rowKind === "inbound" && !row.autoInbound
+    ? row.distro.inboundCableDesign
+    : row.output.cableDesign;
 }
 
 function applicationForOutput(output: PlannerOutput) {
   return output.phase === "3Φ" ? "three_phase_ac" : "single_phase_ac";
+}
+
+const POWERLOCK_OUTPUT_RATINGS = new Set([200, 300, 400]);
+const POWERLOCK_CONDUCTOR_SIZES = new Set([95, 120, 240]);
+
+function isPowerlockOutput(output: PlannerOutput) {
+  return (
+    output.phase === "3Φ" &&
+    POWERLOCK_OUTPUT_RATINGS.has(Number(output.rating))
+  );
+}
+
+function isPowerlockCable({
+  application,
+  conductorSizeMm2,
+  coreConfiguration,
+  cableArrangement,
+}: {
+  application: string;
+  conductorSizeMm2: number;
+  coreConfiguration: string;
+  cableArrangement: string;
+}) {
+  const description = `${coreConfiguration} ${cableArrangement}`.toLowerCase();
+  return (
+    application === "three_phase_ac" &&
+    POWERLOCK_CONDUCTOR_SIZES.has(Number(conductorSizeMm2)) &&
+    (description.includes("single-core") ||
+      description.includes("single core") ||
+      /(^|\s)1\s*x\s*/.test(description) ||
+      /(^|\s)1c(\s|$)/.test(description))
+  );
+}
+
+function globalCableCompatible(
+  record: GlobalCableLibraryRecord,
+  output: PlannerOutput,
+) {
+  const powerlockCable = isPowerlockCable({
+    application: record.application,
+    conductorSizeMm2: record.conductor_size_mm2,
+    coreConfiguration: record.core_configuration,
+    cableArrangement: record.cable_arrangement,
+  });
+
+  return isPowerlockOutput(output)
+    ? powerlockCable
+    : record.application === applicationForOutput(output) && !powerlockCable;
+}
+
+function projectCableCompatible(
+  record: NonNullable<PlannerState["projectCableLibrary"]>[number],
+  output: PlannerOutput,
+) {
+  const powerlockCable = isPowerlockCable({
+    application: record.application,
+    conductorSizeMm2: record.conductorSizeMm2,
+    coreConfiguration: record.coreConfiguration,
+    cableArrangement: record.cableArrangement,
+  });
+
+  return isPowerlockOutput(output)
+    ? powerlockCable
+    : record.application === applicationForOutput(output) && !powerlockCable;
 }
 
 function defaultCableDesign(
@@ -138,9 +320,18 @@ function standardCableName(record: GlobalCableLibraryRecord) {
 }
 
 function circuitInformation(row: CableCircuitRow) {
+  if (row.rowKind === "inbound") {
+    return row.autoInbound
+      ? `Autosource inbound cable feeding ${displayDistroName(row.distro)}. Configured on ${row.configuredAtDistroName}, ${row.configuredAtOutputLabel}.`
+      : `Manual-source inbound cable feeding ${displayDistroName(row.distro)}.`;
+  }
+
   const details = row.output.items.map((item) =>
     `${item.quantity} × ${item.name}${item.notes?.trim() ? ` — ${item.notes.trim()}` : ""}`,
   );
+  if (row.linkedDistroName) {
+    details.unshift(`Distro link feeding ${row.linkedDistroName}.`);
+  }
   if (row.output.notes?.trim()) details.push(`Output notes: ${row.output.notes.trim()}`);
   if (row.parentOutput?.notes?.trim()) details.push(`Socapex notes: ${row.parentOutput.notes.trim()}`);
   return details.length ? details.join("\n") : "No connected-load or output notes.";
@@ -172,7 +363,10 @@ export function CableProtectionTab({
   const allRows = useMemo(() => rowsForState(plannerState), [plannerState]);
   const visibleRows = allRows.filter(
     (row) =>
-      (showUnusedOutputs || row.connectedWatts > 0) &&
+      (showUnusedOutputs ||
+        row.connectedWatts > 0 ||
+        row.rowKind === "inbound" ||
+        row.feedsDistro) &&
       (selectedDistroId === "all" || row.distro.id === selectedDistroId) &&
       !collapsedDistroIds.includes(row.distro.id),
   );
@@ -182,7 +376,9 @@ export function CableProtectionTab({
   const standardSourceReferences = Array.from(
     new Map(
       allRows
-        .map((row) => row.output.cableDesign)
+        .map((row) =>
+          cableDesignForRow(row),
+        )
         .filter(
           (design): design is CircuitCableDesign =>
             Boolean(design && design.dataSource === "library"),
@@ -320,6 +516,23 @@ export function CableProtectionTab({
       | CircuitCableDesign
       | undefined,
   ) {
+    if (row.autoInbound) return;
+
+    if (row.rowKind === "inbound") {
+      setPlannerState({
+        ...plannerState,
+        distros: plannerState.distros.map((distro) =>
+          distro.id === row.distro.id
+            ? {
+                ...distro,
+                inboundCableDesign: updater(distro.inboundCableDesign),
+              }
+            : distro,
+        ),
+      });
+      return;
+    }
+
     replaceOutput(row, {
       ...row.output,
       cableDesign: updater(row.output.cableDesign),
@@ -404,6 +617,10 @@ export function CableProtectionTab({
   }
 
   function designCurrent(row: CableCircuitRow) {
+    if (row.designCurrentOverride != null) {
+      return row.designCurrentOverride;
+    }
+
     return calculateAdvancedCircuit({
       connectedWatts: row.connectedWatts,
       phase: row.output.phase,
@@ -417,15 +634,40 @@ export function CableProtectionTab({
   }
 
   function upstreamRow(row: CableCircuitRow) {
+    if (row.rowKind === "inbound") return undefined;
+
     const source = plannerState.sources.find(
       (candidate) => candidate.id === row.distro.sourceId,
     );
-    if (!source?.parentDistroId || !source.parentOutputId) return undefined;
+    if (!source) return undefined;
+
+    if (!source.auto) {
+      return allRows.find(
+        (candidate) =>
+          candidate.distro.id === row.distro.id &&
+          candidate.rowKind === "inbound",
+      );
+    }
+
+    if (!source.parentDistroId || !source.parentOutputId) return undefined;
 
     return allRows.find(
       (candidate) =>
         candidate.distro.id === source.parentDistroId &&
         candidate.output.id === source.parentOutputId &&
+        !candidate.parentOutput &&
+        candidate.rowKind === "output",
+    );
+  }
+
+  function configuredOutputRow(row: CableCircuitRow) {
+    if (!row.autoInbound) return undefined;
+
+    return allRows.find(
+      (candidate) =>
+        candidate.rowKind === "output" &&
+        candidate.distro.id === row.configuredAtDistroId &&
+        candidate.output.id === row.output.id &&
         !candidate.parentOutput,
     );
   }
@@ -443,13 +685,15 @@ export function CableProtectionTab({
     if (visited.has(row.key)) return null;
     const nextVisited = new Set(visited);
     nextVisited.add(row.key);
+    const configuredRow = configuredOutputRow(row);
+    if (configuredRow) return resultForRow(configuredRow, nextVisited);
     const parent = upstreamRow(row);
     const parentResult = parent
       ? resultForRow(parent, nextVisited)
       : null;
 
     return calculateCableDesign({
-      cableDesign: row.output.cableDesign,
+      cableDesign: cableDesignForRow(row),
       designCurrentA: designCurrent(row),
       nominalVoltageV: nominalVoltage(row),
       upstreamVoltageDropV: parentResult?.cumulativeVoltageDropV ?? 0,
@@ -504,6 +748,11 @@ export function CableProtectionTab({
     row: CableCircuitRow,
     verified: boolean,
   ) {
+    if (row.autoInbound) return;
+
+    const design = cableDesignForRow(row);
+    if (verified && (!design || design.lengthMetres <= 0)) return;
+
     if (!verified) {
       updateDesign(row, (current) =>
         current
@@ -538,6 +787,20 @@ export function CableProtectionTab({
         ),
       };
     });
+  }
+
+  function openConfiguredOutput(row: CableCircuitRow) {
+    if (!row.configuredAtDistroId) return;
+
+    setSelectedDistroId("all");
+    setCollapsedDistroIds((current) =>
+      current.filter((id) => id !== row.configuredAtDistroId),
+    );
+    window.setTimeout(() => {
+      document
+        .getElementById(`cable-distro-${row.configuredAtDistroId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 0);
   }
 
   return (
@@ -579,7 +842,11 @@ export function CableProtectionTab({
         const collapsed = collapsedDistroIds.includes(distro.id);
         const distroRows = visibleRows.filter((row) => row.distro.id === distro.id);
         return (
-          <article key={distro.id} style={styles.distroCard}>
+          <article
+            key={distro.id}
+            id={`cable-distro-${distro.id}`}
+            style={styles.distroCard}
+          >
             <button
               style={styles.distroHeader}
               onClick={() =>
@@ -628,19 +895,23 @@ export function CableProtectionTab({
           </thead>
           <tbody>
             {distroRows.map((row) => {
-              const design = row.output.cableDesign;
+              const design = cableDesignForRow(row);
               const result = resultForRow(row);
               const verificationValid = Boolean(
                 design?.designerVerified &&
+                  design.lengthMetres > 0 &&
                   design.designerVerificationFingerprint ===
                     cableVerificationFingerprint(
                       design,
                       designCurrent(row),
                     ),
               );
+              const canVerify = Boolean(
+                design && design.lengthMetres > 0,
+              );
               const compatibleLibrary = library.filter(
                 (record) =>
-                  record.application === applicationForOutput(row.output) &&
+                  globalCableCompatible(record, row.output) &&
                   (!(plannerState.excludedCableRatingIds ?? []).includes(
                     record.cable_rating_id,
                   ) || design?.cableRatingId === record.cable_rating_id),
@@ -649,7 +920,7 @@ export function CableProtectionTab({
                 plannerState.projectCableLibrary ?? []
               ).filter(
                 (record) =>
-                  record.application === applicationForOutput(row.output) &&
+                  projectCableCompatible(record, row.output) &&
                   (!(plannerState.excludedCableRatingIds ?? []).includes(
                     record.id,
                   ) || design?.cableRatingId === record.id),
@@ -666,61 +937,96 @@ export function CableProtectionTab({
               );
 
               return (
-                <tr key={row.key}>
+                <tr
+                  key={row.key}
+                  style={
+                    row.rowKind === "inbound"
+                      ? styles.inboundRow
+                      : row.feedsDistro
+                        ? styles.distroLinkRow
+                        : undefined
+                  }
+                >
                   <td style={styles.circuitTd}>
+                    {row.rowKind === "inbound" && (
+                      <span style={styles.inboundBadge}>Inbound supply</span>
+                    )}
+                    {row.feedsDistro && (
+                      <span style={styles.distroLinkBadge}>Distro link</span>
+                    )}
                     <strong>{row.label}</strong>
                     <span style={styles.infoIcon} title={circuitInformation(row)} aria-label="Circuit information">i</span>
+                    {row.autoInbound && (
+                      <div style={styles.configuredElsewhere}>
+                        <span>
+                          Configured on {row.configuredAtDistroName} · {row.configuredAtOutputLabel}
+                        </span>
+                        <button
+                          type="button"
+                          style={styles.openConfiguredButton}
+                          onClick={() => openConfiguredOutput(row)}
+                        >
+                          Open output
+                        </button>
+                      </div>
+                    )}
                   </td>
                   <td style={styles.td}>{row.output.phase}</td>
                   <td style={styles.numberTd}>
                     {formatNumber(designCurrent(row))} A
                   </td>
                   <td style={styles.td}>
-                    <select
-                      style={styles.cableSelect}
-                      value={
-                        design?.dataSource === "custom"
-                          ? "custom"
-                          : design?.cableRatingId ?? ""
-                      }
-                      onChange={(event) =>
-                        selectCable(row, event.target.value)
-                      }
-                    >
-                      <option value="">Select cable</option>
-                      {!selectedRecordAvailable && design?.cableRatingId && (
-                        <option value={design.cableRatingId}>
-                          {design.snapshot.cableName} (saved snapshot)
-                        </option>
-                      )}
-                      {compatibleLibrary.length > 0 && (
-                        <optgroup label="Standard library">
-                          {compatibleLibrary.map((record) => (
-                            <option
-                              key={record.cable_rating_id}
-                              value={record.cable_rating_id}
-                            >
-                              {standardCableName(record)}
-                              {record.suitability_class === "conditional"
-                                ? " — Conditional"
-                                : record.suitability_class === "not_recommended"
-                                  ? " — Not recommended"
-                                  : ""}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      {compatibleProjectLibrary.length > 0 && (
-                        <optgroup label="Project cable library">
-                          {compatibleProjectLibrary.map((record) => (
-                            <option key={record.id} value={record.id}>
-                              {record.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      )}
-                      <option value="custom">Custom cable data</option>
-                    </select>
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design?.snapshot.cableName ?? "Not configured"}
+                      </span>
+                    ) : (
+                      <select
+                        style={styles.cableSelect}
+                        value={
+                          design?.dataSource === "custom"
+                            ? "custom"
+                            : design?.cableRatingId ?? ""
+                        }
+                        onChange={(event) =>
+                          selectCable(row, event.target.value)
+                        }
+                      >
+                        <option value="">Select cable</option>
+                        {!selectedRecordAvailable && design?.cableRatingId && (
+                          <option value={design.cableRatingId}>
+                            {design.snapshot.cableName} (saved snapshot)
+                          </option>
+                        )}
+                        {compatibleLibrary.length > 0 && (
+                          <optgroup label="Standard library">
+                            {compatibleLibrary.map((record) => (
+                              <option
+                                key={record.cable_rating_id}
+                                value={record.cable_rating_id}
+                              >
+                                {standardCableName(record)}
+                                {record.suitability_class === "conditional"
+                                  ? " — Conditional"
+                                  : record.suitability_class === "not_recommended"
+                                    ? " — Not recommended"
+                                    : ""}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        {compatibleProjectLibrary.length > 0 && (
+                          <optgroup label="Project cable library">
+                            {compatibleProjectLibrary.map((record) => (
+                              <option key={record.id} value={record.id}>
+                                {record.name}
+                              </option>
+                            ))}
+                          </optgroup>
+                        )}
+                        <option value="custom">Custom cable data</option>
+                      </select>
+                    )}
                     {design && design.dataSource !== "library" && (
                       <>
                         <small style={styles.sourceText}>
@@ -753,10 +1059,17 @@ export function CableProtectionTab({
                     )}
                   </td>
                   <td style={styles.td}>
-                    {design?.dataSource === "custom" ? (
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design
+                          ? `${design.snapshot.conductorSizeMm2} mm² · ${design.snapshot.currentCapacityA} A · ${design.snapshot.voltageDropMvPerAmpMetre} mV/A/m`
+                          : "-"}
+                      </span>
+                    ) : design?.dataSource === "custom" ? (
                       <div style={styles.customGrid}>
                         <input
                           style={styles.smallInput}
+                          disabled={row.autoInbound}
                           value={design.snapshot.cableName}
                           placeholder="Cable name"
                           onChange={(event) =>
@@ -769,6 +1082,7 @@ export function CableProtectionTab({
                           Capacity A
                           <input
                             style={styles.smallInput}
+                            disabled={row.autoInbound}
                             type="number"
                             min="0.1"
                             value={design.snapshot.currentCapacityA}
@@ -786,6 +1100,7 @@ export function CableProtectionTab({
                           mV/A/m
                           <input
                             style={styles.smallInput}
+                            disabled={row.autoInbound}
                             type="number"
                             min="0.001"
                             step="0.001"
@@ -814,13 +1129,18 @@ export function CableProtectionTab({
                     )}
                   </td>
                   <td style={styles.td}>
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design ? `${design.lengthMetres} m` : "-"}
+                      </span>
+                    ) : (
                     <div style={styles.inputWithUnit}>
                       <input
                         style={styles.numberInput}
                         type="number"
                         min="0"
                         step="1"
-                        disabled={!design}
+                        disabled={!design || row.autoInbound}
                         value={design?.lengthMetres ?? ""}
                         onChange={(event) =>
                           updateCableField(row, {
@@ -833,14 +1153,20 @@ export function CableProtectionTab({
                       />
                       <span>m</span>
                     </div>
+                    )}
                   </td>
                   <td style={styles.td}>
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design?.parallelRuns ?? "-"}
+                      </span>
+                    ) : (
                     <input
                       style={styles.numberInput}
                       type="number"
                       min="1"
                       step="1"
-                      disabled={!design}
+                      disabled={!design || row.autoInbound}
                       value={design?.parallelRuns ?? ""}
                       onChange={(event) =>
                         updateCableField(row, {
@@ -851,15 +1177,21 @@ export function CableProtectionTab({
                         })
                       }
                     />
+                    )}
                   </td>
                   <td style={styles.td}>
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design?.deratingFactor ?? "-"}
+                      </span>
+                    ) : (
                     <input
                       style={styles.numberInput}
                       type="number"
                       min="0.01"
                       max="1"
                       step="0.01"
-                      disabled={!design}
+                      disabled={!design || row.autoInbound}
                       value={design?.deratingFactor ?? ""}
                       onChange={(event) =>
                         updateCableField(row, {
@@ -873,6 +1205,7 @@ export function CableProtectionTab({
                         })
                       }
                     />
+                    )}
                   </td>
                   <td style={styles.numberTd}>
                     {result
@@ -898,9 +1231,17 @@ export function CableProtectionTab({
                     {result ? `${formatNumber(result.endVoltageV)} V` : "-"}
                   </td>
                   <td style={styles.td}>
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design
+                          ? `${design.voltageDropCategory === "lighting" ? "Lighting" : design.voltageDropCategory === "other" ? "Other" : "Custom"} ${design.voltageDropLimitPercent}%`
+                          : "-"}
+                      </span>
+                    ) : (
+                    <>
                     <select
                       style={styles.limitSelect}
-                      disabled={!design}
+                      disabled={!design || row.autoInbound}
                       value={design?.voltageDropCategory ?? "other"}
                       onChange={(event) => {
                         const category = event.target.value as
@@ -927,6 +1268,7 @@ export function CableProtectionTab({
                         <input
                           style={styles.numberInput}
                           type="number"
+                          disabled={row.autoInbound}
                           min="0.1"
                           step="0.1"
                           value={design.voltageDropLimitPercent}
@@ -942,13 +1284,25 @@ export function CableProtectionTab({
                         <span>%</span>
                       </div>
                     )}
+                    </>
+                    )}
                   </td>
                   <td style={styles.td}>
-                    {design ? (
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design
+                          ? verificationValid
+                            ? "Verified"
+                            : "Not verified"
+                          : "-"}
+                      </span>
+                    ) : design ? (
                       <button
                         type="button"
                         title={
-                          verificationValid &&
+                          !canVerify
+                            ? "Enter a cable length greater than 0 m before verifying this cable."
+                            : verificationValid &&
                           design.designerVerifiedAt
                             ? `Cable data and installation assumptions checked by ${design.designerVerifiedBy} on ${new Date(
                                 design.designerVerifiedAt,
@@ -959,6 +1313,7 @@ export function CableProtectionTab({
                           ...styles.verificationButton,
                           ...(verificationValid ? styles.verifiedText : {}),
                         }}
+                        disabled={!canVerify}
                         onClick={() =>
                           setDesignerVerification(row, !verificationValid)
                         }
@@ -988,15 +1343,21 @@ export function CableProtectionTab({
                     </span>
                   </td>
                   <td style={styles.td}>
+                    {row.autoInbound ? (
+                      <span style={styles.presetValue}>
+                        {design?.notes?.trim() || "-"}
+                      </span>
+                    ) : (
                     <input
                       style={styles.notesInput}
-                      disabled={!design}
+                      disabled={!design || row.autoInbound}
                       value={design?.notes ?? ""}
                       placeholder="Optional"
                       onChange={(event) =>
                         updateCableField(row, { notes: event.target.value })
                       }
                     />
+                    )}
                   </td>
                 </tr>
               );
@@ -1151,6 +1512,68 @@ const styles: Record<string, React.CSSProperties> = {
     padding: "9px",
     borderBottom: "1px solid #EEF2F6",
     verticalAlign: "top",
+  },
+  inboundRow: {
+    background: "#EFF6FF",
+    borderTop: "2px solid #60A5FA",
+    borderBottom: "2px solid #BFDBFE",
+  },
+  inboundBadge: {
+    display: "block",
+    width: "fit-content",
+    marginBottom: "5px",
+    padding: "3px 7px",
+    borderRadius: "999px",
+    background: "#DBEAFE",
+    color: "#1D4ED8",
+    fontSize: "10px",
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
+  },
+  configuredElsewhere: {
+    display: "grid",
+    gap: "6px",
+    marginTop: "7px",
+    color: "#526071",
+    fontSize: "11px",
+    fontWeight: 500,
+  },
+  openConfiguredButton: {
+    width: "fit-content",
+    padding: "4px 7px",
+    border: "1px solid #93C5FD",
+    borderRadius: "7px",
+    background: "#FFFFFF",
+    color: "#1D4ED8",
+    fontSize: "11px",
+    fontWeight: 600,
+    cursor: "pointer",
+  },
+  presetValue: {
+    display: "block",
+    maxWidth: "260px",
+    color: "#7C8798",
+    fontWeight: 500,
+    lineHeight: 1.4,
+  },
+  distroLinkRow: {
+    background: "#F0FDFA",
+    borderTop: "2px solid #2DD4BF",
+    borderBottom: "2px solid #99F6E4",
+  },
+  distroLinkBadge: {
+    display: "block",
+    width: "fit-content",
+    marginBottom: "5px",
+    padding: "3px 7px",
+    borderRadius: "999px",
+    background: "#CCFBF1",
+    color: "#0F766E",
+    fontSize: "10px",
+    fontWeight: 700,
+    letterSpacing: "0.04em",
+    textTransform: "uppercase",
   },
   cableSelect: {
     width: "260px",
