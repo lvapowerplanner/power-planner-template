@@ -28,6 +28,8 @@ type PlannerShellProps = {
   workspaceBranding?: WorkspaceBranding;
   advancedFeaturesEnabled?: boolean;
   workspaceId?: string | null;
+  projectId?: string;
+  canManageReportLink?: boolean;
 };
 
 type PlannerTab =
@@ -147,6 +149,8 @@ export function PlannerShell({
   workspaceBranding,
   advancedFeaturesEnabled = false,
   workspaceId,
+  projectId,
+  canManageReportLink = false,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
   const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
@@ -388,6 +392,8 @@ export function PlannerShell({
             setPlannerState={setPlannerState}
             openDistroEditor={openDistroEditor}
             workspaceBranding={workspaceBranding}
+            projectId={projectId}
+            canManageReportLink={canManageReportLink}
           />
         )}
       </section>

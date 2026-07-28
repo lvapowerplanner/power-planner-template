@@ -18,6 +18,8 @@ type PowerPlannerAppProps = {
   workspaceBranding?: WorkspaceBranding;
   advancedFeaturesEnabled?: boolean;
   workspaceId?: string | null;
+  projectId?: string;
+  canManageReportLink?: boolean;
 };
 
 export function PowerPlannerApp({
@@ -26,6 +28,8 @@ export function PowerPlannerApp({
   workspaceBranding,
   advancedFeaturesEnabled,
   workspaceId,
+  projectId,
+  canManageReportLink,
 }: PowerPlannerAppProps) {
   return (
     <PlannerShell
@@ -34,6 +38,8 @@ export function PowerPlannerApp({
       workspaceBranding={workspaceBranding}
       advancedFeaturesEnabled={advancedFeaturesEnabled}
       workspaceId={workspaceId}
+      projectId={projectId}
+      canManageReportLink={canManageReportLink}
     />
   );
 }

@@ -1473,6 +1473,7 @@ export default function PlannerPortal() {
         workspaceBranding={workspaceBranding}
         advancedFeaturesEnabled={advancedFeaturesEnabled}
         workspaceId={workspaceId}
+        canManageReportLink={activeProject.user_id === user?.id}
       />
     );
   }

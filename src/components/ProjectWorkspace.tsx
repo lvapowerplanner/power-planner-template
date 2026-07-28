@@ -24,6 +24,7 @@ type ProjectWorkspaceProps = {
   workspaceBranding?: WorkspaceBranding;
   advancedFeaturesEnabled?: boolean;
   workspaceId?: string | null;
+  canManageReportLink?: boolean;
 };
 
 
@@ -66,6 +67,7 @@ export function ProjectWorkspace({
   workspaceBranding,
   advancedFeaturesEnabled,
   workspaceId,
+  canManageReportLink = false,
 }: ProjectWorkspaceProps) {
   const [projectName, setProjectName] = useState(activeProject.name);
   const [renaming, setRenaming] = useState(false);
@@ -156,6 +158,8 @@ export function ProjectWorkspace({
           workspaceBranding={workspaceBranding}
           advancedFeaturesEnabled={advancedFeaturesEnabled}
           workspaceId={workspaceId}
+          projectId={activeProject.id}
+          canManageReportLink={canManageReportLink}
         />
       </section>
     </main>

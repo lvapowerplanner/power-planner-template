@@ -1,4 +1,5 @@
-import type { CSSProperties } from "react";
+import { useState, type CSSProperties } from "react";
+import { supabase } from "@/lib/supabaseClient";
 import {
   displayDistroName,
   formatAmps,
@@ -32,6 +33,9 @@ type ReportTabProps = {
   setPlannerState: (state: PlannerState) => void;
   openDistroEditor: (distroId: string) => void;
   workspaceBranding?: WorkspaceBranding;
+  projectId?: string;
+  canManageReportLink?: boolean;
+  viewOnly?: boolean;
 };
 
 type ReportPlannerState = PlannerState & {
@@ -486,7 +490,17 @@ export function ReportTab({
   setPlannerState,
   openDistroEditor,
   workspaceBranding,
+  projectId,
+  canManageReportLink = false,
+  viewOnly = false,
 }: ReportTabProps) {
+  const [reportLinkModalOpen, setReportLinkModalOpen] = useState(false);
+  const [reportLinkLoading, setReportLinkLoading] = useState(false);
+  const [reportLinkUrl, setReportLinkUrl] = useState("");
+  const [reportLinkExpiresAt, setReportLinkExpiresAt] = useState("");
+  const [reportLinkError, setReportLinkError] = useState("");
+  const [reportLinkCopied, setReportLinkCopied] = useState(false);
+  const [confirmLinkReplacement, setConfirmLinkReplacement] = useState(false);
   const summary = systemLoadSummary(plannerState);
   const hiddenSources = plannerState.reportHiddenSources ?? [];
   const hiddenDistroIds = plannerState.reportHiddenDistros ?? [];
@@ -536,6 +550,61 @@ export function ReportTab({
     rootDistroReports,
     hiddenDistroIds,
   );
+  const powerSourceTypeCounts = Array.from(
+    plannerState.sources
+      .filter((source) => !source.auto)
+      .reduce<Map<string, number>>((counts, source) => {
+        counts.set(source.conn, (counts.get(source.conn) ?? 0) + 1);
+        return counts;
+      }, new Map()),
+  ).sort(([left], [right]) => left.localeCompare(right));
+  const unassignedDistroIds = new Set(
+    summary.unassignedDistros.map((item) => item.distro.id),
+  );
+  const assignedDistroTypeCounts = Array.from(
+    plannerState.distros
+      .filter((distro) => !unassignedDistroIds.has(distro.id))
+      .reduce<Map<string, number>>((counts, distro) => {
+        counts.set(distro.name, (counts.get(distro.name) ?? 0) + 1);
+        return counts;
+      }, new Map()),
+  ).sort(([left], [right]) => left.localeCompare(right));
+
+  async function loadReportLink(replaceExisting = false) {
+    if (!projectId) return;
+    setReportLinkLoading(true);
+    setReportLinkError("");
+    setReportLinkCopied(false);
+
+    const { data, error } = await supabase.rpc(
+      "get_or_create_project_report_link",
+      {
+        target_project_id: projectId,
+        replace_existing: replaceExisting,
+      },
+    );
+
+    setReportLinkLoading(false);
+    if (error || !data?.[0]?.id) {
+      setReportLinkError(error?.message ?? "The report link could not be created.");
+      return;
+    }
+
+    setReportLinkUrl(`${window.location.origin}/report-access/${data[0].id}`);
+    setReportLinkExpiresAt(String(data[0].expires_at ?? ""));
+    setConfirmLinkReplacement(false);
+  }
+
+  async function openReportLinkModal() {
+    setReportLinkModalOpen(true);
+    await loadReportLink(false);
+  }
+
+  async function copyReportLink() {
+    if (!reportLinkUrl) return;
+    await navigator.clipboard.writeText(reportLinkUrl);
+    setReportLinkCopied(true);
+  }
 
   function toggleSource(sourceId: string) {
     const currentHiddenSources = plannerState.reportHiddenSources ?? [];
@@ -613,79 +682,160 @@ export function ReportTab({
         <div>
           <h2>Report</h2>
           <p style={styles.muted}>
-            Toggle sources and distros for export. The preview below mirrors the
-            report export layout.
+            {viewOnly
+              ? "Live view-only report. Refresh the page to load the latest saved changes."
+              : "Toggle sources and distros for export. The preview below mirrors the report export layout."}
           </p>
         </div>
 
         <div style={styles.buttonRow}>
-          <button
-            style={styles.secondaryButton}
-            onClick={toggleReportShowAllOutputs}
-          >
-            {reportShowAllOutputs ? "Hide Unused Outputs" : "Show All Outputs"}
-          </button>
-          <button
-            style={styles.secondaryButton}
-            onClick={exportIndividualDistroReportsPdf}
-          >
-            Export Distro Reports
-          </button>
+          {!viewOnly && (
+            <>
+              <button
+                style={styles.secondaryButton}
+                onClick={toggleReportShowAllOutputs}
+              >
+                {reportShowAllOutputs
+                  ? "Hide Unused Outputs"
+                  : "Show All Outputs"}
+              </button>
+              <button
+                style={styles.secondaryButton}
+                onClick={exportIndividualDistroReportsPdf}
+              >
+                Export Distro Reports
+              </button>
+              {canManageReportLink && projectId && (
+                <button
+                  style={styles.secondaryButton}
+                  onClick={openReportLinkModal}
+                >
+                  View-only Link
+                </button>
+              )}
+            </>
+          )}
           <button style={styles.primaryButton} onClick={exportReportPdf}>
             Export PDF
           </button>
         </div>
       </div>
 
-      <section className="no-print" style={styles.togglePanel}>
-        <h3>Sources and distros included in export</h3>
+      {!viewOnly && <details className="no-print" style={styles.togglePanel}>
+        <summary style={styles.panelSummary}>
+          <span>Included Sources &amp; Distros</span>
+          <span style={styles.panelSummaryHint}>Review ▾</span>
+        </summary>
 
-        {summary.sourceSummaries.length === 0 ? (
-          <p style={styles.muted}>No manual power sources added.</p>
-        ) : (
-          <div style={styles.sourceToggleList}>
-            {summary.sourceSummaries.map((source) => {
-              const sourceHidden = hiddenSources.includes(source.sourceId);
+        <div style={styles.inclusionPanelContent}>
+          <section style={styles.inclusionSection}>
+            <h4 style={styles.inclusionHeading}>Report contents</h4>
+            <details style={styles.selectionDropdown}>
+              <summary style={styles.selectionDropdownSummary}>
+                Select sources and distros
+              </summary>
 
-              return (
-                <div key={source.sourceId} style={styles.sourceToggleCard}>
-                  <label style={styles.checkboxLabel}>
-                    <input
-                      type="checkbox"
-                      checked={!sourceHidden}
-                      onChange={() => toggleSource(source.sourceId)}
-                    />
-                    <span>
-                      <strong>{source.sourceName}</strong> ·{" "}
-                      {source.sourceConnection}
-                    </span>
-                  </label>
+              <div style={styles.selectionDropdownContent}>
+                {summary.sourceSummaries.length === 0 ? (
+                  <p style={styles.muted}>No manual power sources added.</p>
+                ) : (
+                  <div style={styles.sourceToggleList}>
+                    {summary.sourceSummaries.map((source) => {
+                      const sourceHidden = hiddenSources.includes(
+                        source.sourceId,
+                      );
 
-                  {!sourceHidden && (
-                    <div style={styles.distroToggleList}>
-                      {source.distros.length === 0 ? (
-                        <p style={styles.mutedSmall}>
-                          No distros assigned to this source.
-                        </p>
-                      ) : (
-                        source.distros.map((distroSummary) => (
-                          <DistroToggle
-                            key={distroSummary.distro.id}
-                            summary={distroSummary}
-                            hiddenDistroIds={hiddenDistroIds}
-                            toggleDistro={toggleDistro}
-                            level={0}
-                          />
-                        ))
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </section>
+                      return (
+                        <div
+                          key={source.sourceId}
+                          style={styles.sourceToggleCard}
+                        >
+                          <label style={styles.checkboxLabel}>
+                            <input
+                              type="checkbox"
+                              checked={!sourceHidden}
+                              onChange={() => toggleSource(source.sourceId)}
+                            />
+                            <span>
+                              <strong>{source.sourceName}</strong> ·{" "}
+                              {source.sourceConnection}
+                            </span>
+                          </label>
+
+                          {!sourceHidden && (
+                            <div style={styles.distroToggleList}>
+                              {source.distros.length === 0 ? (
+                                <p style={styles.mutedSmall}>
+                                  No distros assigned to this source.
+                                </p>
+                              ) : (
+                                source.distros.map((distroSummary) => (
+                                  <DistroToggle
+                                    key={distroSummary.distro.id}
+                                    summary={distroSummary}
+                                    hiddenDistroIds={hiddenDistroIds}
+                                    toggleDistro={toggleDistro}
+                                    level={0}
+                                  />
+                                ))
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </details>
+          </section>
+
+          <section style={styles.inclusionSection}>
+            <h4 style={styles.inclusionHeading}>Project count</h4>
+            <div style={styles.projectCountGrid}>
+              <div style={styles.projectCountItem}>
+                <strong style={styles.projectCountTitle}>Power sources</strong>
+                {powerSourceTypeCounts.length === 0 ? (
+                  <span style={styles.emptyCount}>None added</span>
+                ) : (
+                  <div style={styles.typeCountList}>
+                    {powerSourceTypeCounts.map(([type, count]) => (
+                      <div key={type} style={styles.typeCountRow}>
+                        <span>{type}</span>
+                        <strong>{count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div style={styles.projectCountItem}>
+                <strong style={styles.projectCountTitle}>
+                  Assigned distros
+                </strong>
+                {assignedDistroTypeCounts.length === 0 ? (
+                  <span style={styles.emptyCount}>None assigned</span>
+                ) : (
+                  <div style={styles.typeCountList}>
+                    {assignedDistroTypeCounts.map(([type, count]) => (
+                      <div key={type} style={styles.typeCountRow}>
+                        <span>{type}</span>
+                        <strong>{count}</strong>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+            {summary.unassignedDistros.length > 0 && (
+              <p style={styles.unassignedNotice}>
+                {summary.unassignedDistros.length} unassigned distro
+                {summary.unassignedDistros.length === 1 ? " is" : "s are"} not
+                included in the totals.
+              </p>
+            )}
+          </section>
+        </div>
+      </details>}
 
       <div id="power-planner-report" style={styles.reportPage}>
         <ReportHeader
@@ -754,7 +904,7 @@ export function ReportTab({
                       sourceConnection={source.sourceConnection}
                       sourceRating={source.sourceRating}
                       sourceNotes={sourceNotes}
-                      openDistroEditor={openDistroEditor}
+                      openDistroEditor={viewOnly ? undefined : openDistroEditor}
                       hiddenDistroIds={hiddenDistroIds}
                       showAllOutputs={reportShowAllOutputs}
                     />
@@ -800,7 +950,7 @@ export function ReportTab({
               sourceConnection={item.sourceConnection}
               sourceRating={item.sourceRating}
               sourceNotes={item.sourceNotes}
-              openDistroEditor={openDistroEditor}
+              openDistroEditor={viewOnly ? undefined : openDistroEditor}
               hiddenDistroIds={hiddenDistroIds}
               renderChildren={false}
               showAllOutputs={reportShowAllOutputs}
@@ -813,6 +963,93 @@ export function ReportTab({
           </section>
         ))}
       </div>
+
+      {reportLinkModalOpen && (
+        <div className="no-print" style={styles.modalBackdrop} role="presentation">
+          <div
+            style={styles.linkModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="report-link-title"
+          >
+            <div style={styles.modalHeader}>
+              <div>
+                <h3 id="report-link-title" style={styles.modalTitle}>
+                  View-only Report Link
+                </h3>
+                <p style={styles.modalDescription}>
+                  This link displays the latest saved version of the report and
+                  does not allow project changes.
+                </p>
+              </div>
+              <button
+                style={styles.closeButton}
+                onClick={() => {
+                  setReportLinkModalOpen(false);
+                  setConfirmLinkReplacement(false);
+                }}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            {reportLinkLoading ? (
+              <p style={styles.muted}>Preparing secure report link…</p>
+            ) : reportLinkError ? (
+              <div style={styles.linkError}>{reportLinkError}</div>
+            ) : (
+              <>
+                <label style={styles.linkLabel}>
+                  Report link
+                  <div style={styles.linkCopyRow}>
+                    <input style={styles.linkInput} value={reportLinkUrl} readOnly />
+                    <button style={styles.primaryButton} onClick={copyReportLink}>
+                      {reportLinkCopied ? "Copied" : "Copy Link"}
+                    </button>
+                  </div>
+                </label>
+                {reportLinkExpiresAt && (
+                  <p style={styles.expiryText}>
+                    Expires: {new Date(reportLinkExpiresAt).toLocaleString()}
+                  </p>
+                )}
+
+                <div style={styles.replacementWarning}>
+                  <strong>Replace current link</strong>
+                  <span>
+                    Generating a new link immediately terminates the current
+                    link. Anyone using the old address will lose access.
+                  </span>
+                  {confirmLinkReplacement ? (
+                    <div style={styles.confirmRow}>
+                      <button
+                        style={styles.secondaryButton}
+                        onClick={() => setConfirmLinkReplacement(false)}
+                      >
+                        Keep Current Link
+                      </button>
+                      <button
+                        style={styles.replaceButton}
+                        onClick={() => loadReportLink(true)}
+                      >
+                        Terminate and Generate New Link
+                      </button>
+                    </div>
+                  ) : (
+                    <button
+                      style={styles.secondaryButton}
+                      onClick={() => setConfirmLinkReplacement(true)}
+                    >
+                      Generate New Link
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -959,7 +1196,7 @@ function DistroReport({
   sourceConnection: string;
   sourceRating: number;
   sourceNotes: string;
-  openDistroEditor: (distroId: string) => void;
+  openDistroEditor?: (distroId: string) => void;
   hiddenDistroIds: string[];
   renderChildren?: boolean;
   showAllOutputs?: boolean;
@@ -984,13 +1221,15 @@ function DistroReport({
     <section className="report-distro" style={styles.distroSection}>
       <div style={styles.distroHeaderRow}>
         <h3 style={styles.distroTitle}>{displayDistroName(summary.distro)}</h3>
-        <button
-          className="no-print"
-          style={styles.secondaryButton}
-          onClick={() => openDistroEditor(summary.distro.id)}
-        >
-          Open
-        </button>
+        {openDistroEditor && (
+          <button
+            className="no-print"
+            style={styles.secondaryButton}
+            onClick={() => openDistroEditor(summary.distro.id)}
+          >
+            Open
+          </button>
+        )}
       </div>
 
       <div className="distro-summary-box" style={styles.distroSummaryBox}>
@@ -1134,8 +1373,109 @@ const styles: Record<string, CSSProperties> = {
   togglePanel: {
     border: "1px solid #DCE5EC",
     borderRadius: "18px",
-    padding: "18px",
     background: "white",
+    overflow: "hidden",
+  },
+  panelSummary: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    padding: "16px 18px",
+    color: "#111827",
+    fontSize: "17px",
+    fontWeight: 600,
+    cursor: "pointer",
+    listStyle: "none",
+  },
+  panelSummaryHint: {
+    color: "#667085",
+    fontSize: "13px",
+    fontWeight: 500,
+  },
+  inclusionPanelContent: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1.35fr) minmax(260px, 0.65fr)",
+    gap: "16px",
+    padding: "0 18px 18px",
+    borderTop: "1px solid #EEF2F6",
+  },
+  inclusionSection: {
+    paddingTop: "16px",
+    minWidth: 0,
+  },
+  inclusionHeading: {
+    margin: "0 0 10px",
+    color: "#344054",
+    fontSize: "13px",
+    fontWeight: 600,
+  },
+  selectionDropdown: {
+    position: "relative",
+    border: "1px solid #DCE5EC",
+    borderRadius: "10px",
+    background: "#FFFFFF",
+  },
+  selectionDropdownSummary: {
+    padding: "10px 12px",
+    color: "#344054",
+    cursor: "pointer",
+    fontSize: "14px",
+    fontWeight: 500,
+  },
+  selectionDropdownContent: {
+    maxHeight: "360px",
+    overflowY: "auto",
+    padding: "10px",
+    borderTop: "1px solid #EEF2F6",
+    background: "#F8FAFC",
+  },
+  projectCountGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+    gap: "10px",
+  },
+  projectCountItem: {
+    display: "grid",
+    gap: "5px",
+    padding: "12px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "10px",
+    background: "#F8FAFC",
+    color: "#667085",
+    fontSize: "12px",
+  },
+  projectCountTitle: {
+    color: "#344054",
+    fontSize: "13px",
+    fontWeight: 600,
+  },
+  typeCountList: {
+    display: "grid",
+    gap: "6px",
+    marginTop: "3px",
+  },
+  typeCountRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    paddingTop: "6px",
+    borderTop: "1px solid #E5E7EB",
+    color: "#475467",
+  },
+  emptyCount: {
+    color: "#98A2B3",
+    fontStyle: "italic",
+  },
+  unassignedNotice: {
+    margin: "10px 0 0",
+    padding: "9px 10px",
+    border: "1px solid #FDE68A",
+    borderRadius: "9px",
+    background: "#FFFBEB",
+    color: "#92400E",
+    fontSize: "12px",
   },
   sourceToggleList: {
     display: "grid",
@@ -1164,6 +1504,110 @@ const styles: Record<string, CSSProperties> = {
   },
   hiddenPrintArea: {
     display: "none",
+  },
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  linkModal: {
+    width: "min(640px, 100%)",
+    maxHeight: "calc(100vh - 48px)",
+    overflow: "auto",
+    padding: "20px",
+    borderRadius: "18px",
+    background: "white",
+    boxShadow: "0 24px 70px rgba(15, 23, 42, 0.28)",
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: "16px",
+    marginBottom: "18px",
+  },
+  modalTitle: { margin: 0, color: "#111827" },
+  modalDescription: {
+    margin: "6px 0 0",
+    color: "#667085",
+    lineHeight: 1.45,
+  },
+  closeButton: {
+    width: "34px",
+    height: "34px",
+    padding: 0,
+    borderRadius: "9px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#344054",
+    cursor: "pointer",
+    fontSize: "22px",
+    lineHeight: 1,
+  },
+  linkLabel: {
+    display: "grid",
+    gap: "7px",
+    color: "#475467",
+    fontSize: "13px",
+    fontWeight: 500,
+  },
+  linkCopyRow: {
+    display: "grid",
+    gridTemplateColumns: "minmax(0, 1fr) auto",
+    gap: "8px",
+  },
+  linkInput: {
+    width: "100%",
+    minWidth: 0,
+    padding: "10px",
+    border: "1px solid #CBD5E1",
+    borderRadius: "10px",
+    background: "#F8FAFC",
+    color: "#344054",
+  },
+  expiryText: {
+    margin: "8px 0 0",
+    color: "#667085",
+    fontSize: "12px",
+  },
+  replacementWarning: {
+    display: "grid",
+    gap: "9px",
+    marginTop: "18px",
+    padding: "14px",
+    border: "1px solid #FDE68A",
+    borderRadius: "12px",
+    background: "#FFFBEB",
+    color: "#92400E",
+    fontSize: "13px",
+  },
+  confirmRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  replaceButton: {
+    padding: "9px 12px",
+    borderRadius: "10px",
+    border: "1px solid #D92D20",
+    background: "#D92D20",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
+  linkError: {
+    padding: "12px",
+    border: "1px solid #FECACA",
+    borderRadius: "10px",
+    background: "#FFF1F1",
+    color: "#B42318",
   },
   reportPage: {
     border: "1px solid #e5e7eb",
