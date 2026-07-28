@@ -1063,6 +1063,23 @@ export default function PlannerPortal() {
       ),
     );
 
+    const updatedAt = new Date().toISOString();
+
+    const { error: projectError } = await supabase
+      .from("projects")
+      .update({
+        workspace_id: currentWorkspaceId,
+        is_private: true,
+        updated_at: updatedAt,
+      })
+      .eq("id", projectId)
+      .eq("user_id", user.id);
+
+    if (projectError) {
+      alert(projectError.message);
+      return false;
+    }
+
     const { error: deleteError } = await supabase
       .from("project_shares")
       .delete()
@@ -1089,23 +1106,6 @@ export default function PlannerPortal() {
         alert(insertError.message);
         return false;
       }
-    }
-
-    const updatedAt = new Date().toISOString();
-
-    const { error: projectError } = await supabase
-      .from("projects")
-      .update({
-        workspace_id: currentWorkspaceId,
-        is_private: true,
-        updated_at: updatedAt,
-      })
-      .eq("id", projectId)
-      .eq("user_id", user.id);
-
-    if (projectError) {
-      alert(projectError.message);
-      return false;
     }
 
     setProjects((currentProjects) =>
