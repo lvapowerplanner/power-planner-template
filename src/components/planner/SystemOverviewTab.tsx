@@ -29,6 +29,8 @@ type SystemOverviewTabProps = {
   calculationView?: "standard" | "advanced";
   showProjectInformation?: boolean;
   showHeader?: boolean;
+  expandedSourceIds: string[];
+  setExpandedSourceIds: (sourceIds: string[]) => void;
 };
 
 function formatKva(value: number) {
@@ -183,6 +185,8 @@ export function SystemOverviewTab({
   calculationView = "standard",
   showProjectInformation = true,
   showHeader = true,
+  expandedSourceIds,
+  setExpandedSourceIds,
 }: SystemOverviewTabProps) {
   const [expandedAdvancedIssueId, setExpandedAdvancedIssueId] = useState<
     string | null
@@ -206,6 +210,14 @@ export function SystemOverviewTab({
       projectInfo: nextProjectInfo,
       systemName: field === "projectName" ? value : plannerState.systemName,
     });
+  }
+
+  function toggleSource(sourceId: string) {
+    setExpandedSourceIds(
+      expandedSourceIds.includes(sourceId)
+        ? expandedSourceIds.filter((id) => id !== sourceId)
+        : [...expandedSourceIds, sourceId],
+    );
   }
 
   return (
@@ -351,12 +363,35 @@ export function SystemOverviewTab({
         }
       />
 
+      {summary.sourceSummaries.length > 0 && (
+        <div style={styles.viewToolbar}>
+          <button
+            style={styles.textButton}
+            onClick={() =>
+              setExpandedSourceIds(
+                summary.sourceSummaries.map((source) => source.sourceId),
+              )
+            }
+          >
+            Expand all
+          </button>
+          <button
+            style={styles.textButton}
+            onClick={() => setExpandedSourceIds([])}
+          >
+            Collapse all
+          </button>
+        </div>
+      )}
+
       <section style={styles.flowSection}>
         {summary.sourceSummaries.length === 0 ? (
           <p style={styles.muted}>No manual power sources added yet.</p>
         ) : (
           <div style={styles.sourceList}>
-            {summary.sourceSummaries.map((source) => (
+            {summary.sourceSummaries.map((source) => {
+              const collapsed = !expandedSourceIds.includes(source.sourceId);
+              return (
               <div
                 key={source.sourceId}
                 style={{
@@ -384,34 +419,54 @@ export function SystemOverviewTab({
                     </p>
                   </div>
 
-                  <div style={styles.sourceTotal}>
-                    {sourceTotalLabel(source, advancedView, plannerState)}
+                  <div style={styles.sourceActions}>
+                    <div style={styles.sourceTotal}>
+                      {sourceTotalLabel(source, advancedView, plannerState)}
+                    </div>
+                    <button
+                      style={styles.expandButton}
+                      onClick={() => toggleSource(source.sourceId)}
+                    >
+                      {collapsed ? "Expand ▾" : "Collapse ▴"}
+                    </button>
                   </div>
                 </div>
 
-                <PhaseLoadGrid loads={source.phaseLoads} rating={source.sourceRating} />
+                {!collapsed && (
+                  <>
+                    <PhaseLoadGrid
+                      loads={source.phaseLoads}
+                      rating={source.sourceRating}
+                    />
 
-                {source.distros.length === 0 ? (
-                  <p style={styles.muted}>No distros assigned to this source.</p>
-                ) : (
-                  <div style={styles.treeList}>
-                    {source.distros.map((distroSummary) => (
-                      <DistroTreeCard
-                        key={distroSummary.distro.id}
-                        summary={distroSummary}
-                        openDistroEditor={openDistroEditor}
-                        depth={0}
-                        sourceConnection={source.sourceConnection}
-                        sourceRating={source.sourceRating}
-                        dismissedWarnings={plannerState.dismissedWarnings ?? []}
-                        advancedView={advancedView}
-                        plannerState={plannerState}
-                      />
-                    ))}
-                  </div>
+                    {source.distros.length === 0 ? (
+                      <p style={styles.muted}>
+                        No distros assigned to this source.
+                      </p>
+                    ) : (
+                      <div style={styles.treeList}>
+                        {source.distros.map((distroSummary) => (
+                          <DistroTreeCard
+                            key={distroSummary.distro.id}
+                            summary={distroSummary}
+                            openDistroEditor={openDistroEditor}
+                            depth={0}
+                            sourceConnection={source.sourceConnection}
+                            sourceRating={source.sourceRating}
+                            dismissedWarnings={
+                              plannerState.dismissedWarnings ?? []
+                            }
+                            advancedView={advancedView}
+                            plannerState={plannerState}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
@@ -834,6 +889,22 @@ const styles: Record<string, React.CSSProperties> = {
   flowSection: {
     marginTop: "10px",
   },
+  viewToolbar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    flexWrap: "wrap",
+    gap: "4px",
+    marginTop: "10px",
+  },
+  textButton: {
+    padding: "7px 9px",
+    border: 0,
+    background: "transparent",
+    color: "#334155",
+    textDecoration: "underline",
+    cursor: "pointer",
+  },
   sourceList: {
     display: "grid",
     gap: "18px",
@@ -857,6 +928,21 @@ const styles: Record<string, React.CSSProperties> = {
     fontWeight: 500,
     color: "#111827",
     whiteSpace: "nowrap",
+  },
+  sourceActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "12px",
+    flexWrap: "wrap",
+  },
+  expandButton: {
+    padding: "6px 9px",
+    border: 0,
+    background: "transparent",
+    color: "#667085",
+    cursor: "pointer",
+    fontWeight: 500,
   },
   treeList: {
     display: "grid",

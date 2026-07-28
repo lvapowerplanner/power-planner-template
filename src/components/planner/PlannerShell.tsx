@@ -153,6 +153,25 @@ export function PlannerShell({
   canManageReportLink = false,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
+  const [systemOverviewExpandedSourceIds, setSystemOverviewExpandedSourceIds] =
+    useState<string[]>(() =>
+      plannerState.sources
+        .filter((source) => !source.auto)
+        .map((source) => source.id),
+    );
+  const [advancedOverviewExpandedSourceIds, setAdvancedOverviewExpandedSourceIds] =
+    useState<string[]>(() =>
+      plannerState.sources
+        .filter((source) => !source.auto)
+        .map((source) => source.id),
+    );
+  const knownManualSourceIdsRef = useRef(
+    new Set(
+      plannerState.sources
+        .filter((source) => !source.auto)
+        .map((source) => source.id),
+    ),
+  );
   const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const tabs: PlannerTab[] = advancedFeaturesEnabled
@@ -170,6 +189,26 @@ export function PlannerShell({
       setPlannerState(updatedState);
     }
   }, [plannerState, setPlannerState]);
+
+  useEffect(() => {
+    const currentIds = plannerState.sources
+      .filter((source) => !source.auto)
+      .map((source) => source.id);
+    const currentIdSet = new Set(currentIds);
+    const newIds = currentIds.filter(
+      (sourceId) => !knownManualSourceIdsRef.current.has(sourceId),
+    );
+    const retainAndExpandNew = (sourceIds: string[]) => [
+      ...sourceIds.filter((sourceId) => currentIdSet.has(sourceId)),
+      ...newIds.filter((sourceId) => !sourceIds.includes(sourceId)),
+    ];
+
+    if (newIds.length > 0 || knownManualSourceIdsRef.current.size !== currentIds.length) {
+      setSystemOverviewExpandedSourceIds(retainAndExpandNew);
+      setAdvancedOverviewExpandedSourceIds(retainAndExpandNew);
+    }
+    knownManualSourceIdsRef.current = currentIdSet;
+  }, [plannerState.sources]);
 
   function openDistroEditor(distroId: string) {
     setPlannerState({
@@ -335,6 +374,8 @@ export function PlannerShell({
             plannerState={plannerState}
             setPlannerState={setPlannerState}
             openDistroEditor={openDistroEditor}
+            expandedSourceIds={systemOverviewExpandedSourceIds}
+            setExpandedSourceIds={setSystemOverviewExpandedSourceIds}
           />
         )}
 
@@ -369,6 +410,10 @@ export function PlannerShell({
               setPlannerState={setPlannerState}
               openDistroEditor={openDistroEditor}
               workspaceId={workspaceId}
+              overviewExpandedSourceIds={advancedOverviewExpandedSourceIds}
+              setOverviewExpandedSourceIds={
+                setAdvancedOverviewExpandedSourceIds
+              }
             />
           )}
 

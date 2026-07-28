@@ -50,11 +50,13 @@ type CableCircuitRow = {
   designCurrentOverride?: number;
   rowKind: "inbound" | "output";
   feedsDistro?: boolean;
+  linkedDistroId?: string;
   linkedDistroName?: string;
   autoInbound?: boolean;
   configuredAtDistroId?: string;
   configuredAtDistroName?: string;
   configuredAtOutputLabel?: string;
+  configuredAtRowKey?: string;
 };
 
 function settingsFor(plannerState: PlannerState) {
@@ -147,6 +149,7 @@ function rowsForState(plannerState: PlannerState): CableCircuitRow[] {
                   configuredAtDistroId: parentDistro.id,
                   configuredAtDistroName: displayDistroName(parentDistro),
                   configuredAtOutputLabel: outputLabel,
+                  configuredAtRowKey: `${parentDistro.id}:${parentOutput.id}`,
                 },
               ];
             })()
@@ -188,6 +191,7 @@ function rowsForState(plannerState: PlannerState): CableCircuitRow[] {
           connectedWatts: outputWatts(output, plannerState, distro),
           rowKind: "output",
           feedsDistro,
+          linkedDistroId: linkedDistro?.id,
           linkedDistroName: linkedDistro
             ? displayDistroName(linkedDistro)
             : undefined,
@@ -351,6 +355,9 @@ export function CableProtectionTab({
   const [library, setLibrary] = useState<GlobalCableLibraryRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
+  const [highlightedRowKey, setHighlightedRowKey] = useState<string | null>(
+    null,
+  );
   const [floatingScrollbar, setFloatingScrollbar] = useState({
     visible: false,
     left: 0,
@@ -359,6 +366,7 @@ export function CableProtectionTab({
   });
   const tableScrollRef = useRef<HTMLDivElement | null>(null);
   const floatingScrollRef = useRef<HTMLDivElement | null>(null);
+  const highlightTimeoutRef = useRef<number | null>(null);
   const settings = settingsFor(plannerState);
   const allRows = useMemo(() => rowsForState(plannerState), [plannerState]);
   const visibleRows = allRows.filter(
@@ -473,6 +481,14 @@ export function CableProtectionTab({
       observer.disconnect();
     };
   }, [visibleRows.length]);
+
+  useEffect(() => {
+    return () => {
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+    };
+  }, []);
 
   function syncHorizontalScroll(
     source: HTMLDivElement,
@@ -789,22 +805,52 @@ export function CableProtectionTab({
     });
   }
 
-  function openConfiguredOutput(row: CableCircuitRow) {
-    if (!row.configuredAtDistroId) return;
+  function rowElementId(rowKey: string) {
+    return `cable-row-${rowKey.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
+  }
 
+  function navigateToRow(targetDistroId: string, targetRowKey: string) {
     setSelectedDistroId("all");
     setCollapsedDistroIds((current) =>
-      current.filter((id) => id !== row.configuredAtDistroId),
+      current.filter((id) => id !== targetDistroId),
     );
     window.setTimeout(() => {
-      document
-        .getElementById(`cable-distro-${row.configuredAtDistroId}`)
-        ?.scrollIntoView({ behavior: "smooth", block: "start" });
+      const targetRow = document.getElementById(rowElementId(targetRowKey));
+      targetRow?.scrollIntoView({ behavior: "smooth", block: "center" });
+      setHighlightedRowKey(targetRowKey);
+      if (highlightTimeoutRef.current !== null) {
+        window.clearTimeout(highlightTimeoutRef.current);
+      }
+      highlightTimeoutRef.current = window.setTimeout(() => {
+        setHighlightedRowKey((current) =>
+          current === targetRowKey ? null : current,
+        );
+        highlightTimeoutRef.current = null;
+      }, 2000);
     }, 0);
+  }
+
+  function openConfiguredOutput(row: CableCircuitRow) {
+    if (!row.configuredAtDistroId || !row.configuredAtRowKey) return;
+    navigateToRow(row.configuredAtDistroId, row.configuredAtRowKey);
+  }
+
+  function openLinkedDistro(row: CableCircuitRow) {
+    if (!row.linkedDistroId) return;
+    navigateToRow(row.linkedDistroId, `${row.linkedDistroId}:auto-inbound`);
   }
 
   return (
     <section style={styles.page}>
+      <style>{`
+        @keyframes cable-row-focus-pulse {
+          0%, 100% { background-color: #fff7cc; }
+          50% { background-color: #facc15; }
+        }
+        .cable-row-focus > td {
+          animation: cable-row-focus-pulse 1s ease-in-out infinite;
+        }
+      `}</style>
       <div style={styles.intro}>
         <div>
           <h3 style={styles.title}>Cable Design</h3>
@@ -939,6 +985,10 @@ export function CableProtectionTab({
               return (
                 <tr
                   key={row.key}
+                  id={rowElementId(row.key)}
+                  className={
+                    highlightedRowKey === row.key ? "cable-row-focus" : undefined
+                  }
                   style={
                     row.rowKind === "inbound"
                       ? styles.inboundRow
@@ -956,6 +1006,17 @@ export function CableProtectionTab({
                     )}
                     <strong>{row.label}</strong>
                     <span style={styles.infoIcon} title={circuitInformation(row)} aria-label="Circuit information">i</span>
+                    {row.feedsDistro && row.linkedDistroId && (
+                      <div style={styles.configuredElsewhere}>
+                        <button
+                          type="button"
+                          style={styles.openConfiguredButton}
+                          onClick={() => openLinkedDistro(row)}
+                        >
+                          Open Distro
+                        </button>
+                      </div>
+                    )}
                     {row.autoInbound && (
                       <div style={styles.configuredElsewhere}>
                         <span>

@@ -5,6 +5,10 @@ import { CableLibraryTab } from "@/components/planner/CableLibraryTab";
 import { ProtectionTab } from "@/components/planner/ProtectionTab";
 import { useCompanyDistroLibrary } from "@/planner/companyStock";
 import {
+  buildAdvancedExportHtml,
+  type AdvancedExportSection,
+} from "@/planner/advancedPdfExport";
+import {
   calculateAdvancedCircuit,
   childDistroFedFromOutput,
   displayDistroName,
@@ -24,6 +28,8 @@ type AdvancedCalculationsTabProps = {
   setPlannerState: (state: PlannerState) => void;
   openDistroEditor: (distroId: string) => void;
   workspaceId?: string | null;
+  overviewExpandedSourceIds: string[];
+  setOverviewExpandedSourceIds: (sourceIds: string[]) => void;
 };
 
 type CircuitRow = {
@@ -270,6 +276,8 @@ export function AdvancedCalculationsTab({
   setPlannerState,
   openDistroEditor,
   workspaceId,
+  overviewExpandedSourceIds,
+  setOverviewExpandedSourceIds,
 }: AdvancedCalculationsTabProps) {
   const { distroLibrary, loadingDistros } = useCompanyDistroLibrary();
   const settings = settingsFor(plannerState);
@@ -284,6 +292,12 @@ export function AdvancedCalculationsTab({
   const [refreshDistroId, setRefreshDistroId] = useState(
     plannerState.distros[0]?.id ?? "",
   );
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportSections, setExportSections] = useState<
+    Record<AdvancedExportSection, boolean>
+  >({ "load-demand": true, cables: true, protection: true });
+  const [exportDistroIds, setExportDistroIds] = useState<string[]>([]);
+  const [exportError, setExportError] = useState("");
 
   const visibleDistros = useMemo(
     () =>
@@ -312,6 +326,51 @@ export function AdvancedCalculationsTab({
         ...patch,
       },
     });
+  }
+
+  function openExportModal() {
+    setExportSections({ "load-demand": true, cables: true, protection: true });
+    setExportDistroIds(plannerState.distros.map((distro) => distro.id));
+    setExportError("");
+    setExportModalOpen(true);
+  }
+
+  function toggleExportDistro(distroId: string) {
+    setExportDistroIds((current) =>
+      current.includes(distroId)
+        ? current.filter((id) => id !== distroId)
+        : [...current, distroId],
+    );
+  }
+
+  function exportAdvancedPdf() {
+    const selectedSections = (
+      Object.keys(exportSections) as AdvancedExportSection[]
+    ).filter((section) => exportSections[section]);
+    if (selectedSections.length === 0) {
+      setExportError("Select at least one calculation section.");
+      return;
+    }
+    if (exportDistroIds.length === 0) {
+      setExportError("Select at least one distro.");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    if (!printWindow) {
+      setExportError("Allow pop-ups in this browser to export the PDF.");
+      return;
+    }
+    printWindow.document.open();
+    printWindow.document.write(
+      buildAdvancedExportHtml(
+        plannerState,
+        selectedSections,
+        exportDistroIds,
+      ),
+    );
+    printWindow.document.close();
+    setExportModalOpen(false);
   }
 
   function replaceOutput(updatedOutput: PlannerOutput, row: CircuitRow) {
@@ -507,11 +566,16 @@ export function AdvancedCalculationsTab({
             calculation assumptions can be changed here.
           </p>
         </div>
-        {activeSubTab === "load-demand" && (
-          <button style={styles.secondaryButton} onClick={resetAllDiversity}>
-            Reset all diversity
+        <div style={styles.headerActions}>
+          {activeSubTab === "load-demand" && (
+            <button style={styles.secondaryButton} onClick={resetAllDiversity}>
+              Reset all diversity
+            </button>
+          )}
+          <button style={styles.primaryButton} onClick={openExportModal}>
+            Export Advanced PDF
           </button>
-        )}
+        </div>
       </div>
 
       <div style={styles.subTabs}>
@@ -626,6 +690,8 @@ export function AdvancedCalculationsTab({
             calculationView="advanced"
             showProjectInformation={false}
             showHeader={false}
+            expandedSourceIds={overviewExpandedSourceIds}
+            setExpandedSourceIds={setOverviewExpandedSourceIds}
           />
         </>
       ) : activeSubTab === "cables" ? (
@@ -1067,6 +1133,146 @@ export function AdvancedCalculationsTab({
       </p>
         </>
       )}
+
+      {exportModalOpen && (
+        <div style={styles.modalBackdrop} role="presentation">
+          <div
+            style={styles.exportModal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="advanced-export-title"
+          >
+            <div style={styles.modalHeader}>
+              <div>
+                <h3 id="advanced-export-title" style={styles.modalTitle}>
+                  Export Advanced PDF
+                </h3>
+                <p style={styles.modalDescription}>
+                  Choose the calculation sections and distros to include.
+                </p>
+              </div>
+              <button
+                style={styles.closeButton}
+                onClick={() => setExportModalOpen(false)}
+                aria-label="Close"
+              >
+                ×
+              </button>
+            </div>
+
+            <section style={styles.exportGroup}>
+              <div style={styles.exportGroupHeader}>
+                <strong>Calculation sections</strong>
+                <div style={styles.selectionActions}>
+                  <button
+                    style={styles.textButton}
+                    onClick={() =>
+                      setExportSections({
+                        "load-demand": true,
+                        cables: true,
+                        protection: true,
+                      })
+                    }
+                  >
+                    Select all
+                  </button>
+                  <button
+                    style={styles.textButton}
+                    onClick={() =>
+                      setExportSections({
+                        "load-demand": false,
+                        cables: false,
+                        protection: false,
+                      })
+                    }
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div style={styles.exportChoices}>
+                {([
+                  ["load-demand", "Load & Demand"],
+                  ["cables", "Cable Design"],
+                  ["protection", "Protection"],
+                ] as Array<[AdvancedExportSection, string]>).map(
+                  ([section, label]) => (
+                    <label key={section} style={styles.exportChoice}>
+                      <input
+                        type="checkbox"
+                        checked={exportSections[section]}
+                        onChange={(event) =>
+                          setExportSections((current) => ({
+                            ...current,
+                            [section]: event.target.checked,
+                          }))
+                        }
+                      />
+                      {label}
+                    </label>
+                  ),
+                )}
+              </div>
+            </section>
+
+            <section style={styles.exportGroup}>
+              <div style={styles.exportGroupHeader}>
+                <strong>Distros</strong>
+                <div style={styles.selectionActions}>
+                  <button
+                    style={styles.textButton}
+                    onClick={() =>
+                      setExportDistroIds(
+                        plannerState.distros.map((distro) => distro.id),
+                      )
+                    }
+                  >
+                    Select all
+                  </button>
+                  <button
+                    style={styles.textButton}
+                    onClick={() => setExportDistroIds([])}
+                  >
+                    Clear
+                  </button>
+                </div>
+              </div>
+              <div style={styles.distroChoices}>
+                {plannerState.distros.length === 0 ? (
+                  <p style={styles.subtitle}>No distros have been added.</p>
+                ) : (
+                  plannerState.distros.map((distro) => (
+                    <label key={distro.id} style={styles.exportChoice}>
+                      <input
+                        type="checkbox"
+                        checked={exportDistroIds.includes(distro.id)}
+                        onChange={() => toggleExportDistro(distro.id)}
+                      />
+                      <span>
+                        <strong>{displayDistroName(distro)}</strong> · {distro.input}
+                      </span>
+                    </label>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {exportError && <div style={styles.exportError}>{exportError}</div>}
+
+            <div style={styles.modalFooter}>
+              <button
+                style={styles.secondaryButton}
+                onClick={() => setExportModalOpen(false)}
+              >
+                Cancel
+              </button>
+              <button style={styles.primaryButton} onClick={exportAdvancedPdf}>
+                Export Selected PDF
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
 }
@@ -1078,6 +1284,13 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: "space-between",
     alignItems: "flex-start",
     gap: "16px",
+  },
+  headerActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
   },
   title: { margin: 0, fontSize: "26px" },
   subtitle: { margin: "6px 0 0", color: "#637083" },
@@ -1156,6 +1369,15 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "10px",
     background: "#FFFFFF",
     cursor: "pointer",
+  },
+  primaryButton: {
+    padding: "10px 13px",
+    border: "1px solid var(--lva-workspace-dark-button, #000000)",
+    borderRadius: "10px",
+    background: "var(--lva-workspace-dark-button, #000000)",
+    color: "#FFFFFF",
+    cursor: "pointer",
+    fontWeight: 500,
   },
   modelRefreshBar: {
     display: "grid",
@@ -1298,6 +1520,101 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     color: "#637083",
     textAlign: "center",
+  },
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: "24px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  exportModal: {
+    width: "min(720px, 100%)",
+    maxHeight: "calc(100vh - 48px)",
+    overflow: "auto",
+    padding: "20px",
+    borderRadius: "18px",
+    background: "#FFFFFF",
+    boxShadow: "0 24px 70px rgba(15, 23, 42, 0.28)",
+  },
+  modalHeader: {
+    display: "flex",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    gap: "16px",
+    marginBottom: "16px",
+  },
+  modalTitle: { margin: 0 },
+  modalDescription: { margin: "6px 0 0", color: "#637083" },
+  closeButton: {
+    width: "34px",
+    height: "34px",
+    padding: 0,
+    border: "1px solid #DCE5EC",
+    borderRadius: "9px",
+    background: "#FFFFFF",
+    color: "#344054",
+    cursor: "pointer",
+    fontSize: "22px",
+    lineHeight: 1,
+  },
+  exportGroup: {
+    padding: "14px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "12px",
+    background: "#F8FAFC",
+    marginTop: "12px",
+  },
+  exportGroupHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+    marginBottom: "10px",
+  },
+  selectionActions: { display: "flex", alignItems: "center", gap: "4px" },
+  exportChoices: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "8px",
+  },
+  distroChoices: {
+    display: "grid",
+    gap: "7px",
+    maxHeight: "280px",
+    overflowY: "auto",
+  },
+  exportChoice: {
+    display: "flex",
+    alignItems: "center",
+    gap: "8px",
+    padding: "9px 10px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "9px",
+    background: "#FFFFFF",
+    color: "#344054",
+    fontSize: "13px",
+  },
+  exportError: {
+    marginTop: "12px",
+    padding: "10px",
+    border: "1px solid #FECACA",
+    borderRadius: "9px",
+    background: "#FFF1F1",
+    color: "#B42318",
+    fontSize: "13px",
+  },
+  modalFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "8px",
+    marginTop: "18px",
+    paddingTop: "16px",
+    borderTop: "1px solid #EEF2F6",
   },
   disclaimer: { margin: 0, color: "#637083", fontSize: "12px" },
 };
