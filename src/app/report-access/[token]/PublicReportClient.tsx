@@ -105,10 +105,14 @@ export function PublicReportClient({ token }: { token: string }) {
   return (
     <main style={styles.page}>
       <section style={styles.liveBanner} className="no-print">
-        <div>
-          <strong>Live view-only report</strong>
-          <span>{payload.project_name ?? "Power Planner Project"}</span>
-          <small>Latest saved update: {updatedAt}</small>
+        <div style={styles.liveDetails}>
+          <strong style={styles.liveStatus}>Live view-only report</strong>
+          <span style={styles.projectName}>
+            {payload.project_name ?? "Power Planner Project"}
+          </span>
+          <small style={styles.updatedText}>
+            Latest saved update: {updatedAt}
+          </small>
         </div>
         <button style={styles.refreshButton} onClick={loadReport}>
           Refresh Report
@@ -159,6 +163,25 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     background: "white",
     color: "#344054",
+  },
+  liveDetails: {
+    display: "grid",
+    gap: "5px",
+    minWidth: 0,
+  },
+  liveStatus: {
+    color: "#0A8F5D",
+    fontSize: "13px",
+    fontWeight: 600,
+  },
+  projectName: {
+    color: "#111827",
+    fontSize: "17px",
+    fontWeight: 600,
+  },
+  updatedText: {
+    color: "#667085",
+    fontSize: "12px",
   },
   refreshButton: {
     padding: "9px 12px",
