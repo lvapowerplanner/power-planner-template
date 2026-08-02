@@ -202,12 +202,6 @@ export default function PlannerPortal() {
   }
 
   async function resolveWorkspaceId() {
-    if (currentHostUsesIndividualProjects()) {
-      setWorkspaceId(null);
-      setProjectSharingMode("disabled");
-      return null;
-    }
-
     const candidates = workspaceHostCandidates();
 
     if (candidates.length === 0) {
@@ -224,13 +218,39 @@ export default function PlannerPortal() {
       return null;
     }
 
-    const { data, error } = await supabase
-      .from("planner_workspaces")
-      .select("id, advanced_features_enabled")
-      .in("host", candidates)
-      .eq("active", true)
-      .limit(1)
-      .maybeSingle();
+    const { data: resolvedAccess, error: resolverError } = await supabase.rpc(
+      "resolve_current_workspace_advanced_access",
+      { requested_host: currentHost() },
+    );
+
+    const accessRow = Array.isArray(resolvedAccess) ? resolvedAccess[0] : null;
+    let data: { id?: string; advanced_features_enabled?: boolean } | null =
+      accessRow
+        ? {
+            id: String(accessRow.workspace_id),
+            advanced_features_enabled: Boolean(
+              accessRow.workspace_advanced_features_enabled,
+            ),
+          }
+        : null;
+    let error = resolverError;
+
+    if (accessRow) {
+      setUserAdvancedFeaturesEnabled(
+        Boolean(accessRow.user_advanced_features_enabled),
+      );
+      error = null;
+    } else {
+      const fallback = await supabase
+        .from("planner_workspaces")
+        .select("id, advanced_features_enabled")
+        .in("host", candidates)
+        .eq("active", true)
+        .limit(1)
+        .maybeSingle();
+      data = fallback.data;
+      error = fallback.error;
+    }
 
     if (error) {
       console.error("Could not resolve workspace:", error);
@@ -691,6 +711,7 @@ export default function PlannerPortal() {
     if (!mfaApproved) return;
 
     setUser(currentUser);
+    await resolveWorkspaceId();
     await loadProjects(currentUser);
   }
 
