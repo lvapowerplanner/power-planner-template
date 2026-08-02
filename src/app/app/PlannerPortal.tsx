@@ -202,12 +202,6 @@ export default function PlannerPortal() {
   }
 
   async function resolveWorkspaceId() {
-    if (currentHostUsesIndividualProjects()) {
-      setWorkspaceId(null);
-      setProjectSharingMode("disabled");
-      return null;
-    }
-
     const candidates = workspaceHostCandidates();
 
     if (candidates.length === 0) {
