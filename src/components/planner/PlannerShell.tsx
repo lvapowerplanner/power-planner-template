@@ -8,6 +8,7 @@ import { DistroOverviewTab } from "@/components/planner/DistroOverviewTab";
 import { PowerSourcesTab } from "@/components/planner/PowerSourcesTab";
 import { ReportTab } from "@/components/planner/ReportTab";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
+import { SystemSignOffTab } from "@/components/planner/SystemSignOffTab";
 import { ensureAutoSources } from "@/planner/autoSources";
 import type { PlannerState } from "@/planner/types";
 
@@ -40,7 +41,8 @@ type PlannerTab =
   | "Advanced Calculations"
   | "Custom Equipment"
   | "Custom Distros"
-  | "Report";
+  | "Report"
+  | "System Sign-Off";
 
 
 const defaultWorkspaceFont = "'Outfit', Arial, sans-serif";
@@ -179,6 +181,7 @@ export function PlannerShell({
         ...standardTabs.slice(0, 4),
         "Advanced Calculations",
         ...standardTabs.slice(4),
+        "System Sign-Off",
       ]
     : standardTabs;
 
@@ -439,6 +442,14 @@ export function PlannerShell({
             workspaceBranding={workspaceBranding}
             projectId={projectId}
             canManageReportLink={canManageReportLink}
+          />
+        )}
+
+        {activeTab === "System Sign-Off" && advancedFeaturesEnabled && (
+          <SystemSignOffTab
+            plannerState={plannerState}
+            projectId={projectId}
+            canManageAccessLink={canManageReportLink}
           />
         )}
       </section>

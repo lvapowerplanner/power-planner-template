@@ -10,6 +10,7 @@ import {
 } from "@/planner/advancedPdfExport";
 import {
   calculateAdvancedCircuit,
+  advancedOutputCalculationForLink,
   childDistroFedFromOutput,
   displayDistroName,
   outputDisplayName,
@@ -41,6 +42,7 @@ type CircuitRow = {
   label: string;
   connectedWatts: number;
   equipment: string;
+  linkedDistro?: ProjectDistro;
 };
 
 const defaultSettings: AdvancedElectricalSettings = {
@@ -97,6 +99,7 @@ function circuitRowsForDistro(
         label: outputDisplayName(output, outputIndex),
         connectedWatts: outputWatts(output, plannerState, distro),
         equipment: equipmentParts.join(", ") || "Unused",
+        linkedDistro: child,
       },
     ];
   });
@@ -226,6 +229,7 @@ function mergeCircuitModel(
     diversityReason: existingCircuit.diversityReason,
     powerFactorOverride: existingCircuit.powerFactorOverride,
     cableDesign: existingCircuit.cableDesign,
+    faultProtection: existingCircuit.faultProtection,
   };
 }
 
@@ -256,6 +260,7 @@ function mergeOutputModel(
     diversityReason: existingOutput.diversityReason,
     powerFactorOverride: existingOutput.powerFactorOverride,
     cableDesign: existingOutput.cableDesign,
+    faultProtection: existingOutput.faultProtection,
     socaCircuits: modelOutput.socaCircuits?.map((circuit, index) =>
       mergeCircuitModel(
         circuit,
@@ -540,6 +545,7 @@ export function AdvancedCalculationsTab({
       location: distro.location,
       notes: distro.notes,
       inboundCableDesign: distro.inboundCableDesign,
+      incomerFaultProtection: distro.incomerFaultProtection,
       outputs: outputMatches.map(({ modelOutput, match }) =>
         mergeOutputModel(modelOutput, match),
       ),
@@ -879,7 +885,13 @@ export function AdvancedCalculationsTab({
             : allRows.filter((row) => row.connectedWatts > 0);
           const collapsed = collapsedDistroIds.includes(distro.id);
           const calculations = rows.map((row) =>
-            calculateAdvancedCircuit({
+            row.linkedDistro
+              ? advancedOutputCalculationForLink(
+                  row.output,
+                  row.distro,
+                  plannerState,
+                )
+              : calculateAdvancedCircuit({
               connectedWatts: row.connectedWatts,
               phase: row.output.phase,
               diversityPercent: row.output.diversityPercent,
@@ -889,7 +901,7 @@ export function AdvancedCalculationsTab({
               nominalSinglePhaseVoltage:
                 settings.nominalSinglePhaseVoltage,
               nominalThreePhaseVoltage: settings.nominalThreePhaseVoltage,
-            }),
+                }),
           );
           const connectedTotal = calculations.reduce(
             (total, calculation) => total + calculation.connectedWatts,
@@ -956,7 +968,7 @@ export function AdvancedCalculationsTab({
                         {rows.map((row, index) => {
                           const calculation = calculations[index];
                           const diversityApplied =
-                            calculation.diversityPercent < 100;
+                            !row.linkedDistro && calculation.diversityPercent < 100;
                           const missingReason =
                             diversityApplied &&
                             !row.output.diversityReason?.trim();
@@ -964,7 +976,7 @@ export function AdvancedCalculationsTab({
                             typeof row.output.powerFactorOverride === "number";
 
                           return (
-                            <tr key={row.key}>
+                            <tr key={row.key} style={row.linkedDistro ? styles.linkedRow : undefined}>
                               <td style={styles.td}>
                                 <strong>{row.label}</strong>
                               </td>
@@ -988,8 +1000,11 @@ export function AdvancedCalculationsTab({
                                     min="1"
                                     max="100"
                                     step="1"
+                                    disabled={Boolean(row.linkedDistro)}
                                     value={numericInputValue(
-                                      row.output.diversityPercent,
+                                      row.linkedDistro
+                                        ? Number(calculation.diversityPercent.toFixed(2))
+                                        : row.output.diversityPercent,
                                       100,
                                     )}
                                     onChange={(event) =>
@@ -1018,12 +1033,14 @@ export function AdvancedCalculationsTab({
                                     min="0.1"
                                     max="1"
                                     step="0.01"
-                                    disabled={!powerFactorEnabled}
+                                    disabled={!powerFactorEnabled || Boolean(row.linkedDistro)}
                                     placeholder={settings.defaultPowerFactor.toFixed(
                                       2,
                                     )}
                                     value={
-                                      hasPfOverride
+                                      row.linkedDistro
+                                        ? Number(calculation.powerFactor.toFixed(3))
+                                        : hasPfOverride
                                         ? row.output.powerFactorOverride
                                         : ""
                                     }
@@ -1045,7 +1062,9 @@ export function AdvancedCalculationsTab({
                                     }
                                   />
                                   <small style={styles.inheritanceText}>
-                                    {!powerFactorEnabled
+                                    {row.linkedDistro
+                                      ? "From downstream distro"
+                                      : !powerFactorEnabled
                                       ? "Ignored"
                                       : hasPfOverride
                                         ? "Override"
@@ -1060,7 +1079,9 @@ export function AdvancedCalculationsTab({
                                 {formatAmps(calculation.currentAmps)}
                               </td>
                               <td style={styles.td}>
-                                <input
+                                {row.linkedDistro ? (
+                                  <span style={styles.linkedValue}>Controlled by {displayDistroName(row.linkedDistro)}</span>
+                                ) : <input
                                   style={{
                                     ...styles.notesInput,
                                     ...(missingReason
@@ -1078,7 +1099,7 @@ export function AdvancedCalculationsTab({
                                       diversityReason: event.target.value,
                                     })
                                   }
-                                />
+                                />}
                               </td>
                             </tr>
                           );
@@ -1470,6 +1491,8 @@ const styles: Record<string, React.CSSProperties> = {
     borderBottom: "1px solid #EEF2F6",
     verticalAlign: "top",
   },
+  linkedRow: { background: "#f1f5f9", color: "#526071" },
+  linkedValue: { display: "block", color: "#637083", fontSize: "12px", lineHeight: 1.35 },
   numberTd: {
     padding: "10px",
     borderBottom: "1px solid #EEF2F6",

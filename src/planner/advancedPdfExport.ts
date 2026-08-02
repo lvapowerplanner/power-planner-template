@@ -1,5 +1,6 @@
 import {
   advancedDistroLoadMetrics,
+  advancedOutputCalculationForLink,
   calculateAdvancedCircuit,
   calculateCableDesign,
   displayDistroName,
@@ -46,6 +47,9 @@ function calculationForOutput(
   distro: ProjectDistro,
   state: PlannerState,
 ) {
+  if (output.phase !== "Socapex") {
+    return advancedOutputCalculationForLink(output, distro, state);
+  }
   const settings = state.advancedElectrical;
   return calculateAdvancedCircuit({
     connectedWatts: outputWatts(output, state, distro),

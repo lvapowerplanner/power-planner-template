@@ -381,24 +381,57 @@ function addAdvancedMetrics(
   };
 }
 
-function ownAdvancedDistroMetrics(
-  distro: ProjectDistro,
+function advancedCalculationFromMetrics(
+  output: PlannerOutput,
+  metrics: AdvancedLoadMetrics,
   plannerState: PlannerState,
-): AdvancedLoadMetrics {
-  const outputs = distro.outputs.flatMap((output) =>
-    output.phase === "Socapex" ? output.socaCircuits ?? [] : [output],
+): AdvancedCircuitCalculation {
+  const settings = advancedSettingsFor(plannerState);
+  const powerFactor = metrics.apparentVa > 0
+    ? metrics.designWatts / metrics.apparentVa
+    : 1;
+  const diversityPercent = metrics.connectedWatts > 0
+    ? (metrics.designWatts / metrics.connectedWatts) * 100
+    : 100;
+  const voltage = output.phase === "3\u03a6"
+    ? settings.nominalThreePhaseVoltage
+    : settings.nominalSinglePhaseVoltage;
+  const currentAmps = output.phase === "3\u03a6"
+    ? metrics.apparentVa / (Math.sqrt(3) * voltage)
+    : metrics.apparentVa / voltage;
+
+  return {
+    connectedWatts: metrics.connectedWatts,
+    diversityPercent,
+    diversifiedWatts: metrics.designWatts,
+    powerFactor,
+    apparentVa: metrics.apparentVa,
+    currentAmps,
+  };
+}
+
+export function advancedOutputCalculationForLink(
+  output: PlannerOutput,
+  parentDistro: ProjectDistro,
+  plannerState: PlannerState,
+  visited: Set<string> = new Set(),
+): AdvancedCircuitCalculation {
+  const child = childDistroFedFromOutput(
+    plannerState,
+    parentDistro.id,
+    output.id,
   );
 
-  return outputs.reduce<AdvancedLoadMetrics>(
-    (total, output) => {
-      const calculation = advancedOutputCalculation(output, plannerState);
-      return addAdvancedMetrics(total, {
-        connectedWatts: calculation.connectedWatts,
-        designWatts: calculation.diversifiedWatts,
-        apparentVa: calculation.apparentVa,
-      });
-    },
-    { connectedWatts: 0, designWatts: 0, apparentVa: 0 },
+  if (!child || visited.has(child.id)) {
+    return advancedOutputCalculation(output, plannerState);
+  }
+
+  const nextVisited = new Set(visited);
+  nextVisited.add(parentDistro.id);
+  return advancedCalculationFromMetrics(
+    output,
+    advancedDistroLoadMetrics(child, plannerState, nextVisited),
+    plannerState,
   );
 }
 
@@ -414,14 +447,33 @@ export function advancedDistroLoadMetrics(
   const nextVisited = new Set(visited);
   nextVisited.add(distro.id);
 
-  return childDistrosForDistro(plannerState, distro).reduce(
-    (total, child) =>
-      addAdvancedMetrics(
+  return distro.outputs.reduce<AdvancedLoadMetrics>((total, output) => {
+    if (output.phase === "Socapex") {
+      return (output.socaCircuits ?? []).reduce(
+        (socaTotal, circuit) => {
+          const calculation = advancedOutputCalculation(circuit, plannerState);
+          return addAdvancedMetrics(socaTotal, {
+            connectedWatts: calculation.connectedWatts,
+            designWatts: calculation.diversifiedWatts,
+            apparentVa: calculation.apparentVa,
+          });
+        },
         total,
-        advancedDistroLoadMetrics(child, plannerState, nextVisited),
-      ),
-    ownAdvancedDistroMetrics(distro, plannerState),
-  );
+      );
+    }
+
+    const calculation = advancedOutputCalculationForLink(
+      output,
+      distro,
+      plannerState,
+      nextVisited,
+    );
+    return addAdvancedMetrics(total, {
+      connectedWatts: calculation.connectedWatts,
+      designWatts: calculation.diversifiedWatts,
+      apparentVa: calculation.apparentVa,
+    });
+  }, { connectedWatts: 0, designWatts: 0, apparentVa: 0 });
 }
 
 export function advancedSourceLoadMetrics(

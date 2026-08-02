@@ -26,6 +26,7 @@ export type WorkspaceUser = {
   email: string;
   role?: UserRole;
   status?: WorkspaceUserStatus;
+  advanced_features_enabled?: boolean;
 };
 
 export type ProjectData = {

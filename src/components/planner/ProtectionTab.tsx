@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { ProtectionEditor } from "@/components/planner/DistroDefinitionBuilder";
-import { calculateAdvancedCircuit, displayDistroName, outputDisplayName, outputWatts } from "@/planner/calculations";
-import type { PlannerOutput, PlannerState, ProjectDistro, ProtectiveDevice, ResidualCurrentProtection } from "@/planner/types";
+import { advancedOutputCalculationForLink, calculateAdvancedCircuit, childDistroFedFromOutput, displayDistroName, outputDisplayName, outputWatts } from "@/planner/calculations";
+import type { FaultProtectionData, PlannerOutput, PlannerState, ProjectDistro, ProtectiveDevice, ResidualCurrentProtection } from "@/planner/types";
 
 type ProtectionTabProps = {
   plannerState: PlannerState;
@@ -50,7 +50,10 @@ function circuitRows(plannerState: PlannerState): CircuitRow[] {
       const children = output.phase === "Socapex" ? output.socaCircuits ?? [] : [output];
       return children.map((circuit) => {
           const watts = outputWatts(circuit, plannerState, distro);
-          const calculation = calculateAdvancedCircuit({
+          const child = childDistroFedFromOutput(plannerState, distro.id, circuit.id);
+          const calculation = child
+            ? advancedOutputCalculationForLink(circuit, distro, plannerState)
+            : calculateAdvancedCircuit({
             connectedWatts: watts,
             phase: circuit.phase,
             diversityPercent: circuit.diversityPercent,
@@ -59,7 +62,7 @@ function circuitRows(plannerState: PlannerState): CircuitRow[] {
             powerFactorOverride: circuit.powerFactorOverride,
             nominalSinglePhaseVoltage: settings?.nominalSinglePhaseVoltage ?? 230,
             nominalThreePhaseVoltage: settings?.nominalThreePhaseVoltage ?? 400,
-          });
+              });
           return {
             key: `${distro.id}:${output.id}:${circuit.id}`,
             distro,
@@ -148,6 +151,99 @@ function adjustedCableCapacity(output: PlannerOutput) {
   return design.snapshot.currentCapacityA * Math.max(1, design.parallelRuns) * Math.max(0.01, design.deratingFactor);
 }
 
+type CheckResult = {
+  status: "Pass" | "Conflict" | "Needs data" | "Review";
+  detail: string;
+};
+
+function sourceForDistro(distro: ProjectDistro, state: PlannerState) {
+  return state.sources.find((source) => source.id === distro.sourceId);
+}
+
+function effectiveDistroFaultCurrent(
+  distro: ProjectDistro,
+  state: PlannerState,
+  visited = new Set<string>(),
+): { value?: number; label: string } {
+  if (distro.incomerFaultProtection?.prospectiveFaultCurrentKa) {
+    return { value: distro.incomerFaultProtection.prospectiveFaultCurrentKa, label: "Distro incomer override" };
+  }
+  if (visited.has(distro.id)) return { label: "No fault-current data" };
+  visited.add(distro.id);
+
+  const source = sourceForDistro(distro, state);
+  if (!source) return { label: "No assigned supply" };
+  if (source.faultProtection?.prospectiveFaultCurrentKa) {
+    return { value: source.faultProtection.prospectiveFaultCurrentKa, label: `${source.name} supply value` };
+  }
+  if (source.auto && source.parentDistroId && source.parentOutputId) {
+    const parent = state.distros.find((candidate) => candidate.id === source.parentDistroId);
+    const parentOutput = parent?.outputs.find((candidate) => candidate.id === source.parentOutputId);
+    if (parentOutput?.faultProtection?.prospectiveFaultCurrentKa) {
+      return { value: parentOutput.faultProtection.prospectiveFaultCurrentKa, label: `${displayDistroName(parent!)} output override` };
+    }
+    if (parent) {
+      const inherited = effectiveDistroFaultCurrent(parent, state, visited);
+      return inherited.value
+        ? { ...inherited, label: `Inherited via ${displayDistroName(parent)}` }
+        : inherited;
+    }
+  }
+  return { label: `${source.name} has no fault-current data` };
+}
+
+function effectiveCircuitFaultCurrent(row: CircuitRow, state: PlannerState) {
+  const ownValue = row.output.faultProtection?.prospectiveFaultCurrentKa;
+  if (ownValue) return { value: ownValue, label: "Circuit override" };
+  return effectiveDistroFaultCurrent(row.distro, state);
+}
+
+function overloadResult(row: CircuitRow): CheckResult {
+  const device = row.output.protectiveDevice;
+  const capacity = adjustedCableCapacity(row.output);
+  if (!device) return { status: "Needs data", detail: "Output protection is not configured." };
+  if (device.deviceType === "rcd") return { status: "Review", detail: "RCD has no overcurrent function; assess its upstream protective device." };
+  if (capacity === null) return { status: "Needs data", detail: "Select and configure the circuit cable." };
+  if (row.designCurrentA > device.ratedCurrentA) return { status: "Conflict", detail: "Design current exceeds the protective-device rating." };
+  if (device.ratedCurrentA > capacity) return { status: "Conflict", detail: "Protective-device rating exceeds adjusted cable capacity." };
+  return { status: "Pass", detail: "Ib ≤ In ≤ Iz." };
+}
+
+function breakingCapacityResult(row: CircuitRow, state: PlannerState): CheckResult {
+  const device = row.output.protectiveDevice;
+  if (!device) return { status: "Needs data", detail: "Configure the circuit protective device." };
+  if (device.deviceType === "rcd") return { status: "Review", detail: "Assess the breaking capacity of the associated upstream overcurrent device." };
+  const faultCurrent = effectiveCircuitFaultCurrent(row, state).value;
+  if (!faultCurrent) return { status: "Needs data", detail: "Enter prospective fault current at the supply, incomer or circuit." };
+  if (!device.breakingCapacityKa) return { status: "Needs data", detail: "Enter the device breaking capacity." };
+  if (device.breakingCapacityKa < faultCurrent) {
+    return { status: "Conflict", detail: `${device.breakingCapacityKa}kA device rating is below ${faultCurrent}kA prospective fault current.` };
+  }
+  return { status: "Pass", detail: `${device.breakingCapacityKa}kA device rating is not below the entered ${faultCurrent}kA fault current.` };
+}
+
+function disconnectionResult(row: CircuitRow): CheckResult {
+  const data = row.output.faultProtection;
+  if (!row.output.protectiveDevice) return { status: "Needs data", detail: "Configure the circuit protective device." };
+  if (!data?.earthFaultLoopImpedanceOhms) return { status: "Needs data", detail: "Enter the estimated design Zs." };
+  if (!data.maximumPermittedZsOhms) return { status: "Needs data", detail: "Enter maximum permitted Zs and its source." };
+  if (!data.maximumZsSource?.trim()) return { status: "Review", detail: "Record the source of the maximum permitted Zs." };
+  if (data.earthFaultLoopImpedanceOhms > data.maximumPermittedZsOhms) {
+    return { status: "Conflict", detail: `Entered Zs ${data.earthFaultLoopImpedanceOhms}Ω exceeds maximum ${data.maximumPermittedZsOhms}Ω.` };
+  }
+  return {
+    status: "Review",
+    detail: "Estimated design Zs does not exceed the entered maximum. Confirm the calculation basis and device characteristic.",
+  };
+}
+
+function statusStyle(status: CheckResult["status"]) {
+  if (status === "Conflict") return styles.conflict;
+  if (status === "Pass") return styles.pass;
+  if (status === "Review") return styles.review;
+  return styles.incomplete;
+}
+
 function coordinationResult(row: CircuitRow) {
   const device = row.output.protectiveDevice;
   const capacity = adjustedCableCapacity(row.output);
@@ -230,6 +326,65 @@ export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId,
       !collapsedDistroIds.includes(row.distro.id),
   );
   const pairs = useMemo(() => selectivityPairs(rows, plannerState), [rows, plannerState]);
+
+  function updateSourceFaultProtection(
+    sourceId: string,
+    patch: Partial<FaultProtectionData>,
+  ) {
+    setPlannerState({
+      ...plannerState,
+      sources: plannerState.sources.map((source) =>
+        source.id === sourceId
+          ? { ...source, faultProtection: { ...source.faultProtection, ...patch } }
+          : source,
+      ),
+    });
+  }
+
+  function updateIncomerFaultProtection(
+    distroId: string,
+    patch: Partial<FaultProtectionData>,
+  ) {
+    setPlannerState({
+      ...plannerState,
+      distros: plannerState.distros.map((distro) =>
+        distro.id === distroId
+          ? { ...distro, incomerFaultProtection: { ...distro.incomerFaultProtection, ...patch } }
+          : distro,
+      ),
+    });
+  }
+
+  function updateCircuitFaultProtection(
+    row: CircuitRow,
+    patch: Partial<FaultProtectionData>,
+  ) {
+    setPlannerState({
+      ...plannerState,
+      distros: plannerState.distros.map((distro) => {
+        if (distro.id !== row.distro.id) return distro;
+        return {
+          ...distro,
+          outputs: distro.outputs.map((output) => {
+            if (!row.parentOutput) {
+              return output.id === row.output.id
+                ? { ...output, faultProtection: { ...output.faultProtection, ...patch } }
+                : output;
+            }
+            if (output.id !== row.parentOutput.id) return output;
+            return {
+              ...output,
+              socaCircuits: output.socaCircuits?.map((circuit) =>
+                circuit.id === row.output.id
+                  ? { ...circuit, faultProtection: { ...circuit.faultProtection, ...patch } }
+                  : circuit,
+              ),
+            };
+          }),
+        };
+      }),
+    });
+  }
 
   function updateDevice(deviceId: string, residual: ResidualCurrentProtection) {
     const patch = (device: ProtectiveDevice | undefined) =>
@@ -379,12 +534,14 @@ export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId,
       <div style={styles.summaryGrid}>
         <div style={styles.summary}><span>Populated circuits</span><strong>{rows.length}</strong></div>
         <div style={styles.summary}><span>RCD selectivity pairs</span><strong>{pairs.length}</strong></div>
-        <div style={styles.summary}><span>Protection conflicts</span><strong>{rows.filter((row) => coordinationResult(row).status === "Conflict").length + pairs.filter((pair) => pairAssessment(pair).status === "Conflict").length}</strong></div>
+        <div style={styles.summary}><span>Protection conflicts</span><strong>{rows.filter((row) => [overloadResult(row), breakingCapacityResult(row, plannerState), disconnectionResult(row)].some((result) => result.status === "Conflict")).length + pairs.filter((pair) => pairAssessment(pair).status === "Conflict").length}</strong></div>
       </div>
 
       {visibleDistros.map((distro) => {
         const collapsed = collapsedDistroIds.includes(distro.id);
         const distroRows = rows.filter((row) => row.distro.id === distro.id);
+        const source = sourceForDistro(distro, plannerState);
+        const inheritedFaultCurrent = effectiveDistroFaultCurrent(distro, plannerState);
         return (
           <article key={distro.id} style={styles.card}>
             <button style={styles.distroHeader} onClick={() => setCollapsedDistroIds((current) => collapsed ? current.filter((id) => id !== distro.id) : [...current, distro.id])}>
@@ -395,6 +552,25 @@ export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId,
                 <div style={styles.incomerCard}>
                   <small style={styles.small}>Input {distro.input}</small>
                   <ProtectionEditor label="Incomer protection" device={distro.incomerProtection} defaultRating={distro.inputA} defaultPoles={distro.input.includes("/ 3") ? 3 : 1} onChange={(device) => updateIncomerProtection(distro.id, device)} />
+                  <div style={styles.faultGrid}>
+                    {source && !source.auto && (
+                      <label style={styles.settingLabel}>
+                        {source.name} prospective fault current
+                        <span style={styles.inputWithUnit}>
+                          <input style={styles.settingInput} type="number" min="0" step="0.1" value={source.faultProtection?.prospectiveFaultCurrentKa ?? ""} onChange={(event) => updateSourceFaultProtection(source.id, { prospectiveFaultCurrentKa: event.target.value ? Number(event.target.value) : undefined, prospectiveFaultCurrentSource: source.faultProtection?.prospectiveFaultCurrentSource ?? "declared" })} />
+                          <span>kA</span>
+                        </span>
+                      </label>
+                    )}
+                    <label style={styles.settingLabel}>
+                      Distro incomer override
+                      <span style={styles.inputWithUnit}>
+                        <input style={styles.settingInput} type="number" min="0" step="0.1" value={distro.incomerFaultProtection?.prospectiveFaultCurrentKa ?? ""} placeholder={inheritedFaultCurrent.value?.toString() ?? "Not set"} onChange={(event) => updateIncomerFaultProtection(distro.id, { prospectiveFaultCurrentKa: event.target.value ? Number(event.target.value) : undefined, prospectiveFaultCurrentSource: distro.incomerFaultProtection?.prospectiveFaultCurrentSource ?? "design" })} />
+                        <span>kA</span>
+                      </span>
+                      <small style={styles.small}>{inheritedFaultCurrent.value ? `${inheritedFaultCurrent.value}kA · ${inheritedFaultCurrent.label}` : inheritedFaultCurrent.label}</small>
+                    </label>
+                  </div>
                 </div>
                 <div style={styles.tableWrap}>
                   <table style={styles.table}>
@@ -404,6 +580,47 @@ export function ProtectionTab({ plannerState, setPlannerState, selectedDistroId,
                       const capacity = adjustedCableCapacity(row.output);
                       const result = coordinationResult(row);
                       return <tr key={row.key}><td style={styles.td}><strong>{row.label}</strong><span style={styles.infoIcon} title={circuitInformation(row)} aria-label="Circuit information">i</span></td><td style={styles.deviceTd}>{device && <span>{deviceLabel(device)}</span>}<ProtectionEditor label="Circuit protection" device={device} defaultRating={row.output.rating} defaultPoles={row.output.phase === "3Φ" ? 3 : 1} onChange={(nextDevice) => updateCircuitProtection(row, nextDevice)} /></td><td style={styles.td}>{row.designCurrentA.toFixed(2)}A</td><td style={styles.td}>{device && device.deviceType !== "rcd" ? `${device.ratedCurrentA}A` : "—"}</td><td style={styles.td}>{capacity === null ? "—" : `${capacity.toFixed(2)}A`}</td><td style={styles.td}><span style={result.status === "Conflict" ? styles.conflict : result.status === "Indicative" ? styles.indicative : styles.incomplete}>{result.status}</span><small style={styles.small}>{result.detail}</small></td></tr>;
+                    })}</tbody>
+                  </table>
+                </div>
+                <div style={styles.faultSectionHeader}>
+                  <strong>Forecast fault protection &amp; device capability</strong>
+                  <small style={styles.small}>These are design assumptions and forecasts only. Circuit overrides replace inherited supply assumptions.</small>
+                </div>
+                <div style={styles.tableWrap}>
+                  <table style={{ ...styles.table, minWidth: "1380px" }}>
+                    <thead><tr><th style={styles.th}>Circuit</th><th style={styles.th}>Forecast fault current</th><th style={styles.th}>Breaking capacity</th><th style={styles.th}>Estimated design Zs</th><th style={styles.th}>Maximum Zs</th><th style={styles.th}>Forecast results</th></tr></thead>
+                    <tbody>{distroRows.map((row) => {
+                      const device = row.output.protectiveDevice;
+                      const data = row.output.faultProtection;
+                      const effectiveFaultCurrent = effectiveCircuitFaultCurrent(row, plannerState);
+                      const overload = overloadResult(row);
+                      const breaking = breakingCapacityResult(row, plannerState);
+                      const disconnection = disconnectionResult(row);
+                      return (
+                        <tr key={`fault:${row.key}`}>
+                          <td style={styles.td}><strong>{row.label}</strong><span style={styles.infoIcon} title={circuitInformation(row)} aria-label="Circuit information">i</span></td>
+                          <td style={styles.td}>
+                            <span style={styles.inputWithUnit}><input style={styles.settingInput} type="number" min="0" step="0.1" value={data?.prospectiveFaultCurrentKa ?? ""} placeholder={effectiveFaultCurrent.value?.toString() ?? "Not set"} onChange={(event) => updateCircuitFaultProtection(row, { prospectiveFaultCurrentKa: event.target.value ? Number(event.target.value) : undefined, prospectiveFaultCurrentSource: data?.prospectiveFaultCurrentSource ?? "design" })} /><span>kA</span></span>
+                            <small style={styles.small}>{effectiveFaultCurrent.value ? `${effectiveFaultCurrent.value}kA · ${effectiveFaultCurrent.label}` : effectiveFaultCurrent.label}</small>
+                          </td>
+                          <td style={styles.td}><strong>{device?.breakingCapacityKa ? `${device.breakingCapacityKa}kA` : "Not set"}</strong><small style={styles.small}>Configured on the protective device.</small></td>
+                          <td style={styles.td}>
+                            <span style={styles.inputWithUnit}><input style={styles.settingInput} type="number" min="0" step="0.01" value={data?.earthFaultLoopImpedanceOhms ?? ""} onChange={(event) => updateCircuitFaultProtection(row, { earthFaultLoopImpedanceOhms: event.target.value ? Number(event.target.value) : undefined })} /><span>Ω</span></span>
+                            <span style={styles.designBadge}>Design estimate</span>
+                          </td>
+                          <td style={styles.td}>
+                            <span style={styles.inputWithUnit}><input style={styles.settingInput} type="number" min="0" step="0.01" value={data?.maximumPermittedZsOhms ?? ""} onChange={(event) => updateCircuitFaultProtection(row, { maximumPermittedZsOhms: event.target.value ? Number(event.target.value) : undefined })} /><span>Ω</span></span>
+                            <input style={styles.sourceInput} value={data?.maximumZsSource ?? ""} placeholder="Source / table / manufacturer" onChange={(event) => updateCircuitFaultProtection(row, { maximumZsSource: event.target.value })} />
+                            <label style={styles.inlineField}>Required disconnection time <span style={styles.inputWithUnit}><input style={styles.settingInput} type="number" min="0" step="0.1" value={data?.requiredDisconnectionTimeSeconds ?? ""} onChange={(event) => updateCircuitFaultProtection(row, { requiredDisconnectionTimeSeconds: event.target.value ? Number(event.target.value) : undefined })} /><span>s</span></span></label>
+                          </td>
+                          <td style={styles.td}>
+                            <span style={statusStyle(overload.status)}>{overload.status}</span><small style={styles.small}>Load &amp; cable: {overload.detail}</small>
+                            <span style={statusStyle(breaking.status)}>{breaking.status}</span><small style={styles.small}>Breaking capacity: {breaking.detail}</small>
+                            <span style={statusStyle(disconnection.status)}>{disconnection.status}</span><small style={styles.small}>Disconnection: {disconnection.detail}</small>
+                          </td>
+                        </tr>
+                      );
                     })}</tbody>
                   </table>
                 </div>
@@ -558,14 +775,19 @@ const styles: Record<string, React.CSSProperties> = {
   sectionHelp: { margin: 0, padding: "12px 16px 0", color: "#637083", fontSize: "13px" },
   incomerGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))", gap: "12px", padding: "16px" },
   incomerCard: { display: "grid", gap: "8px", padding: "12px 16px", borderBottom: "1px solid #dce5ec", background: "#f8fafc" },
+  faultGrid: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: "12px", paddingTop: "8px", borderTop: "1px solid #dce5ec" },
+  faultSectionHeader: { padding: "12px 16px", borderTop: "1px solid #dce5ec", borderBottom: "1px solid #dce5ec", background: "#f8fafc" },
   tableWrap: { overflowX: "auto" }, table: { width: "100%", minWidth: "900px", borderCollapse: "collapse", fontSize: "13px" }, th: { padding: "10px", borderBottom: "1px solid #dce5ec", textAlign: "left", color: "#526071", whiteSpace: "nowrap" }, td: { padding: "10px", borderBottom: "1px solid #eef2f6", textAlign: "left", verticalAlign: "top" }, small: { display: "block", marginTop: "4px", color: "#637083", lineHeight: 1.35 },
   deviceTd: { width: "390px", padding: "10px", borderBottom: "1px solid #eef2f6", textAlign: "left", verticalAlign: "top" },
   infoIcon: { display: "inline-grid", placeItems: "center", width: "17px", height: "17px", marginLeft: "7px", border: "1px solid #94a3b8", borderRadius: "50%", color: "#526071", fontSize: "11px", fontWeight: 700, cursor: "help" },
-  indicative: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#ecfdf3", color: "#027a48" }, conflict: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#fff1f1", color: "#c53030" }, incomplete: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#fff7e6", color: "#92400e" },
+  indicative: { display: "inline-block", padding: "3px 7px", borderRadius: "999px", background: "#ecfdf3", color: "#027a48" }, pass: { display: "inline-block", marginTop: "5px", padding: "3px 7px", borderRadius: "999px", background: "#ecfdf3", color: "#027a48" }, review: { display: "inline-block", marginTop: "5px", padding: "3px 7px", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8" }, conflict: { display: "inline-block", marginTop: "5px", padding: "3px 7px", borderRadius: "999px", background: "#fff1f1", color: "#c53030" }, incomplete: { display: "inline-block", marginTop: "5px", padding: "3px 7px", borderRadius: "999px", background: "#fff7e6", color: "#92400e" },
   settingGrid: { display: "grid", gridTemplateColumns: "repeat(2, minmax(120px, 1fr))", gap: "8px" },
   settingLabel: { display: "grid", gap: "4px", color: "#526071", fontSize: "11px", fontWeight: 600 },
   inputWithUnit: { display: "flex", alignItems: "center", gap: "5px", color: "#637083", fontWeight: 400 },
   settingInput: { width: "88px", minHeight: "34px", padding: "5px 7px", border: "1px solid #cbd5e1", borderRadius: "8px", background: "white", color: "#172033", font: "inherit", fontWeight: 400, boxSizing: "border-box" },
+  designBadge: { display: "inline-block", marginTop: "7px", padding: "4px 7px", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: 600 },
+  sourceInput: { display: "block", width: "210px", minHeight: "32px", marginTop: "7px", padding: "5px 7px", border: "1px solid #cbd5e1", borderRadius: "8px", background: "white", color: "#172033", font: "inherit", fontWeight: 400, boxSizing: "border-box" },
+  inlineField: { display: "grid", gap: "4px", marginTop: "7px", color: "#637083", fontSize: "11px", fontWeight: 600 },
   fixedSetting: { minHeight: "34px", display: "flex", alignItems: "center", color: "#637083", fontWeight: 500 },
   overrideBadge: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", background: "#fff7e6", color: "#92400e", fontSize: "11px", fontWeight: 600 },
   suggestedBadge: { display: "inline-block", padding: "4px 7px", borderRadius: "999px", background: "#eff6ff", color: "#1d4ed8", fontSize: "11px", fontWeight: 600 },

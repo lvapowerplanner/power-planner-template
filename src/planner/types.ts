@@ -152,6 +152,19 @@ export type ProtectiveDevice = {
   notes?: string;
 };
 
+export type FaultValueSource = "design" | "declared" | "assumed";
+
+export type FaultProtectionData = {
+  prospectiveFaultCurrentKa?: number;
+  prospectiveFaultCurrentSource?: FaultValueSource;
+  earthFaultLoopImpedanceOhms?: number;
+  earthFaultLoopImpedanceSource?: FaultValueSource;
+  maximumPermittedZsOhms?: number;
+  maximumZsSource?: string;
+  requiredDisconnectionTimeSeconds?: number;
+  notes?: string;
+};
+
 export type PlannerOutput = {
   id: string;
   label: string;
@@ -172,6 +185,7 @@ export type PlannerOutput = {
   powerFactorOverride?: number;
   cableDesign?: CircuitCableDesign;
   protectiveDevice?: ProtectiveDevice;
+  faultProtection?: FaultProtectionData;
 };
 
 export type DistroDefinition = {
@@ -192,6 +206,7 @@ export type ProjectDistro = DistroDefinition & {
   location: string;
   notes: string;
   inboundCableDesign?: CircuitCableDesign;
+  incomerFaultProtection?: FaultProtectionData;
 };
 
 export type PowerSource = {
@@ -205,6 +220,7 @@ export type PowerSource = {
   auto?: boolean;
   parentDistroId?: string;
   parentOutputId?: string;
+  faultProtection?: FaultProtectionData;
 };
 
 export type ProjectInfo = {

@@ -11,6 +11,7 @@ import type {
 } from "@/planner/cableLibrary";
 import {
   calculateAdvancedCircuit,
+  advancedOutputCalculationForLink,
   calculateCableDesign,
   cableVerificationFingerprint,
   advancedDistroLoadMetrics,
@@ -635,6 +636,21 @@ export function CableProtectionTab({
   function designCurrent(row: CableCircuitRow) {
     if (row.designCurrentOverride != null) {
       return row.designCurrentOverride;
+    }
+
+    if (row.feedsDistro || row.autoInbound) {
+      const parentDistro = row.autoInbound
+        ? plannerState.distros.find(
+            (candidate) => candidate.id === row.configuredAtDistroId,
+          )
+        : row.distro;
+      if (parentDistro) {
+        return advancedOutputCalculationForLink(
+          row.output,
+          parentDistro,
+          plannerState,
+        ).currentAmps;
+      }
     }
 
     return calculateAdvancedCircuit({

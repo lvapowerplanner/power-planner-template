@@ -110,6 +110,7 @@ export default function PlannerPortal() {
   const [workspaceUsers, setWorkspaceUsers] = useState<WorkspaceUser[]>([]);
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [advancedFeaturesEnabled, setAdvancedFeaturesEnabled] = useState(false);
+  const [userAdvancedFeaturesEnabled, setUserAdvancedFeaturesEnabled] = useState(true);
   const [userRole, setUserRole] = useState<UserRole>("user");
   const [licenseCount, setLicenseCount] = useState(5);
   const [adminPortalOpen, setAdminPortalOpen] = useState(false);
@@ -420,13 +421,14 @@ export default function PlannerPortal() {
   async function checkWorkspaceAccess(currentUser: User) {
     if (isGlobalAdmin(currentUser)) {
       setUserRole("admin");
+      setUserAdvancedFeaturesEnabled(true);
       setAccessMessage("");
       return true;
     }
 
     const { data: profile, error } = await supabase
       .from("user_profiles")
-      .select("allowed_subdomain, role, status")
+      .select("allowed_subdomain, role, status, advanced_features_enabled")
       .eq("id", currentUser.id)
       .single();
 
@@ -476,6 +478,7 @@ export default function PlannerPortal() {
 
     const profileRole = String(profile.role ?? "user");
     setUserRole(profileRole === "admin" ? "admin" : "user");
+    setUserAdvancedFeaturesEnabled(profile.advanced_features_enabled !== false);
     setAccessMessage("");
     return true;
   }
@@ -936,7 +939,7 @@ export default function PlannerPortal() {
       return;
     }
     const { data, error } = await supabase.rpc(
-      "workspace_users_for_current_user",
+      "workspace_users_with_advanced_features",
       {
         target_workspace_id: currentWorkspaceId,
       },
@@ -1471,7 +1474,7 @@ export default function PlannerPortal() {
         saveStatus={saveStatus}
         renameProject={renameProject}
         workspaceBranding={workspaceBranding}
-        advancedFeaturesEnabled={advancedFeaturesEnabled}
+        advancedFeaturesEnabled={advancedFeaturesEnabled && userAdvancedFeaturesEnabled}
         workspaceId={workspaceId}
         canManageReportLink={activeProject.user_id === user?.id}
       />
