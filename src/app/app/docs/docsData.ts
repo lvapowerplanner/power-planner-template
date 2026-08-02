@@ -81,6 +81,13 @@ export const docCategories: DocCategory[] = [
     ],
   },
   {
+    title: "System Sign-Off",
+    description: "Prepare, complete and issue BS 7909 sign-off documentation.",
+    items: [
+      { title: "System Sign-Off", slug: "system-sign-off", description: "Complete G1, G2 and G3 forms, manage electricians and issue the sign-off pack." },
+    ],
+  },
+  {
     title: "Reports & Data",
     description: "Generate deliverables and manage planner backups.",
     items: [
@@ -1357,6 +1364,127 @@ export const docArticles: DocArticle[] = [
     related: ["cable-and-protection", "advanced-calculations", "best-practice"],
   },
   {
+    title: "System Sign-Off",
+    slug: "system-sign-off",
+    category: "System Sign-Off",
+    updated: "August 2026",
+    readTime: "12 min read",
+    description: "Prepare, complete and issue G1, G2 and G3 system sign-off documentation.",
+    summary: "System Sign-Off combines shared project information, electrician access, circuit selection, test results, completion certificates, PDF export and submission into one controlled workflow.",
+    tags: ["system sign-off", "G1", "G2", "G3", "completion certificate", "test results", "electrician link", "BS 7909", "PDF"],
+    sections: [
+      {
+        heading: "Availability and purpose",
+        body: [
+          "System Sign-Off is available where Advanced Features are enabled for both the workspace and the user. It appears as a separate main planner tab after Reports and is used for recording inspection, test and completion information after the system has been installed.",
+          "The module contains Information, G1 - Completion Certificate, G2 - Schedule of Test Results, G3 - Confirmation of Electrical Completion and Include Circuits (G2) subtabs. Planning calculations remain in Advanced Calculations; measured results and formal declarations belong in System Sign-Off.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Competent person required",
+          body: "The forms support the sign-off workflow but do not replace inspection, testing, competence or responsibility under BS 7909 and applicable electrical requirements.",
+        },
+      },
+      {
+        heading: "Recommended workflow",
+        body: [
+          "Complete the shared information and circuit selection before entering form-specific results. This allows the planner to prepopulate repeated information while retaining an override on automatically supplied fields.",
+        ],
+        steps: [
+          "Review the Information tab and complete any missing project, venue, event and responsible-person details.",
+          "Add each electrician who will contribute to the sign-off and generate an external link where required.",
+          "Open Include Circuits (G2) and select the populated circuits that require test-result rows.",
+          "Complete one G1 certificate for each manual power source, adding a blank named certificate where another electrically separate distribution requires one.",
+          "Complete the G2 circuit results and test-instrument information.",
+          "Complete G3 where it applies, or mark G3 as not applicable.",
+          "Mark each finished form Complete, review the progress tracker, then export or submit the sign-off pack.",
+        ],
+      },
+      {
+        heading: "Information and electricians",
+        body: [
+          "The Information tab pulls Event/Project, Location or Venue and Event Date from System Overview. Shared details are reused across the forms and remain editable where a correction or form-specific value is required.",
+          "The Electricians section is the central place to add and remove project electricians and manage their access. An electrician can be retained as a project record without receiving an external link.",
+        ],
+        bullets: [
+          "Generate a link for an electrician already listed on the project.",
+          "Copy an active link for secure delivery to that electrician.",
+          "Replace a link to invalidate the existing URL and issue a new one.",
+          "Remove a link without deleting the electrician from the project.",
+          "Remove an electrician and their links while retaining values already entered in the sign-off record.",
+        ],
+        callout: {
+          type: "info",
+          title: "One electrician per link",
+          body: "Each external link is assigned to the named electrician and displays their name, email and company when opened.",
+        },
+      },
+      {
+        heading: "Include Circuits (G2)",
+        body: [
+          "Include Circuits (G2) shows populated project circuits grouped by distro. Expand a circuit to review its connected equipment and available design information before selecting it for G2.",
+          "Selected circuits create prepopulated rows in the G2 schedule. Where protection details are available from the distro model, relevant device information such as the rating is brought into the row. Every automatically populated value can still be overridden on the form.",
+        ],
+        callout: {
+          type: "tip",
+          title: "Downstream circuits",
+          body: "Connected load and demand flow through linked downstream distros, allowing the parent distribution context to remain visible without duplicating equipment assignments.",
+        },
+      },
+      {
+        heading: "G1 - Completion Certificate",
+        body: [
+          "The G1 selector creates one certificate for each manual power source. Automatically created sources are excluded. Use Add blank G1 when another certificate is required; blank certificates can be named and begin without prepopulated form values.",
+          "Project and source information is used to prepopulate relevant fields. Maximum demand can be displayed in amperes or kVA and can be restored from the calculated project value after a manual override. Complete the supply, earthing, protective-device, inspection, duration and declaration fields for each certificate.",
+        ],
+        callout: {
+          type: "info",
+          title: "One certificate per distribution",
+          body: "Prepare a separate G1 for each electrically separate temporary distribution covered by the sign-off.",
+        },
+      },
+      {
+        heading: "G2 - Schedule of Test Results",
+        body: [
+          "G2 contains the circuits selected in Include Circuits (G2). Circuit description and available protection data are prepopulated, while final-circuit status, RCD settings and method, polarity, phase sequence, earth fault loop impedance, PSCC, comments and result information are completed from the inspection and testing process.",
+          "Use Add circuit row within the table when a tested circuit is not represented by the planner model. Complete the instrument-details section for the equipment used to obtain the recorded results.",
+        ],
+      },
+      {
+        heading: "G3 - Confirmation of Electrical Completion",
+        body: [
+          "Use G3 to summarise completion certificates for project subsections and record the Senior Person Responsible declaration. Complete the subsystem table, certificate references, responsible-person details and signature information.",
+          "If G3 is not required for the project, select G3 not applicable. The form is then hidden and omitted from the exported and submitted PDF pack.",
+        ],
+      },
+      {
+        heading: "Completing and revoking forms",
+        body: [
+          "Select Complete at the bottom of a form after reviewing it. The form is locked, its values remain visible, and the completion record identifies who completed it and when. The Information tab progress tracker shows the state of each required form.",
+          "Select Revoke if further changes are required. Revoking unlocks the form for editing; review and complete it again after making the amendments.",
+        ],
+        callout: {
+          type: "best",
+          title: "Review before completion",
+          body: "Confirm all prepopulated and manually entered values before locking a form, especially where the project design changed after testing began.",
+        },
+      },
+      {
+        heading: "PDF export and submission",
+        body: [
+          "Export Sign-Off PDF creates the documentation pack directly. Every G1 exports on its own portrait page, G2 exports in landscape with its circuit and instrument fields, and G3 exports in portrait only when it is required. Company branding and the form title and information are included.",
+          "Submit Sign Off generates the same PDF documentation and emails it to the project account holder. The confirmation identifies the recipient before sending. The email records the project name and the account or external electrician who submitted the documentation.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Submission sends documentation",
+          body: "Check the completed forms and intended account-holder email before confirming submission. The generated PDF is attached to an automated LVA Power Planner email.",
+        },
+      },
+    ],
+    related: ["system-overview", "advanced-calculations", "reports", "best-practice"],
+  },
+  {
     title: "Calculations",
     slug: "calculations",
     category: "Reference",
@@ -1400,7 +1528,7 @@ export const docArticles: DocArticle[] = [
     tags: ["best practice", "workflow", "reports", "backup", "review"],
     sections: [
       { heading: "Recommended build order", body: ["Build projects in a consistent order: project information, manual sources, distros, source assignment, equipment assignment, downstream feeds, warning review and report export."], },
-      { heading: "Before exporting reports", body: ["Review System Overview, check unassigned distros, confirm report toggles, resolve critical warnings and export a JSON backup. In an advanced workspace, also review Advanced Overview, document diversity and power-factor assumptions, resolve cable failures and confirm that current cable inputs have been competently verified."], },
+      { heading: "Before exporting reports", body: ["Review System Overview, check unassigned distros, confirm report toggles, resolve critical warnings and export a JSON backup. In an advanced workspace, also review Advanced Overview, document diversity and power-factor assumptions, resolve cable failures and confirm that current cable inputs have been competently verified. Before issuing sign-off documentation, check every selected G2 circuit, instrument record, required G1 and applicable G3, then confirm the completion tracker is satisfied."], },
       { heading: "Record keeping", body: ["Keep dated project exports for major revisions so the design history can be recovered if needed."], },
     ],
     related: ["reports", "import-export", "warnings"],
@@ -1468,8 +1596,9 @@ export const docArticles: DocArticle[] = [
       { heading: "Project Sharing", body: ["Project Sharing allows workspace users to keep projects private by default and share selected projects with chosen colleagues when workspace sharing is enabled. The feature includes My Projects, Projects Shared With Me, selected-user sharing and workspace-level sharing controls."], },
       { heading: "Advanced Calculations", body: ["Workspace-controlled Advanced Calculations now includes Advanced Overview, Load & Demand, Cable & Protection, and Cable Library subtabs. Designers can apply project and circuit power factor, per-output diversity, shared-library or custom cable data, parallel runs, derating and voltage-drop limits. Cable results include feeder-aware cumulative voltage drop, Pass/Review/Fail status and input-sensitive designer verification."], },
       { heading: "Project Cable Library", body: ["The final Advanced Calculations subtab now allows designers to include or exclude individual cable ratings for the current project and create reusable project-only cable records. The shared standard library remains read-only, existing circuits retain immutable cable snapshots, and removed or excluded records do not silently alter previous designs."], },
+      { heading: "System Sign-Off", body: ["Advanced workspaces now include a System Sign-Off module for shared information, project electricians, circuit selection, G1 Completion Certificates, the G2 Schedule of Test Results and G3 Confirmation of Electrical Completion. Forms support prepopulation with manual overrides, completion locking and revocation, assigned external-electrician links, mixed-orientation branded PDF export and submission by email to the project account holder."], },
     ],
-    related: ["introduction", "project-sharing", "best-practice"],
+    related: ["introduction", "project-sharing", "system-sign-off", "best-practice"],
   },
 ];
 
