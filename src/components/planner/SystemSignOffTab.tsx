@@ -400,7 +400,12 @@ export function SystemSignOffTab({ plannerState, projectId, canManageAccessLink 
   async function sendSubmittedSignOffEmail(targetRecord:ProjectSignOffRecord):Promise<{sent:boolean;recipient?:string;error?:string}> {
     const session=externalToken?null:(await supabase.auth.getSession()).data.session;
     const response=await fetch("/api/signoff/submit-email",{method:"POST",headers:{"Content-Type":"application/json",...(session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{})},body:JSON.stringify({signoffId:targetRecord.id,externalToken,html:documentForPrint(),projectName:projectName??targetRecord.project_name??"System Sign-Off"}),signal:AbortSignal.timeout(70000)});
-    const payload=await response.json() as {sent?:boolean;recipient?:string;error?:string};
+    const responseText=await response.text();
+    let payload:{sent?:boolean;recipient?:string;error?:string}={};
+    try{payload=JSON.parse(responseText) as typeof payload;}catch{
+      const platformMessage=response.status===504?"The PDF email service exceeded Vercel's execution time limit.":response.status===413?"The sign-off document was too large for the email service.":`The PDF email service returned ${response.status} ${response.statusText||"an unexpected platform error"}.`;
+      payload={error:platformMessage};
+    }
     return response.ok&&payload.sent?{sent:true,recipient:payload.recipient}:{sent:false,error:payload.error};
   }
 
