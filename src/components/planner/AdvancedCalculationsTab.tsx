@@ -70,7 +70,7 @@ function circuitRowsForDistro(
   distro: ProjectDistro,
   plannerState: PlannerState,
 ): CircuitRow[] {
-  return distro.outputs.flatMap((output, outputIndex) => {
+  return distro.outputs.flatMap<CircuitRow>((output, outputIndex) => {
     if (output.phase === "Socapex") {
       return (output.socaCircuits ?? []).map((socket, socketIndex) => ({
         key: `${distro.id}:${output.id}:${socket.id}`,
@@ -81,6 +81,7 @@ function circuitRowsForDistro(
         label: `${outputDisplayName(output, outputIndex)} / ${socket.label}`,
         connectedWatts: outputWatts(socket),
         equipment: itemDescription(socket) || "Unused",
+        linkedDistro: undefined,
       }));
     }
 
@@ -95,6 +96,7 @@ function circuitRowsForDistro(
         key: `${distro.id}:${output.id}`,
         distro,
         output,
+        parentOutput: undefined,
         outputIndex,
         label: outputDisplayName(output, outputIndex),
         connectedWatts: outputWatts(output, plannerState, distro),
