@@ -41,6 +41,7 @@ export async function POST(request:Request) {
   const admin=createClient(supabaseUrl,required("SUPABASE_SERVICE_ROLE_KEY"),{auth:{persistSession:false,autoRefreshToken:false}});
   let signoffId="";
   try{
+    let submitterEmail="Email not available";
     const body=await request.json() as {signoffId?:string;externalToken?:string;html?:string;projectName?:string};
     signoffId=body.signoffId??"";
     if(!signoffId||!body.html||body.html.length>2_000_000)return NextResponse.json({error:"Invalid sign-off email payload."},{status:400});
@@ -48,13 +49,15 @@ export async function POST(request:Request) {
     if(signoffError||!signoff||signoff.status!=="submitted")return NextResponse.json({error:"The submitted sign-off could not be verified."},{status:403});
     if(body.externalToken){
       const hash=createHash("sha256").update(body.externalToken).digest("hex");
-      const {data:link}=await admin.from("project_signoff_access_links").select("id").eq("signoff_id",signoffId).eq("token_hash",hash).in("status",["submitted","active"]).maybeSingle();
+      const {data:link}=await admin.from("project_signoff_access_links").select("id,electrician_email").eq("signoff_id",signoffId).eq("token_hash",hash).in("status",["submitted","active"]).maybeSingle();
       if(!link)return NextResponse.json({error:"The electrician link could not be verified."},{status:403});
+      submitterEmail=link.electrician_email||submitterEmail;
     }else{
       const bearer=request.headers.get("authorization")?.replace(/^Bearer\s+/i,"");
       if(!bearer)return NextResponse.json({error:"Authentication is required."},{status:401});
       const {data:userData,error:userError}=await admin.auth.getUser(bearer);
       if(userError||!userData.user)return NextResponse.json({error:"Authentication is invalid."},{status:401});
+      submitterEmail=userData.user.email||submitterEmail;
       const {data:project}=await admin.from("projects").select("user_id").eq("id",signoff.project_id).single();
       if(!project||project.user_id!==userData.user.id)return NextResponse.json({error:"Only the project owner can submit and email this sign-off."},{status:403});
     }
@@ -76,8 +79,11 @@ export async function POST(request:Request) {
     const token=await graphToken();
     const sender=required("MICROSOFT_SENDER_EMAIL");
     const safeName=(body.projectName||project.name||"System Sign-Off").replace(/[^a-z0-9 _-]/gi,"").trim()||"System Sign-Off";
+    const escapeHtml=(value:string)=>value.replace(/[&<>"']/g,(character)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"})[character]!);
+    const emailProjectName=escapeHtml(body.projectName||project.name||"System Sign-Off");
+    const emailSubmitter=escapeHtml(submitterEmail);
     const graphResponse=await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,{
-      method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({message:{subject:`System Sign-Off - ${safeName}`,body:{contentType:"HTML",content:`<p>The completed system sign-off documentation for <strong>${safeName}</strong> is attached.</p><p>This email was sent automatically by LVA Power Planner.</p>`},toRecipients:[{emailAddress:{address:recipient}}],attachments:[{"@odata.type":"#microsoft.graph.fileAttachment",name:`${safeName} - System Sign-Off.pdf`,contentType:"application/pdf",contentBytes:Buffer.from(pdf).toString("base64")} ]},saveToSentItems:true}),signal:AbortSignal.timeout(20000)
+      method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({message:{subject:`System Sign-Off - ${safeName}`,body:{contentType:"HTML",content:`<p>The completed system sign-off documentation for '${emailProjectName}' has been submitted and is attached here.</p><p>This documentation was submitted by '${emailSubmitter}'</p><p>This email was sent automatically by LVA Power Planner</p>`},toRecipients:[{emailAddress:{address:recipient}}],attachments:[{"@odata.type":"#microsoft.graph.fileAttachment",name:`${safeName} - System Sign-Off.pdf`,contentType:"application/pdf",contentBytes:Buffer.from(pdf).toString("base64")} ]},saveToSentItems:true}),signal:AbortSignal.timeout(20000)
     });
     if(!graphResponse.ok)throw new Error(`Microsoft Graph rejected the email (${graphResponse.status}): ${await graphResponse.text()}`);
     await admin.from("project_signoffs").update({email_status:"sent"}).eq("id",signoffId);
