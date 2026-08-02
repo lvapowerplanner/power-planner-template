@@ -1,0 +1,1523 @@
+export type CalloutType = "tip" | "warning" | "info" | "best" | "danger";
+
+export type DocCategory = {
+  title: string;
+  description: string;
+  items: Array<{ title: string; slug: string; description: string }>;
+};
+
+export type DocScreenshot = {
+  title: string;
+  src: string;
+  alt: string;
+  caption?: string;
+};
+
+export type DocSection = {
+  heading: string;
+  body: string[];
+  steps?: string[];
+  bullets?: string[];
+  screenshot?: DocScreenshot;
+  callout?: {
+    type: CalloutType;
+    title: string;
+    body: string;
+  };
+};
+
+export type DocArticle = {
+  title: string;
+  slug: string;
+  description: string;
+  category: string;
+  updated: string;
+  readTime: string;
+  summary: string;
+  tags: string[];
+  sections: DocSection[];
+  related?: string[];
+};
+
+export const docCategories: DocCategory[] = [
+  {
+    title: "Getting Started",
+    description: "Account access, workspaces and first project setup.",
+    items: [
+      { title: "Introduction", slug: "introduction", description: "What LVA Power Planner does and who it is for." },
+      { title: "Logging In & MFA", slug: "logging-in", description: "Accessing your workspace and securing your account." },
+      { title: "Creating Projects", slug: "creating-projects", description: "Create, open, rename and manage projects." },
+      { title: "Project Sharing", slug: "project-sharing", description: "Share private projects with selected workspace users." },
+    ],
+  },
+  {
+    title: "Planning Workflow",
+    description: "Build power systems from sources through to equipment.",
+    items: [
+      { title: "System Overview", slug: "system-overview", description: "Review the full temporary power system." },
+      { title: "Power Sources", slug: "power-sources", description: "Add venue supplies, generators and auto sources." },
+      { title: "Distro Overview", slug: "distro-overview", description: "Add, assign and manage distribution units." },
+      { title: "Distro Editor", slug: "distro-editor", description: "Assign equipment, notes and downstream distros." },
+      { title: "Downstream Distribution", slug: "downstream-distribution", description: "Feed distros from distro outputs using auto sources." },
+    ],
+  },
+  {
+    title: "Advanced Calculations",
+    description: "Advanced demand, power-factor, cable and voltage-drop design tools.",
+    items: [
+      { title: "Advanced Calculations Overview", slug: "advanced-calculations", description: "Enable and navigate the advanced electrical design workspace." },
+      { title: "Load & Demand", slug: "load-and-demand", description: "Apply diversity and power factor to calculate design load, kVA and current." },
+      { title: "Cable & Protection", slug: "cable-and-protection", description: "Select cables, calculate capacity and voltage drop, and record designer verification." },
+      { title: "Cable Library", slug: "cable-library", description: "Control project cable choices and create reusable project-only cable records." },
+    ],
+  },
+  {
+    title: "Equipment & Templates",
+    description: "Use company libraries and project-specific custom items.",
+    items: [
+      { title: "Company Libraries", slug: "company-libraries", description: "How company stock and distro libraries appear in projects." },
+      { title: "Custom Equipment", slug: "custom-equipment", description: "Create project-specific equipment items." },
+      { title: "Custom Distros", slug: "custom-distros", description: "Build project-specific distro templates." },
+    ],
+  },
+  {
+    title: "Reports & Data",
+    description: "Generate deliverables and manage planner backups.",
+    items: [
+      { title: "Reports", slug: "reports", description: "Generate branded PDF and distro reports." },
+      { title: "Import & Export", slug: "import-export", description: "Back up, restore and share planner data." },
+    ],
+  },
+  {
+    title: "Reference",
+    description: "Warnings, calculations, troubleshooting and glossary.",
+    items: [
+      { title: "Warning System", slug: "warnings", description: "Understand active, dismissed and critical warnings." },
+      { title: "Calculations", slug: "calculations", description: "How watts, amps, phase loading and imbalance are calculated." },
+      { title: "Connector Reference", slug: "connector-reference", description: "Common connector and phase references used by the planner." },
+      { title: "Best Practice", slug: "best-practice", description: "Recommended workflow before issuing reports." },
+      { title: "FAQ", slug: "faq", description: "Common questions and troubleshooting." },
+      { title: "Glossary", slug: "glossary", description: "Key terms used in the planner." },
+      { title: "Release Notes", slug: "release-notes", description: "Current documentation and product notes." },
+    ],
+  },
+];
+
+export const docArticles: DocArticle[] = [
+  {
+    title: "Introduction",
+    slug: "introduction",
+    category: "Getting Started",
+    updated: "June 2026",
+    readTime: "7 min read",
+    description: "LVA Power Planner is a professional planning tool for live event and temporary power systems.",
+    summary: "Use LVA Power Planner to build structured power plans, calculate connected load, monitor system warnings and produce branded reports.",
+    tags: ["overview", "temporary power", "live events", "reports", "BS7909"],
+    sections: [
+      {
+        heading: "What LVA Power Planner is",
+        body: [
+          "LVA Power Planner is a professional software platform for planning temporary electrical distribution systems used in live events, broadcast, theatre, corporate production and temporary installations.",
+          "Instead of relying on disconnected spreadsheets, the planner maintains a live project model. Sources, distros, downstream feeds, output schedules, equipment loads and reports all reference the same data, so changes are reflected throughout the project immediately.",
+        ],
+        callout: {
+          type: "info",
+          title: "Single source of truth",
+          body: "When equipment is added, moved or removed, the planner recalculates the relevant outputs, distros, sources and reports from the same project data.",
+        },
+      },
+      {
+        heading: "Who should use it",
+        body: [
+          "The software is intended for AV companies, production electricians, temporary power suppliers, project managers, production managers, rental companies and technical teams who need a clearer method of planning event power systems.",
+          "It assumes the user understands the principles of temporary electrical distribution. The documentation explains how to use the software, but it does not replace electrical competence or site-specific engineering judgement.",
+        ],
+        bullets: [
+          "Production electricians and power engineers",
+          "AV and event production companies",
+          "Festival, theatre and broadcast teams",
+          "Project managers preparing power documentation",
+          "Rental companies managing repeatable distro and equipment libraries",
+        ],
+      },
+      {
+        heading: "Core workflow",
+        body: [
+          "Most projects follow the same high-level sequence: define the project, add sources, add distros, connect the hierarchy, assign equipment, review warnings and export reports.",
+          "The planner is deliberately structured around that workflow. Users can move between overview, source management, distro management, detailed editing and report export without rebuilding information in separate documents.",
+        ],
+        steps: [
+          "Create or open a project from the workspace dashboard.",
+          "Complete project information in System Overview.",
+          "Add manual power sources such as generators, venue supplies or temporary mains supplies.",
+          "Add distros from the company library or project-specific custom templates.",
+          "Assign equipment and downstream distribution in the Distro Editor.",
+          "Review active warnings, resolve critical issues and export reports.",
+        ],
+      },
+      {
+        heading: "Compliance and responsibility",
+        body: [
+          "LVA Power Planner is an indicative planning and documentation tool. It may support BS 7909 documentation workflows, but it does not certify, verify or guarantee compliance with BS 7909, BS 7671, venue requirements or any other statutory or industry standard.",
+          "Responsibility for verification, suitability, installation, inspection, testing, operation and compliance remains with the competent duty holder and the user issuing the design or report.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Competent review required",
+          body: "Always review exported reports and resolve critical warnings before issuing documentation to site teams, clients or suppliers.",
+        },
+      },
+    ],
+    related: ["creating-projects", "system-overview", "reports"],
+  },
+  {
+    title: "Logging In & MFA",
+    slug: "logging-in",
+    category: "Getting Started",
+    updated: "June 2026",
+    readTime: "5 min read",
+    description: "Sign in securely to your company workspace.",
+    summary: "Users sign in to their assigned workspace with email/password, optional Microsoft sign-in and MFA where enabled.",
+    tags: ["login", "mfa", "2fa", "workspace", "password reset", "microsoft"],
+    sections: [
+      {
+        heading: "Workspace access",
+        body: [
+          "LVA Power Planner is normally accessed through a company workspace. Workspaces can apply company branding, company equipment libraries, company distro templates and workspace-specific access rules.",
+          "Accounts are normally created or invited by the workspace administrator. If an account is not assigned to the current workspace, access is denied to prevent users entering the wrong company environment.",
+        ],
+      },
+      {
+        heading: "Signing in",
+        body: [
+          "Enter the email address and password supplied by your administrator. Some workspaces may also allow Microsoft sign-in if it has been enabled for that organisation.",
+          "After signing in successfully, the project dashboard will show your available projects and the option to create a new project.",
+        ],
+        steps: [
+          "Open your organisation workspace URL.",
+          "Enter your email and password, or choose Microsoft sign-in if available.",
+          "Complete MFA if prompted.",
+          "Open an existing project or create a new one from the dashboard.",
+        ],
+      },
+      {
+        heading: "Multi-factor authentication",
+        body: [
+          "Where MFA is required, follow the on-screen instructions to scan the QR code into an authenticator app, then enter the 6-digit code to complete setup.",
+          "On later sign-ins, enter the current code from the authenticator app when prompted. This protects the workspace even if a password is compromised.",
+        ],
+        callout: {
+          type: "tip",
+          title: "Authenticator app",
+          body: "Use a trusted authenticator app and keep recovery access available through your organisation administrator.",
+        },
+      },
+      {
+        heading: "Password reset",
+        body: [
+          "Use Reset Password on the login page to request a password reset email. After setting a new password, return to the same workspace URL and sign in again.",
+          "If you cannot access the workspace after resetting the password, contact your administrator to confirm that your account is assigned to the correct workspace.",
+        ],
+      },
+    ],
+    related: ["creating-projects", "company-libraries", "faq"],
+  },
+  {
+    title: "Creating Projects",
+    slug: "creating-projects",
+    category: "Getting Started",
+    updated: "June 2026",
+    readTime: "7 min read",
+    description: "Create, open, rename and remove project files.",
+    summary: "Projects store sources, distros, equipment assignments, report options, dismissed warnings and project information.",
+    tags: ["project", "dashboard", "rename", "delete", "project information", "backup"],
+    sections: [
+      {
+        heading: "Create a new project",
+        body: [
+          "From the project dashboard, enter a project name and select Create Project. The new project opens with an empty planner state ready for sources, distros and equipment.",
+          "Use a project name that clearly matches your internal job, event or production naming convention. This helps users identify the correct file when multiple events are being planned at the same time.",
+        ],
+        steps: [
+          "Sign in to your company workspace.",
+          "Enter the new project name in the project dashboard.",
+          "Select Create Project.",
+          "Open the project and begin by completing the System Overview project information fields.",
+        ],
+      },
+      {
+        heading: "Project information",
+        body: [
+          "In System Overview, complete Project Manager, Project Number, Project Name, Event Date and Venue. These values appear in report headers and exported project data.",
+          "The Project Name field should normally match the public-facing event or production name, while the dashboard project name can follow your internal file naming convention.",
+        ],
+        callout: {
+          type: "best",
+          title: "Best practice",
+          body: "Complete project information before building the system so reports are correctly labelled from the start.",
+        },
+      },
+      {
+        heading: "Opening, renaming and deleting projects",
+        body: [
+          "Use Open to load a project into the planner. Use Rename to correct or update the project name shown on the dashboard. Use Delete only when a project is no longer required.",
+          "Deleting a project removes that project and its planner data. If the system may be needed later, export a project backup first.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Deletion is permanent",
+          body: "Export a project backup before deleting any project that might be required for records, future revisions or client queries.",
+        },
+      },
+      {
+        heading: "Autosave behaviour",
+        body: [
+          "Planner changes are saved automatically while a project is open. The save status indicates whether the current project is saved, has unsaved changes or is currently saving.",
+          "For major revisions, still use Export Project to create a dated backup before making extensive changes.",
+        ],
+      },
+      {
+        heading: "Private projects and sharing",
+        body: [
+          "Projects are private by default. A project appears in My Projects for the user who created it and remains hidden from other workspace users until it is shared.",
+          "Where Project Sharing is enabled for the workspace, use the project actions menu to share a project with selected users or make it private again.",
+        ],
+        callout: {
+          type: "info",
+          title: "Workspace controlled",
+          body: "Project Sharing is controlled by the workspace configuration. It may be unavailable in some workspaces and is not available on the individual app subdomain.",
+        },
+      },
+    ],
+    related: ["project-sharing", "system-overview", "import-export", "reports"],
+  },
+  {
+    title: "Project Sharing",
+    slug: "project-sharing",
+    category: "Getting Started",
+    updated: "June 2026",
+    readTime: "8 min read",
+    description: "Share private projects with selected users in the same workspace.",
+    summary: "Project Sharing allows project owners to keep projects private by default and share them with selected colleagues when collaboration is required.",
+    tags: ["project sharing", "shared projects", "my projects", "workspace", "permissions", "private projects", "selected users"],
+    sections: [
+      {
+        heading: "Overview",
+        body: [
+          "Project Sharing allows users within the same company workspace to collaborate on selected projects without making every project visible to everyone by default.",
+          "New projects are private by default and appear under My Projects for the project creator. Shared projects appear under Projects Shared With Me for users who have been given access.",
+        ],
+        callout: {
+          type: "info",
+          title: "Company workspace only",
+          body: "Projects can only be shared with users in the same workspace. Project sharing does not apply to the individual app subdomain.",
+        },
+      },
+      {
+        heading: "Sharing modes",
+        body: [
+          "Project Sharing is controlled by the workspace configuration. If it is disabled, all projects remain private and sharing controls are hidden from the dashboard.",
+          "When selected-user sharing is enabled, project owners can choose exactly which workspace users should have access to each project.",
+        ],
+        bullets: [
+          "Disabled: sharing controls are hidden and projects remain private.",
+          "Selected users: owners can share individual projects with chosen workspace users.",
+          "Workspace sharing: reserved for future workspace-wide sharing workflows where required.",
+        ],
+      },
+      {
+        heading: "Sharing a project",
+        body: [
+          "To share a project, open the project actions menu from the project card in My Projects. The actions menu is shown as a three-dot button on the project card.",
+          "In Project Settings, choose the users who should have access from the sharing dropdown, then save the sharing changes.",
+        ],
+        steps: [
+          "Open the project dashboard.",
+          "Find the project under My Projects.",
+          "Select the three-dot project actions menu.",
+          "Open Project Settings and choose the users to share with.",
+          "Save the sharing changes.",
+        ],
+        screenshot: {
+          title: "Sharing a project",
+          src: "/docs/images/project-sharing.png",
+          alt: "Project dashboard showing project sharing controls",
+          caption: "Project owners can share private projects with selected users from the project actions menu.",
+        },
+      },
+      {
+        heading: "Making a project private",
+        body: [
+          "A shared project can be made private again by the project owner. Making a project private removes shared access for other users while keeping the project available to the owner.",
+          "Use this when a project no longer needs collaboration or when access was granted temporarily for review.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Shared access is removed",
+          body: "When a project is made private, users who previously had access will no longer see it under Projects Shared With Me.",
+        },
+      },
+      {
+        heading: "Projects shared with you",
+        body: [
+          "Projects shared by another user appear separately from your own projects. This makes it clear which projects you created and which projects you have been invited to access.",
+          "Shared projects can be opened from the dashboard in the same way as your own projects, subject to the permissions applied by the workspace and the current sharing implementation.",
+        ],
+      },
+      {
+        heading: "Administrator controls",
+        body: [
+          "Workspace administrators can enable or disable Project Sharing for each workspace. This allows collaboration to be tested or rolled out only where required.",
+          "If you expect to see sharing controls but they are not visible, Project Sharing may not be enabled for your workspace.",
+        ],
+      },
+    ],
+    related: ["creating-projects", "logging-in", "import-export", "faq"],
+  },
+  {
+    title: "System Overview",
+    slug: "system-overview",
+    category: "Planning Workflow",
+    updated: "June 2026",
+    readTime: "9 min read",
+    description: "Understand the full power hierarchy and project status.",
+    summary: "System Overview is the main health check for the project and shows sources, downstream distros, project details, loading and warnings.",
+    tags: ["system overview", "warnings", "phase loading", "project information", "unassigned distros", "tree"],
+    sections: [
+      {
+        heading: "Purpose of the System Overview",
+        body: [
+          "System Overview is the main health check for the project. It shows the power hierarchy, source loading, distro loading, downstream relationships, unassigned distros and active warnings.",
+          "Use this tab whenever you need to understand the complete temporary power system at a glance. It is also the best place to review the project immediately before exporting reports.",
+        ],
+        screenshot: {
+          title: "System Overview screen",
+          src: "/docs/images/system-overview.png",
+          alt: "System Overview tab showing project information, source cards and distro hierarchy",
+          caption: "Project information, active warnings, power sources and the downstream distribution tree are reviewed from this screen.",
+        },
+      },
+      {
+        heading: "Project information panel",
+        body: [
+          "The project information panel stores the details used by reports: Project Manager, Project Number, Project Name, Event Date and Venue.",
+          "These values should be completed early and checked again before reports are exported. Report headers use this information automatically, so there is no need to re-enter it in the Report tab.",
+        ],
+      },
+      {
+        heading: "Visual system tree",
+        body: [
+          "Each manual power source appears as a parent card. Assigned distros appear beneath the source, with downstream distros nested under their parent outputs.",
+          "Open buttons on distro cards jump directly to that distro in the Distro Editor. This is useful when a warning appears in the overview and you need to correct the relevant output or equipment assignment.",
+        ],
+        callout: {
+          type: "info",
+          title: "Single-phase and three-phase highlighting",
+          body: "Visual highlights help distinguish single-phase and three-phase items when reviewing the system hierarchy.",
+        },
+      },
+      {
+        heading: "Phase loading and capacity",
+        body: [
+          "Phase load cards show the current loading for L1, L2 and L3. The percentage indicator compares current draw against the relevant source or distro rating.",
+          "If a high-current distro is fed from a lower-rated high-current source, the displayed phase cap reflects the upstream source limit. This prevents a downstream board being interpreted as available at its full connector rating when the upstream source is smaller.",
+        ],
+      },
+      {
+        heading: "Unassigned distros",
+        body: [
+          "Distros that have not been assigned to a source are shown in the Unassigned Distros section. This does not delete or disable them; it simply means they are not currently part of the connected system hierarchy.",
+          "Assign a source before issuing reports so the full system hierarchy is clear and all downstream loads are included in source summaries.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Check unassigned distros before export",
+          body: "An unassigned distro may represent an incomplete design. Review this section before sending reports to site teams.",
+        },
+      },
+    ],
+    related: ["power-sources", "distro-overview", "warnings"],
+  },
+  {
+    title: "Power Sources",
+    slug: "power-sources",
+    category: "Planning Workflow",
+    updated: "June 2026",
+    readTime: "9 min read",
+    description: "Create and manage venue supplies, generators and auto-created sources.",
+    summary: "Power Sources are the starting points for the system, including manual supplies and auto-created downstream output sources.",
+    tags: ["power sources", "generators", "venue supplies", "auto sources", "phase imbalance", "source warnings"],
+    sections: [
+      {
+        heading: "Manual power sources",
+        body: [
+          "Manual Power Sources represent supplies that exist outside the planner hierarchy, such as generators, venue distribution boards, temporary mains supplies or incoming power from another supplier.",
+          "Each manual source has a name, connector type, rating and notes. The notes field is useful for generator location, venue board details, cable routing, restrictions or operational comments.",
+        ],
+        steps: [
+          "Open the Power Sources tab.",
+          "Enter a clear source name, such as Generator 1 or Venue 125A Stage Left.",
+          "Select the connector type.",
+          "Add relevant notes.",
+          "Select Add Manual Power Source.",
+        ],
+      },
+      {
+        heading: "Auto sources",
+        body: [
+          "Auto Sources are created automatically from eligible distro outputs. They allow downstream distros to be connected to parent distro outputs while still calculating load back through the parent distro and upstream source.",
+          "Eligible outputs are generally 32A and larger non-Socapex outputs. Auto Sources are shown separately so users can see downstream connections without manually creating virtual sources.",
+        ],
+        callout: {
+          type: "info",
+          title: "Automatically generated",
+          body: "You do not need to add Auto Sources manually. They appear when a distro contains a compatible output that can feed another distro.",
+        },
+      },
+      {
+        heading: "Assigned distros",
+        body: [
+          "Each source card shows the distros currently assigned to that source. The assigned distro list includes connected load and an Open button for quick access to the relevant distro in the Distro Editor.",
+          "Use this area to check that every source is feeding the expected part of the system and that the hierarchy matches the physical installation plan.",
+        ],
+      },
+      {
+        heading: "Source loading and warnings",
+        body: [
+          "The Power Sources tab calculates the load assigned to each source and displays phase loading. Overloads, near-capacity conditions and three-phase imbalance warnings are shown directly on the relevant source card.",
+          "For three-phase sources, imbalance warnings identify which phase is highest and which phase it is being compared against. This makes it easier to rebalance the system by moving equipment or adjusting downstream feeds.",
+        ],
+        callout: {
+          type: "best",
+          title: "Balance at source level",
+          body: "A downstream distro may look balanced on its own, but the complete source may still be imbalanced once multiple distros are combined. Always review the source summary as well as individual distro outputs.",
+        },
+      },
+      {
+        heading: "Deleting and reordering sources",
+        body: [
+          "Manual sources can be moved up or down to match the order you want shown in the planner and reports. Auto Sources follow the distro hierarchy and are not manually reordered in the same way.",
+          "If you delete a manual source that is currently feeding distros, those distros will be unassigned. Review the System Overview afterwards to reconnect anything that still belongs in the system.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Deleting a source unassigns its distros",
+          body: "Check the Unassigned Distros section after deleting a source so no part of the system is accidentally left disconnected.",
+        },
+      },
+    ],
+    related: ["distro-overview", "downstream-distribution", "warnings"],
+  },
+  {
+    title: "Distro Overview",
+    slug: "distro-overview",
+    category: "Planning Workflow",
+    updated: "June 2026",
+    readTime: "10 min read",
+    description: "Add, assign and manage distribution units.",
+    summary: "Distro Overview is the control point for adding distros, assigning them to compatible sources and reviewing their load state before detailed editing.",
+    tags: ["distros", "distro overview", "source assignment", "company library", "custom distros", "phase loading"],
+    sections: [
+      {
+        heading: "Purpose of Distro Overview",
+        body: [
+          "Distro Overview is where the distribution layer of a project is created and managed. It sits between Power Sources and the Distro Editor: Power Sources define what is available, Distro Overview defines which distribution units are in the system, and the Distro Editor defines what is connected to each output.",
+          "Use this tab to add distros from the company library or from project-specific custom templates, assign each distro to a source, review its phase loading and open the detailed editor when required."
+        ],
+        callout: {
+          type: "info",
+          title: "Overview before detail",
+          body: "Build the basic source and distro hierarchy here first, then use the Distro Editor for output-level equipment assignment."
+        }
+      },
+      {
+        heading: "Adding a distro",
+        body: [
+          "Choose the required distro type from the Distro Type list, then select Add Distro. The list includes company library distros and any custom distros created within the current project.",
+          "When a distro is added it receives its own project instance. The original library template is not modified, so the same distro type can be added multiple times and named separately for different locations."
+        ],
+        steps: [
+          "Open Distro Overview.",
+          "Choose the required distro type from the dropdown.",
+          "Select Add Distro.",
+          "Give the distro an instance name and location.",
+          "Assign a compatible source."
+        ],
+        callout: {
+          type: "tip",
+          title: "Name by site location",
+          body: "Use practical labels such as Stage Left, FOH, Video World, Dimmer Beach or Catering rather than only repeating the distro model name."
+        },
+        screenshot: {
+          title: "Distro Overview add panel",
+          src: "/docs/images/distro-overview.png",
+          alt: "Distro Overview showing add distro controls and distro cards",
+          caption: "Add distros from the library, assign sources and open individual distros for detailed editing."
+        }
+      },
+      {
+        heading: "Assigning sources",
+        body: [
+          "Each distro can be assigned to a compatible manual power source or Auto Source. The source list is filtered so incompatible connector types are not offered and a source already feeding another distro is not accidentally duplicated.",
+          "If a required source is missing from the dropdown, check the source connector type, whether the source is already in use, and whether the intended downstream feed has been created from a suitable output."
+        ],
+        bullets: [
+          "Single-phase distros must be fed from compatible single-phase sources.",
+          "Three-phase distros must be fed from compatible three-phase sources.",
+          "High-current three-phase Powerlock-style sources may cap a larger distro to the upstream source rating.",
+          "A distro cannot be assigned to one of its own downstream outputs."
+        ]
+      },
+      {
+        heading: "Reading distro cards",
+        body: [
+          "Each distro card summarises the distro instance, physical input, number of outputs, source assignment and phase loading. Cards are highlighted when warnings or critical issues are active for that distro.",
+          "The card colour and phase summary allow you to identify where load is building up without opening every distro individually. Use Open to jump directly into the Distro Editor for the selected distro."
+        ],
+        callout: {
+          type: "best",
+          title: "Review before editing",
+          body: "After adding several distros, pause on Distro Overview and confirm every distro has the expected source before assigning equipment."
+        }
+      },
+      {
+        heading: "Reordering and removing distros",
+        body: [
+          "Use the up and down controls to place distros in a logical order. This helps the overview and report read naturally, especially on larger projects with multiple areas or departments.",
+          "Removing a distro deletes it from the project. Any equipment, notes and downstream assignments on that distro are also removed, so remove distros carefully once a design has been developed."
+        ],
+        callout: {
+          type: "warning",
+          title: "Removing distros is destructive",
+          body: "Export a project backup before removing large sections of a developed distribution system."
+        }
+      }
+    ],
+    related: ["distro-editor", "power-sources", "custom-distros", "downstream-distribution"],
+  },
+  {
+    title: "Distro Editor",
+    slug: "distro-editor",
+    category: "Planning Workflow",
+    updated: "June 2026",
+    readTime: "18 min read",
+    description: "Assign equipment, notes and downstream distros.",
+    summary: "The Distro Editor is the detailed workspace for assigning equipment to outputs, adjusting quantities, recording notes and building downstream distribution.",
+    tags: ["distro editor", "drag and drop", "equipment", "outputs", "socapex", "notes", "downstream distros"],
+    sections: [
+      {
+        heading: "What the Distro Editor is for",
+        body: [
+          "The Distro Editor is where the practical detail of a distribution unit is entered. It shows the selected distro, its source, its phase loading, output cards, Socapex circuits where applicable and the equipment library available to assign.",
+          "Use this page when you need to place real equipment onto outputs, change quantities, add notes, feed child distros or understand exactly how an individual distro is being loaded."
+        ],
+        screenshot: {
+          title: "Distro Editor layout",
+          src: "/docs/images/distro-editor.png",
+          alt: "Distro Editor showing equipment library, phase summary and output cards",
+          caption: "The Distro Editor combines the equipment library, source selection, phase summary and output cards in one workspace."
+        }
+      },
+      {
+        heading: "Selecting the distro to edit",
+        body: [
+          "The active distro can be changed from the Editing Distro selector at the top of the editor. Opening a distro from System Overview, Power Sources or Distro Overview also sets it as the active distro automatically.",
+          "This allows fast movement between overview pages and detailed output editing without losing the current project context."
+        ],
+        callout: {
+          type: "tip",
+          title: "Use Open buttons to move quickly",
+          body: "When reviewing the system, use Open on a source or distro card to jump directly to the relevant distro in the editor."
+        }
+      },
+      {
+        heading: "Equipment library",
+        body: [
+          "The equipment library appears on the left of the editor. It contains company equipment loaded from the workspace library plus any custom equipment created for the current project.",
+          "Use search and category filtering to find items quickly. Equipment can be dragged onto an output, or added using the dropdown within an output card."
+        ],
+        bullets: [
+          "Company equipment is maintained at workspace level.",
+          "Custom equipment is stored inside the current project.",
+          "Equipment entries include name, category and wattage.",
+          "Assigned item quantities multiply the wattage automatically."
+        ]
+      },
+      {
+        heading: "Assigning and moving equipment",
+        body: [
+          "Drag equipment from the library onto an output drop zone to assign it. Once assigned, the item appears on that output with a quantity, wattage and notes field.",
+          "Assigned equipment can also be dragged between compatible output areas within the same distro. This is useful during balancing because you can move loads between phases and immediately see the recalculated result."
+        ],
+        steps: [
+          "Search for the equipment item.",
+          "Drag the item onto the required output or circuit.",
+          "Adjust quantity if more than one item is connected.",
+          "Add item notes if required for patching, location or operating restrictions.",
+          "Review output, distro and source loading after the change."
+        ],
+        callout: {
+          type: "best",
+          title: "Use notes for site information",
+          body: "Item notes and output notes are valuable in reports. Use them for cable routes, stand numbers, departments, dimmer references, rig positions and supplier notes."
+        }
+      },
+      {
+        heading: "Output cards",
+        body: [
+          "Each output card displays the output name, phase, connector type, rating and current loading. The load percentage gives immediate feedback on how close the output is to its rated capacity.",
+          "For three-phase outputs, the load is distributed across L1, L2 and L3. For single-phase outputs, the load is applied to the assigned phase. Socapex circuits are displayed as individual circuit outputs grouped by phase."
+        ],
+        callout: {
+          type: "warning",
+          title: "Warnings are live",
+          body: "If an output approaches capacity or becomes overloaded, the warning system updates immediately. Resolve critical output warnings before issuing reports."
+        }
+      },
+      {
+        heading: "Source and phase cap",
+        body: [
+          "The selected source is shown near the top of the editor. Where a larger distro is fed from a lower-rated compatible high-current three-phase source, the editor may show a phase cap. This means the distro input exists at one rating but is limited by the upstream source rating.",
+          "The phase cap is important because it prevents the planner from treating a large distro as if its full input rating is available when the upstream source is smaller."
+        ],
+        callout: {
+          type: "info",
+          title: "Source caps follow the upstream feed",
+          body: "If a 400A distro is fed from a 200A source, the planner must evaluate loading against the 200A source limit rather than the physical distro maximum."
+        }
+      },
+      {
+        heading: "Downstream distro feeds",
+        body: [
+          "Eligible outputs can feed compatible downstream distros. When this is possible, the editor presents a downstream distro selector on the output card. Selecting a child distro connects it to the Auto Source created from that output.",
+          "The planner prevents circular feed loops and filters incompatible connector types so the hierarchy remains electrically sensible. Loads on the downstream distro are included in the parent output and upstream source calculations."
+        ],
+        bullets: [
+          "Only eligible outputs create Auto Sources.",
+          "Socapex outputs do not create Auto Sources.",
+          "A child distro can only be assigned to one source at a time.",
+          "The parent output includes downstream load in its calculation."
+        ],
+        callout: {
+          type: "tip",
+          title: "Model real-world cascades",
+          body: "Use downstream distro feeds to represent systems such as generator → main distro → area distro → local breakout."
+        }
+      },
+      {
+        heading: "Socapex outputs",
+        body: [
+          "Socapex outputs are expanded into their individual circuits by phase. This makes it possible to place loads on the actual circuit numbers rather than treating the Socapex as a single combined output.",
+          "Where paired Socapex outputs share breaker capacity, the editor shows linked capacity information. Review these shared loads carefully because two physical sockets may be protected by one breaker."
+        ],
+        callout: {
+          type: "danger",
+          title: "Do not ignore shared breaker warnings",
+          body: "A Socapex circuit can appear acceptable in isolation while the shared breaker pair is overloaded. Resolve shared breaker critical warnings before issuing documentation."
+        }
+      }
+    ],
+    related: ["company-libraries", "custom-equipment", "downstream-distribution", "warnings"],
+  },
+  {
+    title: "Downstream Distribution",
+    slug: "downstream-distribution",
+    category: "Planning Workflow",
+    updated: "June 2026",
+    readTime: "8 min read",
+    description: "Feed distros from distro outputs using auto sources.",
+    summary: "Downstream distribution lets the planner represent real cascaded systems while maintaining source-level calculations.",
+    tags: ["downstream", "auto source", "feed distro", "nested distros", "loop prevention"],
+    sections: [
+      { heading: "How downstream feeds work", body: ["When a distro output is eligible to feed another distro, the planner creates an Auto Source for that output. A compatible child distro can then be assigned to that Auto Source."], },
+      { heading: "Compatibility rules", body: ["The planner filters available downstream options to avoid incompatible connector types, duplicated assignments and circular feed loops."], callout: { type: "info", title: "Loop prevention", body: "The editor prevents a distro from being fed by one of its own downstream children." } },
+      { heading: "Load propagation", body: ["Loads assigned to a downstream distro are included in the parent output, parent distro and upstream source calculations."], },
+    ],
+    related: ["power-sources", "distro-editor", "calculations"],
+  },
+  {
+    title: "Company Libraries",
+    slug: "company-libraries",
+    category: "Equipment & Templates",
+    updated: "June 2026",
+    readTime: "5 min read",
+    description: "How company stock and distro libraries appear in projects.",
+    summary: "Company libraries provide standard equipment and distro definitions for each workspace.",
+    tags: ["company library", "equipment", "stock", "workspace", "distro library"],
+    sections: [
+      { heading: "Equipment library", body: ["Company equipment appears in the Distro Editor and can be assigned to outputs. Equipment entries include category, name and wattage."], },
+      { heading: "Distro library", body: ["Company distros appear in Distro Overview. Each definition includes input connector, rating and outputs."], },
+      { heading: "Workspace separation", body: ["Each workspace can use its own library data so company-specific stock remains separate from other organisations."], },
+    ],
+    related: ["custom-equipment", "custom-distros", "logging-in"],
+  },
+  {
+    title: "Custom Equipment",
+    slug: "custom-equipment",
+    category: "Equipment & Templates",
+    updated: "June 2026",
+    readTime: "7 min read",
+    description: "Create project-specific equipment items.",
+    summary: "Custom equipment is used when an item is required for a project but does not belong in the permanent company library.",
+    tags: ["custom equipment", "equipment", "watts", "category", "project equipment"],
+    sections: [
+      {
+        heading: "When to use custom equipment",
+        body: [
+          "Custom equipment is designed for project-specific items that are not part of the company library. This includes client-supplied equipment, temporary substitutions, one-off appliances, hired-in items or equipment whose load is only relevant to one project.",
+          "Because custom equipment is stored inside the project, it does not change the standard company stock list for other users."
+        ],
+        callout: {
+          type: "info",
+          title: "Project scope",
+          body: "Custom equipment belongs to the current project only. Add repeatable stock to the company equipment library instead."
+        }
+      },
+      {
+        heading: "Creating custom equipment",
+        body: [
+          "To create an item, enter the equipment name, select a category and enter the wattage. The wattage should represent the connected load for one item, not the total quantity required on the project.",
+          "After saving, the item appears in the Distro Editor equipment library and can be assigned to outputs in the same way as company equipment."
+        ],
+        steps: [
+          "Open Custom Equipment.",
+          "Enter the equipment name.",
+          "Choose the most appropriate category.",
+          "Enter the wattage for one item.",
+          "Select Add Custom Equipment.",
+          "Open the Distro Editor and assign the new item where required."
+        ],
+        screenshot: {
+          title: "Custom Equipment form",
+          src: "/docs/images/custom-equipment.png",
+          alt: "Custom Equipment page showing name category and watts fields",
+          caption: "Create project-specific equipment items and make them available in the Distro Editor equipment library."
+        }
+      },
+      {
+        heading: "Editing custom equipment",
+        body: [
+          "Saved custom equipment can be edited from the Custom Equipment tab. You can update the name, category or wattage if the project information changes.",
+          "If equipment has already been assigned to outputs, review the affected outputs after changing wattage so warnings and reports remain accurate."
+        ],
+        callout: {
+          type: "warning",
+          title: "Check assigned loads after wattage changes",
+          body: "Changing wattage can affect output loading, phase balance and reports. Review System Overview after editing custom equipment."
+        }
+      },
+      {
+        heading: "Deleting custom equipment",
+        body: [
+          "Deleting a custom equipment item removes it from the project custom equipment list. Only delete items once you are confident they are no longer required for assignment.",
+          "For record keeping, consider leaving uncommon client items in place until the final report and project backup have been exported."
+        ]
+      }
+    ],
+    related: ["distro-editor", "company-libraries", "reports"],
+  },
+  {
+    title: "Custom Distros",
+    slug: "custom-distros",
+    category: "Equipment & Templates",
+    updated: "June 2026",
+    readTime: "9 min read",
+    description: "Build project-specific distro templates.",
+    summary: "Custom distros allow users to define temporary distro layouts with single-phase, three-phase and Socapex outputs for use within the current project.",
+    tags: ["custom distros", "templates", "outputs", "socapex", "single phase", "three phase"],
+    sections: [
+      {
+        heading: "Purpose of custom distros",
+        body: [
+          "Custom distros are used when a required distribution unit is not available in the company library or when a project needs a temporary layout. They are project-specific templates and appear in Distro Overview with a Custom prefix.",
+          "Use custom distros for one-off breakouts, client-specific boards, temporary rack power layouts or bespoke distribution that should not become standard company stock."
+        ],
+        callout: {
+          type: "best",
+          title: "Keep company libraries clean",
+          body: "Use the company library for repeatable stock and custom distros for project-only designs."
+        }
+      },
+      {
+        heading: "Creating the custom distro",
+        body: [
+          "Start by entering a distro name and choosing the input type. The selected input determines the input connector label and the amps per phase used for calculations.",
+          "Then add outputs to define the layout. Outputs can be single-phase, three-phase or Socapex. The order outputs are added is the order they appear when the custom distro is used."
+        ],
+        steps: [
+          "Open Custom Distros.",
+          "Enter a clear distro name.",
+          "Select the input type.",
+          "Add the required outputs.",
+          "Reorder or remove outputs if necessary.",
+          "Select Save Custom Distro."
+        ],
+        screenshot: {
+          title: "Custom Distro builder",
+          src: "/docs/images/custom-distros.png",
+          alt: "Custom Distros page showing input type and output builder controls",
+          caption: "Build project-specific distro templates using configurable inputs and output types."
+        }
+      },
+      {
+        heading: "Output types",
+        body: [
+          "Single-phase outputs are assigned to L1, L2 or L3 and can be created with common ratings. Three-phase outputs are added as three-phase outputs and distribute their connected load across all three phases. Socapex outputs create the default six-circuit Socapex structure with circuits split across L1, L2 and L3.",
+          "Choose output types that represent the physical distro accurately. Reports and calculations rely on the template being a good representation of the real unit."
+        ],
+        bullets: [
+          "Use single-phase outputs for 13A, 16A, 32A or similar single-phase feeds.",
+          "Use three-phase outputs for three-phase downstream feeds or three-phase loads.",
+          "Use Socapex outputs where the physical distro provides Socapex connectors with individual circuits."
+        ]
+      },
+      {
+        heading: "Using saved custom distros",
+        body: [
+          "After saving, the custom distro appears in Distro Overview. Add it to the project exactly like a company library distro, then assign a source and open it in the Distro Editor.",
+          "Each custom distro added to the project becomes a separate instance, so you can use the same custom template multiple times with different names, locations and assigned equipment."
+        ]
+      },
+      {
+        heading: "Deleting custom distro templates",
+        body: [
+          "Custom distro templates can be deleted from the Custom Distros tab. Deleting the template removes it from the add list for future use in the project.",
+          "Before deleting, check whether the template may be needed again later in the design process."
+        ],
+        callout: {
+          type: "warning",
+          title: "Template deletion is project-specific",
+          body: "Deleting a custom template does not remove company library distros, but it may prevent you from adding the same custom layout again without rebuilding it."
+        }
+      }
+    ],
+    related: ["distro-overview", "distro-editor", "company-libraries"],
+  },
+  {
+    title: "Reports",
+    slug: "reports",
+    category: "Reports & Data",
+    updated: "June 2026",
+    readTime: "12 min read",
+    description: "Generate branded PDF and distro reports.",
+    summary: "The Report tab turns the live planner state into branded project documentation for site teams, clients and project records.",
+    tags: ["reports", "pdf", "export", "individual distro reports", "branding", "documentation"],
+    sections: [
+      {
+        heading: "Purpose of the Report tab",
+        body: [
+          "The Report tab creates documentation from the current project state. It uses the project information, workspace branding, power sources, distros, output schedules, equipment, notes and load calculations already entered into the planner.",
+          "The report preview mirrors the export layout so users can check content before generating a PDF. Reports should be reviewed as a professional deliverable, not treated as an automatic approval."
+        ],
+        callout: {
+          type: "warning",
+          title: "Reports are based on user-entered data",
+          body: "The report is only as accurate as the project data entered into the planner. Always review source assignments, equipment quantities and warnings before export."
+        },
+        screenshot: {
+          title: "Report preview",
+          src: "/docs/images/reports.png",
+          alt: "Report tab showing export controls and report preview",
+          caption: "Choose report content, review the branded preview and export PDF deliverables from the Report tab."
+        }
+      },
+      {
+        heading: "Project and branding information",
+        body: [
+          "Report headers use the project information entered in System Overview, including project manager, project number, project name, event date and venue. Workspace branding can also supply company name, logo, contact email and footer text.",
+          "For best results, complete project information before exporting. Missing fields are omitted from the report rather than being filled with placeholder text."
+        ],
+        bullets: [
+          "Project name becomes the report title.",
+          "Project number appears in the report metadata when entered.",
+          "Company logo and contact details come from workspace branding.",
+          "Distro and output notes appear in the relevant report sections."
+        ]
+      },
+      {
+        heading: "Choosing what appears in the report",
+        body: [
+          "The Report tab includes controls for hiding or showing sources and distros in the current export. Hiding an item from the report does not delete it from the project; it only excludes it from the generated documentation.",
+          "This is useful when issuing focused information to a department, supplier or site team without changing the main project design."
+        ],
+        callout: {
+          type: "tip",
+          title: "Create targeted reports",
+          body: "Hide unrelated sources or distros when creating a report for one area, but keep the full design available in the project."
+        }
+      },
+      {
+        heading: "Show all outputs",
+        body: [
+          "By default, reports focus on outputs that contain equipment, notes or linked downstream distros. The Show All Outputs option includes unused outputs as well, which can be useful for full distro schedules or pre-production patch planning.",
+          "If the report becomes too long, hide unused outputs again and include only the circuits that carry relevant information."
+        ]
+      },
+      {
+        heading: "Export PDF",
+        body: [
+          "Export PDF opens the report in a printable layout ready to save as PDF using the browser print dialogue. The report is designed for A4 portrait output and includes the relevant source and distro sections selected in the Report tab.",
+          "Before saving the PDF, check the browser print settings so page size, margins and background graphics are appropriate for your output."
+        ],
+        steps: [
+          "Open the Report tab.",
+          "Confirm project details and source/distro selections.",
+          "Review the preview for obvious omissions.",
+          "Select Export PDF.",
+          "Use the browser print dialogue to save or print the report."
+        ]
+      },
+      {
+        heading: "Individual distro reports",
+        body: [
+          "Export Distro Reports generates separate pages for individual selected distros. This is useful for sending a local distro schedule to a crew member, department lead or supplier without including the entire project report.",
+          "Individual distro reports still use the same project and branding information, and they include the selected distro output schedule, notes and load summary."
+        ],
+        callout: {
+          type: "best",
+          title: "Use individual reports on site",
+          body: "Individual distro reports are useful as local working documents when a crew member only needs the schedule for one distro or area."
+        }
+      },
+      {
+        heading: "Before issuing reports",
+        body: [
+          "Before issuing a report externally, review System Overview and the Report preview. Confirm that all relevant sources are included, all required distros are visible, notes are complete and no unresolved critical warnings remain unless they are intentionally documented elsewhere.",
+          "The report includes a disclaimer stating that LVA Power Planner is an indicative planning tool and does not certify compliance. Competent review remains required."
+        ],
+        callout: {
+          type: "danger",
+          title: "Do not issue unchecked critical warnings",
+          body: "Critical warnings indicate conditions such as overloads. Resolve or formally review them before reports are sent to clients or site teams."
+        }
+      }
+    ],
+    related: ["system-overview", "warnings", "import-export", "best-practice"],
+  },
+  {
+    title: "Import & Export",
+    slug: "import-export",
+    category: "Reports & Data",
+    updated: "June 2026",
+    readTime: "5 min read",
+    description: "Back up, restore and share planner data.",
+    summary: "JSON import/export provides a complete project backup and restore workflow.",
+    tags: ["import", "export", "backup", "json", "restore", "share"],
+    sections: [
+      { heading: "Export Project", body: ["Export Project downloads the current planner data as a JSON file. This is useful before major revisions, before deleting projects or when sharing a system externally."], },
+      { heading: "Import Project", body: ["Import Project replaces the current project planner data with the selected JSON file after confirmation."], callout: { type: "warning", title: "Import replaces current data", body: "Export a backup of the current project before importing another file if you may need to return to the previous state." } },
+      { heading: "Suggested backup practice", body: ["Create dated exports at major milestones such as initial design, client issue, pre-production revision and final onsite revision."], },
+    ],
+    related: ["creating-projects", "reports", "best-practice"],
+  },
+  {
+    title: "Warning System",
+    slug: "warnings",
+    category: "Reference",
+    updated: "June 2026",
+    readTime: "9 min read",
+    description: "Understand active, dismissed and critical warnings.",
+    summary: "The warning system highlights overloads, near-capacity conditions, source issues, phase imbalance and shared Socapex breaker problems.",
+    tags: ["warnings", "critical", "dismissed warnings", "phase imbalance", "overload"],
+    sections: [
+      { heading: "Warning levels", body: ["Warnings are split into warning and critical severity. Critical issues usually indicate overloads or conditions that require immediate review before reports are issued."], },
+      { heading: "Dismissed warnings", body: ["Non-critical warnings can be dismissed where a competent user has reviewed the condition and accepts the known diversity or operating context."], callout: { type: "info", title: "Automatic reinstatement", body: "Dismissed warnings return when the monitored value changes significantly, preventing old dismissals from hiding changed conditions." } },
+      { heading: "Common warning types", body: ["Common issues include output overload, near-capacity output, source overload, phase imbalance and shared Socapex breaker overload."], },
+    ],
+    related: ["system-overview", "power-sources", "calculations"],
+  },
+  {
+    title: "Advanced Calculations Overview",
+    slug: "advanced-calculations",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "8 min read",
+    description: "Use the workspace-controlled advanced electrical design tools.",
+    summary: "Advanced Calculations adds an advanced system overview, load and demand calculations, and cable sizing and voltage-drop design without changing the Distro Editor workflow.",
+    tags: ["advanced calculations", "advanced overview", "BS 7909", "power factor", "diversity", "cable", "voltage drop"],
+    sections: [
+      {
+        heading: "Availability",
+        body: [
+          "Advanced Calculations is an optional workspace feature. The tab appears only when advanced features are enabled for the current workspace.",
+          "The standard planning tabs remain unchanged. Equipment, quantities, output assignments and downstream distro connections continue to be managed only in the Distro Editor.",
+        ],
+        callout: {
+          type: "info",
+          title: "One project model",
+          body: "Advanced Calculations reads the live circuit structure from the Distro Editor. It stores calculation assumptions against those outputs rather than creating a second equipment schedule.",
+        },
+      },
+      {
+        heading: "Advanced Overview",
+        body: [
+          "Advanced Overview is the first subtab and opens by default. It shows project warnings followed by an overview calculated using advanced load and demand values.",
+          "Warnings with editable advanced assumptions can be expanded using Review. Make changes in the expanded row and select Save changes to commit them. This prevents a warning disappearing while a value is only partly entered.",
+        ],
+        bullets: [
+          "Review advanced warnings before issuing reports or cable calculations.",
+          "Expanded warning fields use a draft until Save changes is selected.",
+          "Changes saved from a warning are also reflected in Load & Demand.",
+        ],
+      },
+      {
+        heading: "Load & Demand",
+        body: [
+          "Load & Demand is the calculation table for project power factor, circuit diversity, apparent load and calculated current. Equipment and connected load are read-only because they come from the Distro Editor.",
+          "Use this subtab to enter design assumptions, compare connected and design loads, and review totals by distro and phase.",
+        ],
+      },
+      {
+        heading: "Cable & Protection",
+        body: [
+          "Cable & Protection uses the design current from Load & Demand to calculate adjusted cable capacity, utilisation, section and cumulative voltage drop, and estimated end voltage.",
+          "Cable values can come from the shared global cable library or from project-specific custom data. Library values are copied into the project as a snapshot so an existing design remains traceable if the library is revised later.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Current scope",
+          body: "The current release provides cable sizing and voltage-drop design. Protective-device and disconnection-time assessment is planned but is not yet calculated by this tab.",
+        },
+      },
+      {
+        heading: "Cable Library",
+        body: [
+          "Cable Library is the final Advanced Calculations subtab. It is an administration-style project view for controlling which cable ratings appear in Cable & Protection and for creating reusable custom records for the current project.",
+          "All active standard-library and project custom records are included by default. Inclusion choices and custom records are saved with the project and do not affect other projects.",
+        ],
+      },
+      {
+        heading: "Design responsibility",
+        body: [
+          "Advanced results are indicative design calculations. Cable selection, installation method, correction factors, protective devices, earthing arrangement and site conditions must be checked by a competent designer.",
+          "Designer verification records that the displayed cable data and installation assumptions have been reviewed; it is not an electrical completion certificate or a substitute for inspection and testing.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Competent verification required",
+          body: "Do not treat a Pass status as proof that an installed system complies with BS 7909, BS 7671 or site-specific requirements.",
+        },
+      },
+    ],
+    related: ["load-and-demand", "cable-and-protection", "cable-library"],
+  },
+  {
+    title: "Load & Demand",
+    slug: "load-and-demand",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "10 min read",
+    description: "Calculate connected load, design load, apparent power and current.",
+    summary: "Load & Demand applies per-output diversity and optional power factor to the connected equipment load while preserving the original nameplate total.",
+    tags: ["load and demand", "connected load", "design load", "diversity", "power factor", "kVA", "current"],
+    sections: [
+      {
+        heading: "Connected load and design load",
+        body: [
+          "Connected load is the total real-power rating of the equipment assigned to an output in the Distro Editor. It remains unchanged by advanced design assumptions.",
+          "Design load is the connected load after circuit diversity has been applied. At 100% diversity the two columns are identical. Reducing diversity below 100% reduces design load, apparent load and calculated current, but does not alter the assigned equipment.",
+        ],
+        callout: {
+          type: "info",
+          title: "Why the values may match",
+          body: "Connected load and design load are expected to match when diversity is 100%. This is the safe default for every circuit.",
+        },
+      },
+      {
+        heading: "Calculation order",
+        body: [
+          "The planner totals equipment wattage first, applies diversity to produce the design real power, then applies power factor when that calculation method is enabled. Current is calculated last using the nominal circuit voltage.",
+        ],
+        steps: [
+          "Connected watts = assigned equipment watts multiplied by quantity.",
+          "Design watts = connected watts multiplied by diversity percentage divided by 100.",
+          "Apparent VA = design watts divided by the selected power factor.",
+          "Single-phase current = apparent VA divided by nominal single-phase voltage.",
+          "Three-phase current = apparent VA divided by the square root of 3 multiplied by nominal three-phase line voltage.",
+        ],
+      },
+      {
+        heading: "Power-factor settings",
+        body: [
+          "Real power only uses a power factor of 1.00, so design kW and apparent kVA have the same numeric value. Include power factor converts design real power to apparent power before current is calculated.",
+          "The project average power factor applies to all circuits unless a value is entered in a circuit PF override cell. Valid power-factor values are constrained between 0.10 and 1.00.",
+        ],
+        callout: {
+          type: "tip",
+          title: "Use evidence-based values",
+          body: "Use manufacturer information or a defensible design assumption for power factor. A lower power factor produces a higher apparent load and calculated current for the same design watts.",
+        },
+      },
+      {
+        heading: "Applying diversity",
+        body: [
+          "Enter a diversity percentage from 1% to 100% against an output. A reason can be recorded in the same row to explain the operating limitation or design assumption.",
+          "A reason is optional, but a circuit using diversity without a reason is highlighted yellow to draw attention to the undocumented assumption. Diversity warnings remain visible in the Advanced Overview.",
+        ],
+        callout: {
+          type: "best",
+          title: "Document the assumption",
+          body: "Although the planner allows saving without a reason, record why simultaneous full load is not expected whenever diversity is below 100%.",
+        },
+      },
+      {
+        heading: "Reading the table",
+        body: [
+          "Output, phase, connected equipment and connected load are read-only and update from the Distro Editor. Diversity, PF override and the diversity reason are calculation inputs.",
+          "Design load, apparent load and current recalculate immediately. Distro summaries show connected, design and apparent loads alongside phase currents.",
+        ],
+        bullets: [
+          "Use the distro filter to focus on one distribution unit.",
+          "Show unused outputs only when empty circuits need review.",
+          "Reset all diversity returns circuit diversity values to 100%.",
+        ],
+      },
+    ],
+    related: ["advanced-calculations", "cable-and-protection", "calculations"],
+  },
+  {
+    title: "Cable & Protection",
+    slug: "cable-and-protection",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "12 min read",
+    description: "Calculate cable capacity, utilisation and voltage drop for populated circuits.",
+    summary: "Select shared-library or custom cable data, enter installation assumptions, review feeder-aware voltage drop and record designer verification.",
+    tags: ["cable protection", "cable sizing", "voltage drop", "parallel runs", "derating", "utilisation", "designer verification"],
+    sections: [
+      {
+        heading: "Circuit schedule",
+        body: [
+          "The table lists populated distro outputs and takes each circuit's design current from Load & Demand. Equipment cannot be edited here.",
+          "Select All distros or filter the table to one distro. The floating horizontal scrollbar remains available while moving down a wide table.",
+        ],
+      },
+      {
+        heading: "Selecting cable data",
+        body: [
+          "Select a compatible cable from the shared standard library or the current project's cable library. Standard records are centrally maintained and read-only, while project records are created from the Cable Library subtab.",
+          "Only ratings included for the current project appear for new selections. An excluded rating remains visible on a circuit already using it, and the selected reference values are saved as an immutable snapshot within the project.",
+          "Choose Custom cable data where the required cable is not in the library. Enter a clear cable name, current capacity and voltage-drop value in mV/A/m. Custom values apply only to the current project.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Check source data",
+          body: "Library and custom values are design inputs. Confirm that conductor arrangement, installation method, temperature, grouping and manufacturer information match the intended installation.",
+        },
+      },
+      {
+        heading: "Installation inputs",
+        body: [
+          "Length is the cable section length in metres. Parallel runs is the number of equivalent cables sharing the circuit current. Derating is a factor between 0.01 and 1.00 applied to the combined cable capacity.",
+          "Adjusted capacity equals library capacity multiplied by parallel runs and the derating factor. Utilisation is design current divided by adjusted capacity, expressed as a percentage.",
+        ],
+        callout: {
+          type: "tip",
+          title: "Parallel means parallel",
+          body: "Enter 1 for a normal single run. Only enter a higher value where matched conductors are genuinely installed and operated in parallel and the arrangement has been competently assessed.",
+        },
+      },
+      {
+        heading: "Voltage-drop results",
+        body: [
+          "Section drop is calculated from the cable's mV/A/m value, circuit design current and section length, divided across parallel runs. Cumulative drop includes the calculated drop from upstream feeder sections.",
+          "End voltage is nominal voltage minus cumulative voltage drop. Choose Lighting 3%, Other 5% or enter a custom voltage-drop limit appropriate to the design basis.",
+        ],
+        bullets: [
+          "Section drop describes the current cable section only.",
+          "Cumulative drop follows the source and downstream distro hierarchy.",
+          "The selected limit is assessed against cumulative—not merely section—voltage drop.",
+        ],
+      },
+      {
+        heading: "Pass, Review and Fail",
+        body: [
+          "Pass means the cable length is complete, design current does not exceed adjusted capacity, cumulative voltage drop is within the selected limit, and the current cable data and assumptions have been designer verified.",
+          "Review means the cable length is incomplete or the current data and assumptions have not been verified. Hover over the status to see the recorded reasons.",
+          "Fail means design current exceeds adjusted cable capacity or cumulative voltage drop exceeds the selected limit. Change the design inputs or upstream arrangement and reassess; verification alone cannot turn a failed calculation into a Pass.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Pass is not certification",
+          body: "Pass reports only the checks implemented in this calculation. It does not assess protective-device characteristics, fault-loop impedance, disconnection time, RCD operation or the completed installation.",
+        },
+      },
+      {
+        heading: "Designer verification",
+        body: [
+          "Select Verify only after checking the cable data and installation assumptions. The planner records the authenticated designer identity, time and a fingerprint of the calculation inputs.",
+          "Changing the cable, length, parallel runs, derating, voltage-drop limit or design current invalidates the verification automatically. Review the revised calculation and select Verify again. Select Verified to remove an existing verification manually.",
+        ],
+      },
+      {
+        heading: "Resolving a result",
+        body: [
+          "Work through the circuit inputs in order, correcting any failed boundary before completing designer verification.",
+        ],
+        steps: [
+          "Select the correct library cable or enter complete custom cable data.",
+          "Enter the cable length, parallel runs and a justified derating factor.",
+          "Choose the applicable voltage-drop limit.",
+          "For Fail, increase suitable capacity, revise the circuit arrangement, reduce justified design demand, shorten the route or otherwise correct the design.",
+          "For Review, complete the missing length and check every cable and installation assumption.",
+          "Select Verify after the competent review. Confirm that the result changes to Pass and that no upstream failure remains.",
+        ],
+      },
+    ],
+    related: ["load-and-demand", "cable-library", "advanced-calculations"],
+  },
+  {
+    title: "Cable Library",
+    slug: "cable-library",
+    category: "Advanced Calculations",
+    updated: "July 2026",
+    readTime: "9 min read",
+    description: "Manage the cable ratings available within an individual project.",
+    summary: "Cable Library combines the shared read-only standard library with reusable project-only cable records and project-specific inclusion settings.",
+    tags: ["cable library", "project cable", "custom cable", "exclude cable", "standard library", "cable dropdown"],
+    sections: [
+      {
+        heading: "Library scope",
+        body: [
+          "Cable Library is the final subtab in Advanced Calculations. It controls cable choices for the current project without changing the centrally maintained standard library.",
+          "Standard-library records are shared across the application and are read-only. Project custom cables and inclusion settings are stored only in the current project, including its exported backup data.",
+        ],
+        callout: {
+          type: "info",
+          title: "Project-specific settings",
+          body: "Creating or excluding a cable in one project does not alter the cable choices in any other project or workspace.",
+        },
+      },
+      {
+        heading: "Included and excluded ratings",
+        body: [
+          "Every active standard and project custom rating is included by default. Select Included against a row to exclude that rating from new Cable & Protection selections. Select Excluded to include it again.",
+          "Use Include all to clear every project exclusion. Search and the Source, Application and Availability filters can be combined to find a particular rating.",
+        ],
+        bullets: [
+          "Inclusion is stored at individual rating level, not for an entire cable family.",
+          "Excluded ratings do not appear as new dropdown choices.",
+          "An existing circuit continues to show and calculate from its saved cable snapshot.",
+          "Including a rating does not confirm that it is suitable for the installation.",
+        ],
+      },
+      {
+        heading: "Adding a project cable",
+        body: [
+          "Select Add project cable to expand the editor. The same header button closes the editor when it is open. Complete the required name, conductor size, current capacity and voltage-drop value before saving.",
+          "Application determines whether the cable is offered for single-phase or three-phase circuits. Core configuration, cable arrangement and installation method provide the context required to interpret the numerical data.",
+        ],
+        steps: [
+          "Select Add project cable.",
+          "Enter a clear cable name and choose its application.",
+          "Enter conductor size, current capacity and voltage drop in mV/A/m.",
+          "Record the core configuration, arrangement and reference installation method.",
+          "Add manufacturer, standard and source details where available.",
+          "Select Save project cable.",
+        ],
+        callout: {
+          type: "best",
+          title: "Record the source",
+          body: "Use manufacturer or standards data and record its name and revision. Avoid deriving current capacity or voltage-drop values from connector ratings alone.",
+        },
+      },
+      {
+        heading: "Project library versus one-off custom data",
+        body: [
+          "Create a project cable when the same custom rating will be selected on multiple circuits. It appears in a separate Project cable library group in the Cable & Protection dropdown.",
+          "Use Custom cable data directly in Cable & Protection for a one-off circuit that does not need a reusable library record. Both methods remain limited to the current project.",
+        ],
+      },
+      {
+        heading: "Editing and removing project cables",
+        body: [
+          "Project custom records can be edited or removed from the table. Standard-library records remain read-only.",
+          "Editing a project cable changes the choice offered for future selections but does not silently rewrite cable snapshots already saved against circuits. Select the revised cable again on a circuit where the new values should apply.",
+          "If a project cable is removed while in use, the existing circuit retains and displays its saved snapshot. The removed record is no longer offered for new selections.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Existing designs remain traceable",
+          body: "A library change does not update existing circuit calculations automatically. This prevents revised reference data from silently changing a previously reviewed design.",
+        },
+      },
+      {
+        heading: "Standards and suitability",
+        body: [
+          "The standard library contains sourced reference data; it is not a list of cables approved by BS 7909. Cable suitability depends on the complete design, applicable cable and installation standards, environmental conditions, mechanical protection and competent judgement.",
+          "The designer remains responsible for checking capacity, voltage-drop data, correction factors and intended use before completing designer verification in Cable & Protection.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Inclusion is not approval",
+          body: "An Included status controls dropdown visibility only. It is not a compliance decision or confirmation that the cable is appropriate for a particular installation.",
+        },
+      },
+    ],
+    related: ["cable-and-protection", "advanced-calculations", "best-practice"],
+  },
+  {
+    title: "Calculations",
+    slug: "calculations",
+    category: "Reference",
+    updated: "July 2026",
+    readTime: "10 min read",
+    description: "How watts, amps, phase loading and imbalance are calculated.",
+    summary: "This article explains the indicative calculations used by the planner.",
+    tags: ["calculations", "watts", "amps", "phase loading", "imbalance", "power factor", "diversity", "kVA"],
+    sections: [
+      { heading: "Standard watts to amps", body: ["Standard planner views convert equipment wattage to current using a 230 V single-phase basis for indicative planning calculations."], },
+      { heading: "Three-phase outputs", body: ["For three-phase equipment assigned to a three-phase output, load is distributed evenly across L1, L2 and L3 for planning purposes."], },
+      { heading: "Phase imbalance", body: ["Phase imbalance compares the highest and lowest phase loading. The planner reports the result as a percentage and identifies the reference phases where appropriate."], },
+      { heading: "Advanced calculations", body: ["Where Advanced Calculations is enabled, the project can apply per-output diversity and project or circuit power factor before calculating current. Nominal single-phase and three-phase voltages are configurable in the advanced settings."], callout: { type: "info", title: "Calculation views", body: "Standard views continue to show the original planner calculation. Advanced Overview, Load & Demand and Cable & Protection use the advanced calculation assumptions." } },
+    ],
+    related: ["load-and-demand", "cable-and-protection", "warnings"],
+  },
+  {
+    title: "Connector Reference",
+    slug: "connector-reference",
+    category: "Reference",
+    updated: "June 2026",
+    readTime: "7 min read",
+    description: "Common connector and phase references used by the planner.",
+    summary: "A practical reference for connector labels and phase terminology used in LVA Power Planner.",
+    tags: ["connectors", "13A", "16A", "32A", "63A", "125A", "Powerlock", "Socapex"],
+    sections: [
+      { heading: "Single-phase connectors", body: ["Common single-phase labels include 13A, 16A / 1, 32A / 1 and 63A / 1 where applicable."], },
+      { heading: "Three-phase connectors", body: ["Common three-phase labels include 32A / 3, 63A / 3, 125A / 3, 200A / 3, 300A / 3 and 400A / 3."], },
+      { heading: "Socapex", body: ["Socapex outputs are represented as grouped six-circuit outputs with circuits allocated across L1, L2 and L3."], },
+    ],
+    related: ["distro-editor", "custom-distros", "glossary"],
+  },
+  {
+    title: "Best Practice",
+    slug: "best-practice",
+    category: "Reference",
+    updated: "June 2026",
+    readTime: "7 min read",
+    description: "Recommended workflow before issuing reports.",
+    summary: "A practical checklist for preparing reliable project files and reports.",
+    tags: ["best practice", "workflow", "reports", "backup", "review"],
+    sections: [
+      { heading: "Recommended build order", body: ["Build projects in a consistent order: project information, manual sources, distros, source assignment, equipment assignment, downstream feeds, warning review and report export."], },
+      { heading: "Before exporting reports", body: ["Review System Overview, check unassigned distros, confirm report toggles, resolve critical warnings and export a JSON backup. In an advanced workspace, also review Advanced Overview, document diversity and power-factor assumptions, resolve cable failures and confirm that current cable inputs have been competently verified."], },
+      { heading: "Record keeping", body: ["Keep dated project exports for major revisions so the design history can be recovered if needed."], },
+    ],
+    related: ["reports", "import-export", "warnings"],
+  },
+  {
+    title: "FAQ",
+    slug: "faq",
+    category: "Reference",
+    updated: "June 2026",
+    readTime: "6 min read",
+    description: "Common questions and troubleshooting.",
+    summary: "Answers to common operational questions.",
+    tags: ["faq", "troubleshooting", "auto source", "warning", "report"],
+    sections: [
+      { heading: "Why can I not assign a source?", body: ["The source may be incompatible, already assigned to another distro or belong to the distro's own output. Check connector type and existing assignments."], },
+      { heading: "What is an Auto Source?", body: ["An Auto Source is a virtual source created from an eligible distro output. It allows downstream distros to be connected while still calculating load through the parent distro."], },
+      { heading: "Why did my dismissed warning come back?", body: ["Dismissed warnings return when the underlying load changes significantly. This prevents an old dismissal from hiding a newly changed condition."], },
+      { heading: "Why can I not see Advanced Calculations?", body: ["Advanced Calculations is controlled at workspace level. If the tab is absent, ask the workspace administrator whether advanced features are enabled for your workspace."], },
+      { heading: "Why are connected load and design load the same?", body: ["They match when circuit diversity is 100%. Design load changes only when diversity below 100% is applied; connected load always retains the total assigned equipment rating."], },
+      { heading: "Why is a cable result still Review?", body: ["Enter a positive cable length, check the selected cable and installation assumptions, then select Verify. Any later change to relevant inputs or design current invalidates the verification and requires a new review."], },
+      { heading: "Why is a report missing a distro?", body: ["Check the Report tab toggles. Sources and distros can be hidden from the report export without being removed from the project."], },
+      { heading: "Why can I not share my project?", body: ["Project Sharing may be disabled for your workspace, or you may be using the individual app subdomain where sharing is not available."], },
+      { heading: "Can I share a project with another company?", body: ["No. Projects can only be shared with users in the same workspace. Cross-company sharing is not currently supported."], },
+      { heading: "Can I stop sharing a project?", body: ["Yes. Project owners can make a project private again from the project actions menu. This removes access for users it was previously shared with."], },
+      { heading: "Why do shared projects appear separately?", body: ["My Projects contains projects you created. Projects Shared With Me contains projects another user has shared with you."], },
+    ],
+    related: ["warnings", "reports", "distro-overview", "project-sharing"],
+  },
+  {
+    title: "Glossary",
+    slug: "glossary",
+    category: "Reference",
+    updated: "June 2026",
+    readTime: "6 min read",
+    description: "Definitions of common terms used in LVA Power Planner.",
+    summary: "A quick reference for key planner terms.",
+    tags: ["glossary", "terms", "definitions"],
+    sections: [
+      { heading: "Power Source", body: ["A venue supply, generator or auto-created output source that can feed one compatible distro."] },
+      { heading: "Distro", body: ["A distribution unit with an input connector and one or more outputs feeding equipment or downstream distribution."] },
+      { heading: "Auto Source", body: ["A source automatically generated from an eligible distro output so another distro can be fed downstream."] },
+      { heading: "Phase imbalance", body: ["A measure of uneven loading between L1, L2 and L3 on a three-phase supply."] },
+      { heading: "Connected load", body: ["The total real-power rating of equipment assigned to a circuit before diversity is applied."] },
+      { heading: "Design load", body: ["The connected real-power load after the circuit diversity percentage has been applied."] },
+      { heading: "Power factor", body: ["The ratio used to convert real power in watts to apparent power in volt-amperes for the advanced current calculation."] },
+      { heading: "Parallel runs", body: ["Two or more equivalent cable runs installed in parallel to share the circuit current."] },
+      { heading: "Derating factor", body: ["A multiplier applied to cable current capacity to account for relevant installation and environmental conditions."] },
+      { heading: "Cumulative voltage drop", body: ["The total calculated voltage drop across the upstream feeder path and the current cable section."] },
+      { heading: "Report Hidden Source", body: ["A source that remains in the project but is excluded from the current report export."] },
+    ],
+    related: ["connector-reference", "calculations"],
+  },
+  {
+    title: "Release Notes",
+    slug: "release-notes",
+    category: "Reference",
+    updated: "July 2026",
+    readTime: "4 min read",
+    description: "Current documentation and product notes.",
+    summary: "A customer-facing record of notable LVA Power Planner updates.",
+    tags: ["release notes", "updates", "version"],
+    sections: [
+      { heading: "Documentation centre", body: ["Online documentation includes searchable articles, category navigation, article pages, metadata, callouts, related articles, previous/next navigation and command-palette search."], },
+      { heading: "Current planner functionality", body: ["Current documented features include MFA login, branded workspaces, project dashboard, system overview, manual and auto sources, distro management, drag-and-drop equipment assignment, custom equipment, custom distros, warnings, report exports and JSON import/export."], },
+      { heading: "Project Sharing", body: ["Project Sharing allows workspace users to keep projects private by default and share selected projects with chosen colleagues when workspace sharing is enabled. The feature includes My Projects, Projects Shared With Me, selected-user sharing and workspace-level sharing controls."], },
+      { heading: "Advanced Calculations", body: ["Workspace-controlled Advanced Calculations now includes Advanced Overview, Load & Demand, Cable & Protection, and Cable Library subtabs. Designers can apply project and circuit power factor, per-output diversity, shared-library or custom cable data, parallel runs, derating and voltage-drop limits. Cable results include feeder-aware cumulative voltage drop, Pass/Review/Fail status and input-sensitive designer verification."], },
+      { heading: "Project Cable Library", body: ["The final Advanced Calculations subtab now allows designers to include or exclude individual cable ratings for the current project and create reusable project-only cable records. The shared standard library remains read-only, existing circuits retain immutable cable snapshots, and removed or excluded records do not silently alter previous designs."], },
+    ],
+    related: ["introduction", "project-sharing", "best-practice"],
+  },
+];
+
+export function articleBySlug(slug: string) {
+  return docArticles.find((article) => article.slug === slug);
+}
+
+export function orderedDocArticles() {
+  return docCategories
+    .flatMap((category) => category.items.map((item) => item.slug))
+    .map((slug) => articleBySlug(slug))
+    .filter((article): article is DocArticle => Boolean(article));
+}
+
+export function previousNextArticle(slug: string) {
+  const flat = orderedDocArticles();
+  const index = flat.findIndex((article) => article.slug === slug);
+
+  return {
+    previous: index > 0 ? flat[index - 1] : undefined,
+    next: index >= 0 && index < flat.length - 1 ? flat[index + 1] : undefined,
+  };
+}
+
+export function relatedArticles(slugs: string[] = []) {
+  return slugs
+    .map((slug) => docArticles.find((article) => article.slug === slug))
+    .filter((article): article is DocArticle => Boolean(article));
+}
+
+export function articleSearchText(article: DocArticle) {
+  return [
+    article.title,
+    article.description,
+    article.category,
+    article.summary,
+    ...article.tags,
+    ...article.sections.flatMap((section) => [
+      section.heading,
+      ...section.body,
+      ...(section.steps ?? []),
+      ...(section.bullets ?? []),
+      section.callout?.title ?? "",
+      section.callout?.body ?? "",
+      section.screenshot?.title ?? "",
+      section.screenshot?.caption ?? "",
+    ]),
+  ]
+    .join(" ")
+    .toLowerCase();
+}
