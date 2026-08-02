@@ -685,6 +685,7 @@ export default function PlannerPortal() {
     if (!mfaApproved) return;
 
     setUser(currentUser);
+    await resolveWorkspaceId();
     await loadProjects(currentUser);
   }
 
