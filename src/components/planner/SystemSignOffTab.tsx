@@ -377,20 +377,29 @@ export function SystemSignOffTab({ plannerState, projectId, canManageAccessLink 
   async function submitSignOff() {
     if (!record) return;
     setSubmitting(true);
-    const response = externalToken ? await supabase.rpc("submit_public_project_signoff", { access_token: externalToken }) : await supabase.rpc("submit_project_signoff", { target_signoff_id: record.id });
-    if (response.error) { setError(response.error.message); setSubmitModalOpen(false); setSubmitting(false); return; }
-    const submittedRecord=response.data as ProjectSignOffRecord;
-    setRecord(submittedRecord); setSaveStatus("Submitted - sending PDF email");
-    const emailResult=await sendSubmittedSignOffEmail(submittedRecord);
-    setRecord((current)=>current?{...current,email_status:emailResult.sent?"sent":"failed"}:current);
-    setSaveStatus(emailResult.sent?`Submitted and emailed to ${emailResult.recipient}`:"Submitted - email failed");
-    if(!emailResult.sent)setError(emailResult.error||"The sign-off was submitted, but its PDF email could not be sent. Use Retry email to try again.");
-    setSubmitModalOpen(false); setSubmitting(false);
+    try{
+      const response = externalToken ? await supabase.rpc("submit_public_project_signoff", { access_token: externalToken }) : await supabase.rpc("submit_project_signoff", { target_signoff_id: record.id });
+      if (response.error) { setError(response.error.message); setSubmitModalOpen(false); return; }
+      const submittedRecord=response.data as ProjectSignOffRecord;
+      setRecord(submittedRecord); setSaveStatus("Submitted - sending PDF email");
+      const emailResult=await sendSubmittedSignOffEmail(submittedRecord);
+      setRecord((current)=>current?{...current,email_status:emailResult.sent?"sent":"failed"}:current);
+      setSaveStatus(emailResult.sent?`Submitted and emailed to ${emailResult.recipient}`:"Submitted - email failed");
+      if(!emailResult.sent)setError(emailResult.error||"The sign-off was submitted, but its PDF email could not be sent. Use Retry email to try again.");
+      setSubmitModalOpen(false);
+    }catch(error){
+      setRecord((current)=>current?{...current,email_status:"failed"}:current);
+      setSaveStatus("Submitted - email failed");
+      setError(error instanceof Error?error.message:"The sign-off was submitted, but its PDF email could not be sent. Use Retry email to try again.");
+      setSubmitModalOpen(false);
+    }finally{
+      setSubmitting(false);
+    }
   }
 
   async function sendSubmittedSignOffEmail(targetRecord:ProjectSignOffRecord):Promise<{sent:boolean;recipient?:string;error?:string}> {
     const session=externalToken?null:(await supabase.auth.getSession()).data.session;
-    const response=await fetch("/api/signoff/submit-email",{method:"POST",headers:{"Content-Type":"application/json",...(session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{})},body:JSON.stringify({signoffId:targetRecord.id,externalToken,html:documentForPrint(),projectName:projectName??targetRecord.project_name??"System Sign-Off"})});
+    const response=await fetch("/api/signoff/submit-email",{method:"POST",headers:{"Content-Type":"application/json",...(session?.access_token?{Authorization:`Bearer ${session.access_token}`}:{})},body:JSON.stringify({signoffId:targetRecord.id,externalToken,html:documentForPrint(),projectName:projectName??targetRecord.project_name??"System Sign-Off"}),signal:AbortSignal.timeout(70000)});
     const payload=await response.json() as {sent?:boolean;recipient?:string;error?:string};
     return response.ok&&payload.sent?{sent:true,recipient:payload.recipient}:{sent:false,error:payload.error};
   }
@@ -398,11 +407,16 @@ export function SystemSignOffTab({ plannerState, projectId, canManageAccessLink 
   async function retrySignOffEmail() {
     if(!record)return;
     setSubmitting(true);setError("");setSaveStatus("Retrying PDF email");
-    const result=await sendSubmittedSignOffEmail(record);
-    setRecord((current)=>current?{...current,email_status:result.sent?"sent":"failed"}:current);
-    setSaveStatus(result.sent?`Submitted and emailed to ${result.recipient}`:"Submitted - email failed");
-    if(!result.sent)setError(result.error||"The PDF email could not be sent.");
-    setSubmitting(false);
+    try{
+      const result=await sendSubmittedSignOffEmail(record);
+      setRecord((current)=>current?{...current,email_status:result.sent?"sent":"failed"}:current);
+      setSaveStatus(result.sent?`Submitted and emailed to ${result.recipient}`:"Submitted - email failed");
+      if(!result.sent)setError(result.error||"The PDF email could not be sent.");
+    }catch(error){
+      setRecord((current)=>current?{...current,email_status:"failed"}:current);
+      setSaveStatus("Submitted - email failed");
+      setError(error instanceof Error?error.message:"The PDF email could not be sent.");
+    }finally{setSubmitting(false);}
   }
 
   function exportPdf() {
@@ -562,7 +576,7 @@ export function SystemSignOffTab({ plannerState, projectId, canManageAccessLink 
   return <section className={`system-signoff${activeFormCompleted?" form-complete":""}`} style={styles.page}>
     <style>{`.g1-selector + section{display:none}.form-part-body>p{margin:0;padding:14px;line-height:1.5}.form-complete input:not([type="checkbox"]):not([type="radio"]):disabled,.form-complete select:disabled,.form-complete textarea:disabled{border-color:transparent!important;background:transparent!important;color:#344054!important;opacity:1!important}.form-complete input[type="checkbox"]:disabled,.form-complete input[type="radio"]:disabled{opacity:.7!important;accent-color:#667085}.form-complete section:not(.completion-control){filter:saturate(.35)}.form-complete .completion-control{filter:none}.system-signoff table input[type="checkbox"]{width:16px!important;height:16px!important;min-height:0!important}.system-signoff section[style*="max-height"]>div:last-child>div>div:first-child{display:grid;gap:4px;line-height:1.35}`}</style>
     <style>{`.system-signoff h2,.system-signoff h3,.system-signoff p{margin-top:0}.system-signoff strong{font-weight:700}.system-signoff table th,.system-signoff table td{text-align:left;vertical-align:top;padding:8px;border:1px solid #98a2b3}.system-signoff table th{background:#f2f4f7;font-weight:700;white-space:normal}.system-signoff table input,.system-signoff table select{width:100%;min-height:34px;box-sizing:border-box;border:1px solid #cbd5e1;border-radius:5px;padding:5px 7px;background:#fff}.system-signoff button:disabled,.system-signoff input:disabled,.system-signoff select:disabled,.system-signoff textarea:disabled{cursor:not-allowed;opacity:.7}`}</style>
-    <header style={styles.header}><div><h2 style={styles.title}>System Sign-Off</h2><p style={styles.muted}>BS 7909 completion and test documentation - Revision {record?.revision ?? 1}</p></div><div style={styles.actions}><span style={styles.saveStatus}>{saveStatus}</span><button style={styles.secondaryButton} onClick={exportPdf}>Export Sign-Off PDF</button>{submissionLocked&&record?.email_status==="failed"&&<button style={styles.secondaryButton} disabled={submitting} onClick={()=>void retrySignOffEmail()}>{submitting?"Sending…":"Retry email"}</button>}{!submissionLocked && <button style={styles.primaryButton} onClick={() => setSubmitModalOpen(true)}>Submit Sign-Off</button>}</div></header>
+    <header style={styles.header}><div><h2 style={styles.title}>System Sign-Off</h2><p style={styles.muted}>BS 7909 completion and test documentation - Revision {record?.revision ?? 1}</p></div><div style={styles.actions}><span style={styles.saveStatus}>{saveStatus}</span><button style={styles.secondaryButton} onClick={exportPdf}>Export Sign-Off PDF</button>{submissionLocked&&(record?.email_status==="failed"||record?.email_status==="pending")&&<button style={styles.secondaryButton} disabled={submitting} onClick={()=>void retrySignOffEmail()}>{submitting?"Sending…":"Retry email"}</button>}{!submissionLocked && <button style={styles.primaryButton} onClick={() => setSubmitModalOpen(true)}>Submit Sign-Off</button>}</div></header>
     {error && <div style={styles.error}>{error}<button style={styles.closeError} onClick={() => setError("")}>x</button></div>}
     <nav style={styles.subTabs}>{([['shared','Information'],['g1','G1 - Completion Certificate'],['g2','G2 - Schedule of Test Results'],['g3','G3 - Confirmation of Electrical Completion'],['circuits','Include Circuits (G2)']] as [SubTab,string][]).map(([id,label]) => <button key={id} style={subTabStyle(id)} onMouseEnter={() => setHoveredSubTab(id)} onMouseLeave={() => setHoveredSubTab(null)} onClick={(event) => { setActiveSubTab(id); event.currentTarget.blur(); }}>{label}</button>)}</nav>
 
