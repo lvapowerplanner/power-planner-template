@@ -450,6 +450,7 @@ export function PlannerShell({
             plannerState={plannerState}
             projectId={projectId}
             canManageAccessLink={canManageReportLink}
+            workspaceLogoUrl={workspaceBranding?.logo_url}
           />
         )}
       </section>

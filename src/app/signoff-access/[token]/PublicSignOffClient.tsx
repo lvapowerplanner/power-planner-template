@@ -16,6 +16,7 @@ type Payload = {
   electrician_name?: string;
   electrician_email?: string;
   electrician_company?: string;
+  logo_url?: string;
 };
 
 export function PublicSignOffClient({ token }: { token: string }) {
@@ -56,7 +57,7 @@ export function PublicSignOffClient({ token }: { token: string }) {
       <div style={styles.bannerIdentity}><strong>External electrician sign-off</strong><span style={styles.projectName}>{payload.project_name ?? "Power Planner Project"}</span><small>Access expires: {payload.expires_at ? new Date(payload.expires_at).toLocaleString() : "Not available"}</small></div>
       <div style={styles.electricianDetails}><strong>{payload.electrician_name ?? "Assigned electrician"}</strong><span>{payload.electrician_email ?? "Email not provided"}</span><small>{payload.electrician_company ?? "Company not provided"}</small></div>
     </section>
-    <SystemSignOffTab plannerState={plannerState} externalToken={token} initialRecord={payload.signoff} projectName={payload.project_name} electricianDetails={{name:payload.electrician_name,email:payload.electrician_email,company:payload.electrician_company}} />
+    <SystemSignOffTab plannerState={plannerState} externalToken={token} initialRecord={payload.signoff} projectName={payload.project_name} workspaceLogoUrl={payload.logo_url} electricianDetails={{name:payload.electrician_name,email:payload.electrician_email,company:payload.electrician_company}} />
   </main>;
 }
 
