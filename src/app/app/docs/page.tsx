@@ -10,7 +10,7 @@ export const metadata = {
 
 export default function DocsHomePage() {
   const featuredArticles = docArticles.filter((article) =>
-    ["introduction", "system-overview", "advanced-calculations", "cable-and-protection"].includes(article.slug),
+    ["introduction", "system-overview", "advanced-calculations", "system-sign-off"].includes(article.slug),
   );
 
   return (
@@ -27,12 +27,12 @@ export default function DocsHomePage() {
           <h1 style={styles.title}>Documentation Centre</h1>
           <p style={styles.subtitle}>
             Searchable product documentation for LVA Power Planner, covering projects,
-            power sources, distros, advanced calculations, reports, warnings and best practice.
+            power sources, distros, advanced calculations, system sign-off, reports, warnings and best practice.
           </p>
           <div style={styles.statsRow}>
             <span>{docArticles.length} articles</span>
             <span>{docCategories.length} categories</span>
-            <span>Updated July 2026</span>
+            <span>Updated August 2026</span>
           </div>
         </header>
 
