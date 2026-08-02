@@ -29,7 +29,7 @@ function required(name:string) {
 
 async function graphToken() {
   const response=await fetch(`https://login.microsoftonline.com/${encodeURIComponent(required("MICROSOFT_TENANT_ID"))}/oauth2/v2.0/token`,{
-    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:required("MICROSOFT_CLIENT_ID"),client_secret:required("MICROSOFT_CLIENT_SECRET"),scope:"https://graph.microsoft.com/.default",grant_type:"client_credentials"})
+    method:"POST",headers:{"Content-Type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:required("MICROSOFT_CLIENT_ID"),client_secret:required("MICROSOFT_CLIENT_SECRET"),scope:"https://graph.microsoft.com/.default",grant_type:"client_credentials"}),signal:AbortSignal.timeout(20000)
   });
   const payload=await response.json() as {access_token?:string;error_description?:string};
   if(!response.ok||!payload.access_token)throw new Error(payload.error_description||"Microsoft Graph authentication failed.");
@@ -69,7 +69,7 @@ export async function POST(request:Request) {
     try{
       const page=await browser.newPage();
       await page.setContent(`<!doctype html><html><head><meta charset="utf-8"><style>${PDF_STYLES}</style></head><body>${body.html}</body></html>`,{waitUntil:"domcontentloaded",timeout:30000});
-      await page.waitForNetworkIdle({idleTime:500,timeout:30000});
+      await page.evaluate(async()=>{await Promise.race([Promise.all(Array.from(document.images).map((image)=>image.complete?Promise.resolve():new Promise<void>((resolve)=>{image.addEventListener("load",()=>resolve(),{once:true});image.addEventListener("error",()=>resolve(),{once:true});}))),new Promise<void>((resolve)=>setTimeout(resolve,8000))]);});
       pdf=await page.pdf({printBackground:true,preferCSSPageSize:true});
     }finally{await browser.close();}
 
@@ -77,7 +77,7 @@ export async function POST(request:Request) {
     const sender=required("MICROSOFT_SENDER_EMAIL");
     const safeName=(body.projectName||project.name||"System Sign-Off").replace(/[^a-z0-9 _-]/gi,"").trim()||"System Sign-Off";
     const graphResponse=await fetch(`https://graph.microsoft.com/v1.0/users/${encodeURIComponent(sender)}/sendMail`,{
-      method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({message:{subject:`System Sign-Off - ${safeName}`,body:{contentType:"HTML",content:`<p>The completed system sign-off documentation for <strong>${safeName}</strong> is attached.</p><p>This email was sent automatically by LVA Power Planner.</p>`},toRecipients:[{emailAddress:{address:recipient}}],attachments:[{"@odata.type":"#microsoft.graph.fileAttachment",name:`${safeName} - System Sign-Off.pdf`,contentType:"application/pdf",contentBytes:Buffer.from(pdf).toString("base64")} ]},saveToSentItems:true})
+      method:"POST",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},body:JSON.stringify({message:{subject:`System Sign-Off - ${safeName}`,body:{contentType:"HTML",content:`<p>The completed system sign-off documentation for <strong>${safeName}</strong> is attached.</p><p>This email was sent automatically by LVA Power Planner.</p>`},toRecipients:[{emailAddress:{address:recipient}}],attachments:[{"@odata.type":"#microsoft.graph.fileAttachment",name:`${safeName} - System Sign-Off.pdf`,contentType:"application/pdf",contentBytes:Buffer.from(pdf).toString("base64")} ]},saveToSentItems:true}),signal:AbortSignal.timeout(20000)
     });
     if(!graphResponse.ok)throw new Error(`Microsoft Graph rejected the email (${graphResponse.status}): ${await graphResponse.text()}`);
     await admin.from("project_signoffs").update({email_status:"sent"}).eq("id",signoffId);
