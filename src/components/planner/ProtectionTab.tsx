@@ -127,7 +127,8 @@ function selectivityPairs(rows: CircuitRow[], state: PlannerState): SelectivityP
 
 function deviceLabel(device: ProtectiveDevice | undefined) {
   if (!device) return "Not configured";
-  return `${device.deviceType.toUpperCase()} ${device.ratedCurrentA}A${device.curve ? ` ${device.curve}` : ""}`;
+  const type = device.deviceType === "mcb-rcd" ? "MCB + RCD" : device.deviceType.toUpperCase();
+  return `${type} ${device.ratedCurrentA}A${device.curve ? ` ${device.curve}` : ""}`;
 }
 
 function residualLabel(device: ProtectiveDevice) {

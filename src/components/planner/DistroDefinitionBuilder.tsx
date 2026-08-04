@@ -201,7 +201,16 @@ function defaultProtectiveDevice(
 }
 
 function deviceHasResidualProtection(device: ProtectiveDevice) {
-  return device.deviceType === "rcd" || device.deviceType === "rcbo";
+  return device.deviceType === "rcd" || device.deviceType === "rcbo" || device.deviceType === "mcb-rcd";
+}
+
+function deviceTypeLabel(deviceType: ProtectiveDeviceKind) {
+  if (deviceType === "mcb-rcd") return "MCB with RCD protection";
+  return deviceType.toUpperCase();
+}
+
+function parseSettingList(value: string) {
+  return [...new Set(value.split(",").map((item) => Number(item.trim())).filter((item) => Number.isFinite(item) && item >= 0))].sort((a, b) => a - b);
 }
 
 function withDefaultResidualProtection(
@@ -262,7 +271,7 @@ export function ProtectionEditor({
   function setDeviceType(deviceType: ProtectiveDeviceKind) {
     const next: ProtectiveDevice = { ...configuredDevice, deviceType };
     onChange(
-      deviceType === "rcd" || deviceType === "rcbo"
+      deviceType === "rcd" || deviceType === "rcbo" || deviceType === "mcb-rcd"
         ? withDefaultResidualProtection(next)
         : { ...next, residualProtection: undefined },
     );
@@ -271,7 +280,7 @@ export function ProtectionEditor({
   return (
     <details style={styles.protectionDetails}>
       <summary style={styles.protectionSummary}>
-        {label}: {device.deviceType.toUpperCase()} · {device.ratedCurrentA}A
+        {label}: {deviceTypeLabel(device.deviceType)} · {device.ratedCurrentA}A
         {residual
           ? ` · ${residual.residualCurrentMa}mA / ${residual.timeDelayMs}ms`
           : ""}
@@ -288,6 +297,7 @@ export function ProtectionEditor({
           >
             <option value="fuse">Fuse</option>
             <option value="mcb">MCB</option>
+            <option value="mcb-rcd">MCB with RCD protection</option>
             <option value="mccb">MCCB</option>
             <option value="rcd">RCD</option>
             <option value="rcbo">RCBO</option>
@@ -321,6 +331,7 @@ export function ProtectionEditor({
           />
         </label>
         {(device.deviceType === "mcb" ||
+          device.deviceType === "mcb-rcd" ||
           device.deviceType === "mccb" ||
           device.deviceType === "rcbo") && (
           <label style={styles.label}>
@@ -441,6 +452,25 @@ export function ProtectionEditor({
                 <span>mA</span>
               </div>
             </label>
+            {residual.settingMode === "adjustable" && (
+              <label style={styles.label}>
+                Available mA settings
+                <input
+                  style={styles.input}
+                  key={`${configuredDevice.id}:residual-settings:${(residual.availableResidualSettingsMa ?? []).join("-")}`}
+                  defaultValue={(residual.availableResidualSettingsMa ?? []).join(", ")}
+                  placeholder="e.g. 30, 100, 300, 500"
+                  onBlur={(event) =>
+                    patch({
+                      residualProtection: {
+                        ...residual,
+                        availableResidualSettingsMa: parseSettingList(event.target.value).filter((value) => value > 0),
+                      },
+                    })
+                  }
+                />
+              </label>
+            )}
             <label style={styles.label}>
               Delay mode
               <select
@@ -488,6 +518,25 @@ export function ProtectionEditor({
                 <span>ms</span>
               </div>
             </label>
+            {residual.delayMode === "adjustable-delay" && (
+              <label style={styles.label}>
+                Available delay settings
+                <input
+                  style={styles.input}
+                  key={`${configuredDevice.id}:delay-settings:${(residual.availableDelaySettingsMs ?? []).join("-")}`}
+                  defaultValue={(residual.availableDelaySettingsMs ?? []).join(", ")}
+                  placeholder="e.g. 0, 60, 150, 300"
+                  onBlur={(event) =>
+                    patch({
+                      residualProtection: {
+                        ...residual,
+                        availableDelaySettingsMs: parseSettingList(event.target.value),
+                      },
+                    })
+                  }
+                />
+              </label>
+            )}
             <label style={styles.checkboxLabel}>
               <input
                 type="checkbox"
@@ -943,7 +992,7 @@ export function DistroDefinitionBuilder({
                   Paste protection to outputs
                 </h3>
                 <p style={styles.mutedSmall}>
-                  Copying {protectionPaste.device.deviceType.toUpperCase()} ·{" "}
+                  Copying {deviceTypeLabel(protectionPaste.device.deviceType)} ·{" "}
                   {protectionPaste.device.ratedCurrentA}A from{" "}
                   {outputLabel(protectionPaste.sourceOutput)}. Only outputs
                   with a matching {protectionRating(protectionPaste.sourceOutput)}A

@@ -914,7 +914,8 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Protection and copying devices",
         body: [
-          "Incomer and output protection can be stored within a custom distro so it is available automatically when the model is added to the project. Protection supports overcurrent devices and residual-current details, including adjustable settings and time delay where applicable.",
+          "Incomer and output protection can be stored within a custom distro so it is available automatically when the model is added to the project. Protection supports fuses, MCBs, MCCBs, RCDs, RCBOs and an MCB with associated RCD protection.",
+          "The combined MCB and RCD option records the MCB poles, curve, rating and breaking capacity separately from the RCD type, earth-leakage setting or available range, and instantaneous, fixed or adjustable time delay.",
           "Copy a configured output device, then use Paste protection to choose compatible destination outputs within the same distro. Protection can only be pasted to outputs with the same rating. Socapex selection is shown once per Socapex output because all six matching circuit breakers are treated together.",
         ],
       },
@@ -1402,6 +1403,7 @@ export const docArticles: DocArticle[] = [
         body: [
           "Where upstream and downstream residual-current devices form a protection path, the planner screens the pair and suggests an upstream residual-current setting and adjustable delay intended to support downstream-first operation.",
           "Suggestions consider declared available settings and generic grading relationships. Fixed devices remain visible, while variable RCD settings and time delay can be accepted from the suggestion or manually overridden.",
+          "An MCB with associated RCD protection participates in MCB overload and breaking-capacity checks while its separate residual-current function participates in the RCD selectivity path. It is not treated as an RCBO.",
         ],
       },
       {

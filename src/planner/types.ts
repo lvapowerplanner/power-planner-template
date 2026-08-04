@@ -105,6 +105,7 @@ export type CircuitCableDesign = {
 export type ProtectiveDeviceKind =
   | "fuse"
   | "mcb"
+  | "mcb-rcd"
   | "mccb"
   | "rcd"
   | "rcbo"
