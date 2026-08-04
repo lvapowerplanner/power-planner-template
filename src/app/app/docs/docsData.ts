@@ -63,11 +63,12 @@ export const docCategories: DocCategory[] = [
   },
   {
     title: "Advanced Calculations",
-    description: "Advanced demand, power-factor, cable and voltage-drop design tools.",
+    description: "Advanced demand, cable, voltage-drop and protective-device design tools.",
     items: [
       { title: "Advanced Calculations Overview", slug: "advanced-calculations", description: "Enable and navigate the advanced electrical design workspace." },
       { title: "Load & Demand", slug: "load-and-demand", description: "Apply diversity and power factor to calculate design load, kVA and current." },
-      { title: "Cable & Protection", slug: "cable-and-protection", description: "Select cables, calculate capacity and voltage drop, and record designer verification." },
+      { title: "Cable Design", slug: "cable-and-protection", description: "Configure feeder and circuit cables, calculate capacity and voltage drop, and record designer verification." },
+      { title: "Protection", slug: "protection", description: "Review inherited protective devices and configure circuit protection and residual-current selectivity." },
       { title: "Cable Library", slug: "cable-library", description: "Control project cable choices and create reusable project-only cable records." },
     ],
   },
@@ -115,7 +116,7 @@ export const docArticles: DocArticle[] = [
     title: "Introduction",
     slug: "introduction",
     category: "Getting Started",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "7 min read",
     description: "LVA Power Planner is a professional planning tool for live event and temporary power systems.",
     summary: "Use LVA Power Planner to build structured power plans, calculate connected load, monitor system warnings and produce branded reports.",
@@ -181,7 +182,7 @@ export const docArticles: DocArticle[] = [
     title: "Logging In & MFA",
     slug: "logging-in",
     category: "Getting Started",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "5 min read",
     description: "Sign in securely to your company workspace.",
     summary: "Users sign in to their assigned workspace with email/password, optional Microsoft sign-in and MFA where enabled.",
@@ -385,7 +386,7 @@ export const docArticles: DocArticle[] = [
     title: "System Overview",
     slug: "system-overview",
     category: "Planning Workflow",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "9 min read",
     description: "Understand the full power hierarchy and project status.",
     summary: "System Overview is the main health check for the project and shows sources, downstream distros, project details, loading and warnings.",
@@ -424,6 +425,13 @@ export const docArticles: DocArticle[] = [
         },
       },
       {
+        heading: "Expanding and collapsing sources",
+        body: [
+          "Source cards can be expanded or collapsed individually, with Expand all and Collapse all controls above the system tree. System Overview opens expanded and remembers its current expansion state while you move between planner tabs.",
+          "A collapsed source keeps its identity and total draw visible while hiding the detailed distro tree, making large projects easier to scan.",
+        ],
+      },
+      {
         heading: "Phase loading and capacity",
         body: [
           "Phase load cards show the current loading for L1, L2 and L3. The percentage indicator compares current draw against the relevant source or distro rating.",
@@ -449,7 +457,7 @@ export const docArticles: DocArticle[] = [
     title: "Power Sources",
     slug: "power-sources",
     category: "Planning Workflow",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "9 min read",
     description: "Create and manage venue supplies, generators and auto-created sources.",
     summary: "Power Sources are the starting points for the system, including manual supplies and auto-created downstream output sources.",
@@ -459,14 +467,23 @@ export const docArticles: DocArticle[] = [
         heading: "Manual power sources",
         body: [
           "Manual Power Sources represent supplies that exist outside the planner hierarchy, such as generators, venue distribution boards, temporary mains supplies or incoming power from another supplier.",
-          "Each manual source has a name, connector type, rating and notes. The notes field is useful for generator location, venue board details, cable routing, restrictions or operational comments.",
+          "Select Add Manual Power Source to open the table-style creation window. Add one or more rows, enter a name, type and notes for each source, and reorder the draft rows before adding them to the project.",
         ],
         steps: [
           "Open the Power Sources tab.",
-          "Enter a clear source name, such as Generator 1 or Venue 125A Stage Left.",
-          "Select the connector type.",
-          "Add relevant notes.",
           "Select Add Manual Power Source.",
+          "Add a row for each required source.",
+          "Enter a clear source name, select its type and add relevant notes.",
+          "Drag rows into the required order.",
+          "Confirm to add all listed power sources.",
+        ],
+      },
+      {
+        heading: "Viewing and editing sources",
+        body: [
+          "Manual power sources load collapsed. The collapsed row shows the source name, type and total draw, with an Expand control for its detailed card. Use Expand all and Collapse all to change the complete view.",
+          "The View filter can show all, single-phase or three-phase sources. Automatically created sources are hidden by default but remain available for downstream assignments; enable Show automatically created sources when they need to be inspected.",
+          "A manual source can be edited after creation, but only its name and notes can be changed. Its electrical rating remains fixed to protect existing compatibility and loading relationships.",
         ],
       },
       {
@@ -519,7 +536,7 @@ export const docArticles: DocArticle[] = [
     title: "Distro Overview",
     slug: "distro-overview",
     category: "Planning Workflow",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "10 min read",
     description: "Add, assign and manage distribution units.",
     summary: "Distro Overview is the control point for adding distros, assigning them to compatible sources and reviewing their load state before detailed editing.",
@@ -540,15 +557,16 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Adding a distro",
         body: [
-          "Choose the required distro type from the Distro Type list, then select Add Distro. The list includes company library distros and any custom distros created within the current project.",
-          "When a distro is added it receives its own project instance. The original library template is not modified, so the same distro type can be added multiple times and named separately for different locations."
+          "Select Add Distro to open the table-style creation window. Add one or more rows, choose each distro model, and enter its project name, location and optional source assignment before confirming the batch.",
+          "The model list includes workspace-library distros and custom distros created within the current project. Each added row becomes its own project instance without modifying the underlying template."
         ],
         steps: [
           "Open Distro Overview.",
-          "Choose the required distro type from the dropdown.",
           "Select Add Distro.",
-          "Give the distro an instance name and location.",
-          "Assign a compatible source."
+          "Add a row and choose the required distro model.",
+          "Enter its project name and location.",
+          "Choose a compatible source or leave the source blank.",
+          "Add and reorder further rows where required, then confirm."
         ],
         callout: {
           type: "tip",
@@ -579,7 +597,7 @@ export const docArticles: DocArticle[] = [
         heading: "Reading distro cards",
         body: [
           "Each distro card summarises the distro instance, physical input, number of outputs, source assignment and phase loading. Cards are highlighted when warnings or critical issues are active for that distro.",
-          "The card colour and phase summary allow you to identify where load is building up without opening every distro individually. Use Open to jump directly into the Distro Editor for the selected distro."
+          "Distros load collapsed. A collapsed card retains the name, model, output count and source, and includes Open before the reorder controls so the Distro Editor can be reached without expanding the card. Use Expand all and Collapse all for the complete list."
         ],
         callout: {
           type: "best",
@@ -606,7 +624,7 @@ export const docArticles: DocArticle[] = [
     title: "Distro Editor",
     slug: "distro-editor",
     category: "Planning Workflow",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "18 min read",
     description: "Assign equipment, notes and downstream distros.",
     summary: "The Distro Editor is the detailed workspace for assigning equipment to outputs, adjusting quantities, recording notes and building downstream distribution.",
@@ -672,7 +690,7 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Output cards",
         body: [
-          "Each output card displays the output name, phase, connector type, rating and current loading. The load percentage gives immediate feedback on how close the output is to its rated capacity.",
+          "Each output card displays the output name, phase, connector type, rating and current loading. Where it feeds a downstream distro, the card includes that downstream draw and identifies the linked distro. Parent distro totals and phase draws include every linked downstream level.",
           "For three-phase outputs, the load is distributed across L1, L2 and L3. For single-phase outputs, the load is applied to the assigned phase. Socapex circuits are displayed as individual circuit outputs grouped by phase."
         ],
         callout: {
@@ -696,20 +714,28 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Downstream distro feeds",
         body: [
-          "Eligible outputs can feed compatible downstream distros. When this is possible, the editor presents a downstream distro selector on the output card. Selecting a child distro connects it to the Auto Source created from that output.",
+          "Eligible outputs show a downstream distro selector even when no compatible unassigned distro is currently available. Eligible ratings are 32A and 63A single phase, and 16A through 400A three phase. Selecting a child distro connects it to the Auto Source created from that output.",
           "The planner prevents circular feed loops and filters incompatible connector types so the hierarchy remains electrically sensible. Loads on the downstream distro are included in the parent output and upstream source calculations."
         ],
         bullets: [
           "Only eligible outputs create Auto Sources.",
           "Socapex outputs do not create Auto Sources.",
           "A child distro can only be assigned to one source at a time.",
-          "The parent output includes downstream load in its calculation."
+          "The parent output includes downstream load in its calculation.",
+          "Open downstream distro changes the editor directly to the linked child."
         ],
         callout: {
           type: "tip",
           title: "Model real-world cascades",
           body: "Use downstream distro feeds to represent systems such as generator → main distro → area distro → local breakout."
         }
+      },
+      {
+        heading: "Parent and sticky phase draws",
+        body: [
+          "When the current distro is downstream, a collapsible Parent distro phase draw card appears below the distro selector. It shows the parent L1, L2 and L3 current, rating, percentage and capacity bars, and identifies the feeding parent output.",
+          "Use Open parent distro to move directly upstream. The current distro phase-draw strip remains pinned while scrolling through long output schedules so phase balance stays visible while equipment is moved or added.",
+        ],
       },
       {
         heading: "Socapex outputs",
@@ -730,15 +756,16 @@ export const docArticles: DocArticle[] = [
     title: "Downstream Distribution",
     slug: "downstream-distribution",
     category: "Planning Workflow",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "8 min read",
     description: "Feed distros from distro outputs using auto sources.",
     summary: "Downstream distribution lets the planner represent real cascaded systems while maintaining source-level calculations.",
     tags: ["downstream", "auto source", "feed distro", "nested distros", "loop prevention"],
     sections: [
-      { heading: "How downstream feeds work", body: ["When a distro output is eligible to feed another distro, the planner creates an Auto Source for that output. A compatible child distro can then be assigned to that Auto Source."], },
+      { heading: "How downstream feeds work", body: ["When an eligible distro output can feed another distro, the planner creates an Auto Source for that output. Eligible connections are 32A and 63A single phase and 16A through 400A three phase. A compatible child distro can then be assigned from the output card."], },
       { heading: "Compatibility rules", body: ["The planner filters available downstream options to avoid incompatible connector types, duplicated assignments and circular feed loops."], callout: { type: "info", title: "Loop prevention", body: "The editor prevents a distro from being fed by one of its own downstream children." } },
-      { heading: "Load propagation", body: ["Loads assigned to a downstream distro are included in the parent output, parent distro and upstream source calculations."], },
+      { heading: "Load propagation", body: ["Loads assigned to a downstream distro are included in the individual parent output, parent phase totals, parent distro total and upstream source calculations across every hierarchy level."], },
+      { heading: "Moving through the hierarchy", body: ["Use Open downstream distro on a linked output to move to its child. On a downstream board, expand Parent distro phase draw to review the upstream balance or select Open parent distro to navigate back to the feeding board."], },
     ],
     related: ["power-sources", "distro-editor", "calculations"],
   },
@@ -827,7 +854,7 @@ export const docArticles: DocArticle[] = [
     title: "Custom Distros",
     slug: "custom-distros",
     category: "Equipment & Templates",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "9 min read",
     description: "Build project-specific distro templates.",
     summary: "Custom distros allow users to define temporary distro layouts with single-phase, three-phase and Socapex outputs for use within the current project.",
@@ -869,7 +896,7 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Output types",
         body: [
-          "Single-phase outputs are assigned to L1, L2 or L3 and can be created with common ratings. Three-phase outputs are added as three-phase outputs and distribute their connected load across all three phases. Socapex outputs create the default six-circuit Socapex structure with circuits split across L1, L2 and L3.",
+          "Single-phase outputs are assigned to L1, L2 or L3 and can be created with common ratings. Three-phase outputs distribute connected load across all three phases. Socapex can be added as a single output or a twin pair whose matching circuits share breakers.",
           "Choose output types that represent the physical distro accurately. Reports and calculations rely on the template being a good representation of the real unit."
         ],
         bullets: [
@@ -879,6 +906,19 @@ export const docArticles: DocArticle[] = [
         ]
       },
       {
+        heading: "Single-phase distro rules",
+        body: [
+          "A distro with a single-phase input behaves as a single-phase board throughout the planner. Three-phase and Socapex outputs cannot be added to that model, preventing invalid downstream phase relationships.",
+        ],
+      },
+      {
+        heading: "Protection and copying devices",
+        body: [
+          "Incomer and output protection can be stored within a custom distro so it is available automatically when the model is added to the project. Protection supports overcurrent devices and residual-current details, including adjustable settings and time delay where applicable.",
+          "Copy a configured output device, then use Paste protection to choose compatible destination outputs within the same distro. Protection can only be pasted to outputs with the same rating. Socapex selection is shown once per Socapex output because all six matching circuit breakers are treated together.",
+        ],
+      },
+      {
         heading: "Using saved custom distros",
         body: [
           "After saving, the custom distro appears in Distro Overview. Add it to the project exactly like a company library distro, then assign a source and open it in the Distro Editor.",
@@ -886,9 +926,10 @@ export const docArticles: DocArticle[] = [
         ]
       },
       {
-        heading: "Deleting custom distro templates",
+        heading: "Editing and deleting custom distro templates",
         body: [
-          "Custom distro templates can be deleted from the Custom Distros tab. Deleting the template removes it from the add list for future use in the project.",
+          "Saved custom distro templates can be reopened and edited from Custom Distros. Updates apply to that project template; existing project instances are not silently rebuilt.",
+          "Templates can also be deleted from the tab. Deleting the template removes it from the add list for future use in the project.",
           "Before deleting, check whether the template may be needed again later in the design process."
         ],
         callout: {
@@ -904,7 +945,7 @@ export const docArticles: DocArticle[] = [
     title: "Reports",
     slug: "reports",
     category: "Reports & Data",
-    updated: "June 2026",
+    updated: "August 2026",
     readTime: "12 min read",
     description: "Generate branded PDF and distro reports.",
     summary: "The Report tab turns the live planner state into branded project documentation for site teams, clients and project records.",
@@ -944,7 +985,8 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Choosing what appears in the report",
         body: [
-          "The Report tab includes controls for hiding or showing sources and distros in the current export. Hiding an item from the report does not delete it from the project; it only excludes it from the generated documentation.",
+          "Included Sources & Distros contains a compact checkbox dropdown for choosing what appears in the current export. Hiding an item from the report does not delete it from the project; it only excludes it from the generated documentation.",
+          "The same collapsible section counts each power-source and assigned-distro type used in the project. A separate message identifies unassigned distros that are excluded from those connected-system totals.",
           "This is useful when issuing focused information to a department, supplier or site team without changing the main project design."
         ],
         callout: {
@@ -952,6 +994,18 @@ export const docArticles: DocArticle[] = [
           title: "Create targeted reports",
           body: "Hide unrelated sources or distros when creating a report for one area, but keep the full design available in the project."
         }
+      },
+      {
+        heading: "Live view-only report links",
+        body: [
+          "Create View-Only Link generates a secure external URL near the report export controls. Anyone with the active URL can view the live Report tab output without changing the project or signing in.",
+          "The view is live: changes saved by an authorised planner user appear through the same link. Generate a replacement link when the previous URL must be invalidated, and use the warning in the link window before confirming replacement.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Treat links as project access",
+          body: "Only share the URL with intended recipients. Replacing the link terminates access through the previous URL.",
+        },
       },
       {
         heading: "Show all outputs",
@@ -1037,16 +1091,16 @@ export const docArticles: DocArticle[] = [
     title: "Advanced Calculations Overview",
     slug: "advanced-calculations",
     category: "Advanced Calculations",
-    updated: "July 2026",
+    updated: "August 2026",
     readTime: "8 min read",
     description: "Use the workspace-controlled advanced electrical design tools.",
-    summary: "Advanced Calculations adds an advanced system overview, load and demand calculations, and cable sizing and voltage-drop design without changing the Distro Editor workflow.",
-    tags: ["advanced calculations", "advanced overview", "BS 7909", "power factor", "diversity", "cable", "voltage drop"],
+    summary: "Advanced Calculations combines advanced overview, load and demand, cable design, protection forecasting and project cable management without duplicating the Distro Editor schedule.",
+    tags: ["advanced calculations", "advanced overview", "BS 7909", "power factor", "diversity", "cable design", "protection", "voltage drop"],
     sections: [
       {
         heading: "Availability",
         body: [
-          "Advanced Calculations is an optional workspace feature. The tab appears only when advanced features are enabled for the current workspace.",
+          "Advanced Calculations is optional. The tab appears only when Advanced Features are enabled for both the current workspace and the signed-in user.",
           "The standard planning tabs remain unchanged. Equipment, quantities, output assignments and downstream distro connections continue to be managed only in the Distro Editor.",
         ],
         callout: {
@@ -1075,22 +1129,37 @@ export const docArticles: DocArticle[] = [
         ],
       },
       {
-        heading: "Cable & Protection",
+        heading: "Cable Design",
         body: [
-          "Cable & Protection uses the design current from Load & Demand to calculate adjusted cable capacity, utilisation, section and cumulative voltage drop, and estimated end voltage.",
+          "Cable Design uses the design current from Load & Demand to calculate adjusted cable capacity, utilisation, section and cumulative voltage drop, and estimated end voltage.",
           "Cable values can come from the shared global cable library or from project-specific custom data. Library values are copied into the project as a snapshot so an existing design remains traceable if the library is revised later.",
         ],
-        callout: {
-          type: "warning",
-          title: "Current scope",
-          body: "The current release provides cable sizing and voltage-drop design. Protective-device and disconnection-time assessment is planned but is not yet calculated by this tab.",
-        },
+      },
+      {
+        heading: "Protection",
+        body: [
+          "Protection is a separate forecasting workspace for distro incomers, output protective devices, fault-current assumptions, device capability, indicative overload coordination and residual-current selectivity.",
+          "Protection stored in the referenced distro model is loaded automatically. Missing devices can be entered in the project, and suggested adjustable RCD settings can be accepted or replaced by a documented designer override.",
+        ],
       },
       {
         heading: "Cable Library",
         body: [
-          "Cable Library is the final Advanced Calculations subtab. It is an administration-style project view for controlling which cable ratings appear in Cable & Protection and for creating reusable custom records for the current project.",
+          "Cable Library is the final Advanced Calculations subtab. It is an administration-style project view for controlling which cable ratings appear in Cable Design and for creating reusable custom records for the current project.",
           "All active standard-library and project custom records are included by default. Inclusion choices and custom records are saved with the project and do not affect other projects.",
+        ],
+      },
+      {
+        heading: "Refreshing distro models",
+        body: [
+          "Use Refresh distro model to pull the latest outputs and built-in protection from the referenced workspace or project library model. The refresh retains project equipment assignments and advanced calculation settings wherever corresponding outputs remain available.",
+          "Refresh only when the project instance should adopt a revised library definition, and review every affected output afterwards.",
+        ],
+      },
+      {
+        heading: "Advanced PDF export",
+        body: [
+          "Export Advanced PDF opens a selection window for choosing Load & Demand, Cable Design and Protection sections and the distros to include. This produces a focused design pack without changing the live project.",
         ],
       },
       {
@@ -1106,13 +1175,13 @@ export const docArticles: DocArticle[] = [
         },
       },
     ],
-    related: ["load-and-demand", "cable-and-protection", "cable-library"],
+    related: ["load-and-demand", "cable-and-protection", "protection", "cable-library"],
   },
   {
     title: "Load & Demand",
     slug: "load-and-demand",
     category: "Advanced Calculations",
-    updated: "July 2026",
+    updated: "August 2026",
     readTime: "10 min read",
     description: "Calculate connected load, design load, apparent power and current.",
     summary: "Load & Demand applies per-output diversity and optional power factor to the connected equipment load while preserving the original nameplate total.",
@@ -1183,20 +1252,27 @@ export const docArticles: DocArticle[] = [
     related: ["advanced-calculations", "cable-and-protection", "calculations"],
   },
   {
-    title: "Cable & Protection",
+    title: "Cable Design",
     slug: "cable-and-protection",
     category: "Advanced Calculations",
-    updated: "July 2026",
+    updated: "August 2026",
     readTime: "12 min read",
-    description: "Calculate cable capacity, utilisation and voltage drop for populated circuits.",
+    description: "Configure inbound and output cables and calculate capacity, utilisation and voltage drop.",
     summary: "Select shared-library or custom cable data, enter installation assumptions, review feeder-aware voltage drop and record designer verification.",
-    tags: ["cable protection", "cable sizing", "voltage drop", "parallel runs", "derating", "utilisation", "designer verification"],
+    tags: ["cable design", "cable sizing", "voltage drop", "parallel runs", "derating", "utilisation", "designer verification", "inbound cable"],
     sections: [
       {
         heading: "Circuit schedule",
         body: [
-          "The table lists populated distro outputs and takes each circuit's design current from Load & Demand. Equipment cannot be edited here.",
-          "Select All distros or filter the table to one distro. The floating horizontal scrollbar remains available while moving down a wide table.",
+          "Each distro has its own collapsible table. Populated circuits and distro links take their design current from Load & Demand; equipment cannot be edited here. Use the information icon to review connected loads and notes.",
+          "View all distros or filter to one distro, show unused outputs where required, and use Expand all or Collapse all. The floating horizontal scrollbar remains available while moving down a wide table.",
+        ],
+      },
+      {
+        heading: "Inbound and linked distro cables",
+        body: [
+          "A manually supplied distro has an editable inbound cable row. A distro fed from an Auto Source also shows its inbound supply, but the values are inherited from the parent output and are displayed as read-only.",
+          "Use Open output or Open distro to navigate to the configuration row. The destination is expanded, scrolled into view and briefly highlighted. Distro-link rows are visually distinguished from final circuit rows.",
         ],
       },
       {
@@ -1252,7 +1328,7 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Designer verification",
         body: [
-          "Select Verify only after checking the cable data and installation assumptions. The planner records the authenticated designer identity, time and a fingerprint of the calculation inputs.",
+          "Select Verify only after checking the cable data and installation assumptions. A cable cannot be verified while its length is zero. The planner records the authenticated designer identity, time and a fingerprint of the calculation inputs.",
           "Changing the cable, length, parallel runs, derating, voltage-drop limit or design current invalidates the verification automatically. Review the revised calculation and select Verify again. Select Verified to remove an existing verification manually.",
         ],
       },
@@ -1274,10 +1350,75 @@ export const docArticles: DocArticle[] = [
     related: ["load-and-demand", "cable-library", "advanced-calculations"],
   },
   {
+    title: "Protection",
+    slug: "protection",
+    category: "Advanced Calculations",
+    updated: "August 2026",
+    readTime: "12 min read",
+    description: "Forecast circuit protection, device capability and residual-current selectivity.",
+    summary: "Protection combines inherited distro devices with project design assumptions to review indicative overload coordination, fault-current capability, Zs inputs and RCD selectivity.",
+    tags: ["protection", "MCCB", "MCB", "RCBO", "RCD", "breaking capacity", "fault current", "Zs", "selectivity", "time delay"],
+    sections: [
+      {
+        heading: "Protection data and scope",
+        body: [
+          "Protective-device information belongs to the distro definition so workspace and project distro models can supply their incomer and output protection automatically. When a project distro has no configured protection, the Protection tab provides an editor for entering it.",
+          "The tab is a forecasting and system-design aid. Measured inspection and test results belong in System Sign-Off, particularly G2, rather than Advanced Calculations.",
+        ],
+        callout: {
+          type: "warning",
+          title: "Forecasting is not testing",
+          body: "Entered prospective fault current, design Zs and maximum Zs values are design assumptions unless independently established. They do not represent a completed on-site test.",
+        },
+      },
+      {
+        heading: "Distro and circuit views",
+        body: [
+          "Protection uses collapsible tables grouped by distro, with the same distro filter, unused-output control and Expand all or Collapse all actions as Load & Demand and Cable Design.",
+          "The circuit information icon shows connected equipment and notes. Incomer protection is displayed above the circuit rows, while output devices can be reviewed or edited against each circuit.",
+        ],
+      },
+      {
+        heading: "Overload coordination",
+        body: [
+          "The indicative load-and-cable check compares design current, protective-device rated current and adjusted cable capacity using the relationship Ib ≤ In ≤ Iz.",
+          "Incomplete means required device or cable data is missing. Conflict identifies a rating relationship that does not satisfy the screen. Indicative means this limited relationship passes but other device characteristics and fault protection still require competent assessment.",
+        ],
+      },
+      {
+        heading: "Fault protection and device capability",
+        body: [
+          "Prospective fault current can be entered at the manual source, distro incomer or individual circuit. A downstream value inherits from upstream unless a closer override is entered.",
+          "The device-capability screen compares entered prospective fault current with protective-device breaking capacity. Estimated design Zs and maximum permitted Zs remain user-entered values, and the source of the maximum value should be recorded.",
+        ],
+        callout: {
+          type: "danger",
+          title: "Use authoritative device data",
+          body: "Breaking capacity, maximum Zs, curves, required disconnection time and manufacturer coordination data must be selected and verified by a competent designer.",
+        },
+      },
+      {
+        heading: "Residual-current selectivity",
+        body: [
+          "Where upstream and downstream residual-current devices form a protection path, the planner screens the pair and suggests an upstream residual-current setting and adjustable delay intended to support downstream-first operation.",
+          "Suggestions consider declared available settings and generic grading relationships. Fixed devices remain visible, while variable RCD settings and time delay can be accepted from the suggestion or manually overridden.",
+        ],
+      },
+      {
+        heading: "Designer overrides",
+        body: [
+          "Use the override controls when the selected setting intentionally differs from the planner suggestion. Record the reason so the design decision remains visible and traceable.",
+          "A designer override does not turn an otherwise conflicting arrangement into verified compliance; manufacturer selectivity tables, device types, operating curves and installation conditions still govern the final decision.",
+        ],
+      },
+    ],
+    related: ["advanced-calculations", "load-and-demand", "cable-and-protection", "system-sign-off"],
+  },
+  {
     title: "Cable Library",
     slug: "cable-library",
     category: "Advanced Calculations",
-    updated: "July 2026",
+    updated: "August 2026",
     readTime: "9 min read",
     description: "Manage the cable ratings available within an individual project.",
     summary: "Cable Library combines the shared read-only standard library with reusable project-only cable records and project-specific inclusion settings.",
@@ -1298,7 +1439,7 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Included and excluded ratings",
         body: [
-          "Every active standard and project custom rating is included by default. Select Included against a row to exclude that rating from new Cable & Protection selections. Select Excluded to include it again.",
+          "Every active standard and project custom rating is included by default. Select Included against a row to exclude that rating from new Cable Design selections. Select Excluded to include it again.",
           "Use Include all to clear every project exclusion. Search and the Source, Application and Availability filters can be combined to find a particular rating.",
         ],
         bullets: [
@@ -1331,8 +1472,8 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Project library versus one-off custom data",
         body: [
-          "Create a project cable when the same custom rating will be selected on multiple circuits. It appears in a separate Project cable library group in the Cable & Protection dropdown.",
-          "Use Custom cable data directly in Cable & Protection for a one-off circuit that does not need a reusable library record. Both methods remain limited to the current project.",
+          "Create a project cable when the same custom rating will be selected on multiple circuits. It appears in a separate Project cable library group in the Cable Design dropdown.",
+          "Use Custom cable data directly in Cable Design for a one-off circuit that does not need a reusable library record. Both methods remain limited to the current project.",
         ],
       },
       {
@@ -1352,7 +1493,7 @@ export const docArticles: DocArticle[] = [
         heading: "Standards and suitability",
         body: [
           "The standard library contains sourced reference data; it is not a list of cables approved by BS 7909. Cable suitability depends on the complete design, applicable cable and installation standards, environmental conditions, mechanical protection and competent judgement.",
-          "The designer remains responsible for checking capacity, voltage-drop data, correction factors and intended use before completing designer verification in Cable & Protection.",
+          "The designer remains responsible for checking capacity, voltage-drop data, correction factors and intended use before completing designer verification in Cable Design.",
         ],
         callout: {
           type: "danger",
@@ -1497,7 +1638,7 @@ export const docArticles: DocArticle[] = [
       { heading: "Standard watts to amps", body: ["Standard planner views convert equipment wattage to current using a 230 V single-phase basis for indicative planning calculations."], },
       { heading: "Three-phase outputs", body: ["For three-phase equipment assigned to a three-phase output, load is distributed evenly across L1, L2 and L3 for planning purposes."], },
       { heading: "Phase imbalance", body: ["Phase imbalance compares the highest and lowest phase loading. The planner reports the result as a percentage and identifies the reference phases where appropriate."], },
-      { heading: "Advanced calculations", body: ["Where Advanced Calculations is enabled, the project can apply per-output diversity and project or circuit power factor before calculating current. Nominal single-phase and three-phase voltages are configurable in the advanced settings."], callout: { type: "info", title: "Calculation views", body: "Standard views continue to show the original planner calculation. Advanced Overview, Load & Demand and Cable & Protection use the advanced calculation assumptions." } },
+      { heading: "Advanced calculations", body: ["Where Advanced Calculations is enabled, the project can apply per-output diversity and project or circuit power factor before calculating current. Nominal single-phase and three-phase voltages are configurable in the advanced settings."], callout: { type: "info", title: "Calculation views", body: "Standard views continue to show the original planner calculation. Advanced Overview, Load & Demand, Cable Design and Protection use the advanced calculation assumptions." } },
     ],
     related: ["load-and-demand", "cable-and-protection", "warnings"],
   },
@@ -1546,7 +1687,7 @@ export const docArticles: DocArticle[] = [
       { heading: "Why can I not assign a source?", body: ["The source may be incompatible, already assigned to another distro or belong to the distro's own output. Check connector type and existing assignments."], },
       { heading: "What is an Auto Source?", body: ["An Auto Source is a virtual source created from an eligible distro output. It allows downstream distros to be connected while still calculating load through the parent distro."], },
       { heading: "Why did my dismissed warning come back?", body: ["Dismissed warnings return when the underlying load changes significantly. This prevents an old dismissal from hiding a newly changed condition."], },
-      { heading: "Why can I not see Advanced Calculations?", body: ["Advanced Calculations is controlled at workspace level. If the tab is absent, ask the workspace administrator whether advanced features are enabled for your workspace."], },
+      { heading: "Why can I not see Advanced Calculations or System Sign-Off?", body: ["Both modules require Advanced Features to be enabled for the current workspace and the signed-in user. If either toggle is off, the advanced tabs remain hidden."], },
       { heading: "Why are connected load and design load the same?", body: ["They match when circuit diversity is 100%. Design load changes only when diversity below 100% is applied; connected load always retains the total assigned equipment rating."], },
       { heading: "Why is a cable result still Review?", body: ["Enter a positive cable length, check the selected cable and installation assumptions, then select Verify. Any later change to relevant inputs or design current invalidates the verification and requires a new review."], },
       { heading: "Why is a report missing a distro?", body: ["Check the Report tab toggles. Sources and distros can be hidden from the report export without being removed from the project."], },
@@ -1585,7 +1726,7 @@ export const docArticles: DocArticle[] = [
     title: "Release Notes",
     slug: "release-notes",
     category: "Reference",
-    updated: "July 2026",
+    updated: "August 2026",
     readTime: "4 min read",
     description: "Current documentation and product notes.",
     summary: "A customer-facing record of notable LVA Power Planner updates.",
@@ -1594,9 +1735,11 @@ export const docArticles: DocArticle[] = [
       { heading: "Documentation centre", body: ["Online documentation includes searchable articles, category navigation, article pages, metadata, callouts, related articles, previous/next navigation and command-palette search."], },
       { heading: "Current planner functionality", body: ["Current documented features include MFA login, branded workspaces, project dashboard, system overview, manual and auto sources, distro management, drag-and-drop equipment assignment, custom equipment, custom distros, warnings, report exports and JSON import/export."], },
       { heading: "Project Sharing", body: ["Project Sharing allows workspace users to keep projects private by default and share selected projects with chosen colleagues when workspace sharing is enabled. The feature includes My Projects, Projects Shared With Me, selected-user sharing and workspace-level sharing controls."], },
-      { heading: "Advanced Calculations", body: ["Workspace-controlled Advanced Calculations now includes Advanced Overview, Load & Demand, Cable & Protection, and Cable Library subtabs. Designers can apply project and circuit power factor, per-output diversity, shared-library or custom cable data, parallel runs, derating and voltage-drop limits. Cable results include feeder-aware cumulative voltage drop, Pass/Review/Fail status and input-sensitive designer verification."], },
+      { heading: "Advanced Calculations", body: ["Advanced Calculations now includes Advanced Overview, Load & Demand, Cable Design, Protection and Cable Library. Designers can apply diversity and power factor, calculate feeder-aware cable capacity and voltage drop, forecast device coordination and RCD selectivity, manage project cable choices, refresh referenced distro models and export selected advanced sections to PDF."], },
       { heading: "Project Cable Library", body: ["The final Advanced Calculations subtab now allows designers to include or exclude individual cable ratings for the current project and create reusable project-only cable records. The shared standard library remains read-only, existing circuits retain immutable cable snapshots, and removed or excluded records do not silently alter previous designs."], },
       { heading: "System Sign-Off", body: ["Advanced workspaces now include a System Sign-Off module for shared information, project electricians, circuit selection, G1 Completion Certificates, the G2 Schedule of Test Results and G3 Confirmation of Electrical Completion. Forms support prepopulation with manual overrides, completion locking and revocation, assigned external-electrician links, mixed-orientation branded PDF export and submission by email to the project account holder."], },
+      { heading: "Planning workflow updates", body: ["Power Sources and Distro Overview now use batch-add windows, collapsed cards, filters and consistent ordering controls. Distro Editor rolls downstream load through parent outputs and phase totals, provides parent and child navigation, shows parent phase capacity on downstream boards and keeps the current phase summary visible while scrolling."], },
+      { heading: "Live report sharing", body: ["The Report tab now includes compact source and distro selection with connected-system counts, plus a live view-only external link that can be copied or replaced without granting edit access."], },
     ],
     related: ["introduction", "project-sharing", "system-sign-off", "best-practice"],
   },

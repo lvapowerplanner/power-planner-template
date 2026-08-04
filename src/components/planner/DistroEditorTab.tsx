@@ -1,6 +1,12 @@
 import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { autoSourcesForDistro, autoSourceId } from "@/planner/autoSources";
+import {
+  distroPhaseLoads as calculatedDistroPhaseLoads,
+  distroWatts as calculatedDistroWatts,
+  outputPhaseLoads as calculatedOutputPhaseLoads,
+  outputWatts as calculatedOutputWatts,
+} from "@/planner/calculations";
 import { useCompanyEquipmentLibrary } from "@/planner/companyStock";
 import type {
   EquipmentItem,
@@ -389,6 +395,12 @@ function distroPhaseLoads(distro: ProjectDistro): PhaseLoads {
     : { L1: loads.L1 + loads.L2 + loads.L3, L2: 0, L3: 0 };
 }
 
+function supportsDownstreamDistroFeed(output: PlannerOutput) {
+  if (output.phase === "Socapex") return false;
+  if (output.phase === "3Φ") return output.rating >= 16;
+  return output.rating >= 32;
+}
+
 export function DistroEditorTab({
   plannerState,
   setPlannerState,
@@ -396,6 +408,7 @@ export function DistroEditorTab({
 }: DistroEditorTabProps) {
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentCategory, setEquipmentCategory] = useState("");
+  const [parentDrawExpanded, setParentDrawExpanded] = useState(false);
   const [draggingEquipmentId, setDraggingEquipmentId] = useState<string | null>(
     null
   );
@@ -955,6 +968,7 @@ function moveAssignedItemToSocapexSocket(
   function changeActiveDistro(distroId: string) {
     setDraggingEquipmentId(null);
     setDraggingAssignedItem(null);
+    setParentDrawExpanded(false);
 
     setPlannerState({
       ...plannerState,
@@ -1018,17 +1032,23 @@ function moveAssignedItemToSocapexSocket(
     (output) => output.phase === "3Φ"
   );
 
-  const totalWatts = activeDistro.outputs.reduce((total, output) => {
-    const mainOutputWatts = outputWatts(output);
-    const socaWatts = (output.socaCircuits ?? []).reduce(
-      (socketTotal, socket) => socketTotal + outputWatts(socket),
-      0
-    );
-
-    return total + mainOutputWatts + socaWatts;
-  }, 0);
-
-  const phaseLoads = distroPhaseLoads(activeDistro);
+  const totalWatts = calculatedDistroWatts(activeDistro, plannerState);
+  const phaseLoads = calculatedDistroPhaseLoads(activeDistro, plannerState);
+  const parentDistro = selectedSource?.auto && selectedSource.parentDistroId
+    ? plannerState.distros.find((distro) => distro.id === selectedSource.parentDistroId)
+    : undefined;
+  const parentOutput = parentDistro && selectedSource?.parentOutputId
+    ? parentDistro.outputs.find((output) => output.id === selectedSource.parentOutputId)
+    : undefined;
+  const parentPhaseLoads = parentDistro
+    ? calculatedDistroPhaseLoads(parentDistro, plannerState)
+    : undefined;
+  const parentSelectedSource = parentDistro
+    ? allDerivedSources.find((source) => source.id === parentDistro.sourceId)
+    : undefined;
+  const parentPhaseCap = parentDistro
+    ? effectiveDistroPhaseCap(parentDistro, parentSelectedSource)
+    : undefined;
 
   return (
     <section style={styles.editorLayout}>
@@ -1122,6 +1142,46 @@ function moveAssignedItemToSocapexSocket(
 
         <hr style={styles.divider} />
 
+        {parentDistro && parentPhaseLoads && parentPhaseCap && (
+          <section style={styles.parentDrawSection}>
+            <div style={styles.parentDrawHeader}>
+              <div style={styles.parentDrawIdentity}>
+                <strong>Parent distro phase draw</strong>
+                <small>
+                  Fed from {displayDistroName(parentDistro)}
+                  {parentOutput ? ` · ${outputTitle(parentOutput, parentDistro.outputs.findIndex((output) => output.id === parentOutput.id))}` : ""}
+                </small>
+              </div>
+              <div style={styles.parentDrawActions}>
+                <button
+                  type="button"
+                  style={styles.secondaryButton}
+                  onClick={() => changeActiveDistro(parentDistro.id)}
+                >
+                  Open parent distro
+                </button>
+                <button
+                  type="button"
+                  style={styles.expandButton}
+                  onClick={() => setParentDrawExpanded((expanded) => !expanded)}
+                  aria-expanded={parentDrawExpanded}
+                >
+                  {parentDrawExpanded ? "Collapse ▴" : "Expand ▾"}
+                </button>
+              </div>
+            </div>
+            {parentDrawExpanded && (
+              <div style={styles.parentDrawBody}>
+                <PhaseCapacityGrid
+                  loads={parentPhaseLoads}
+                  rating={parentPhaseCap.rating}
+                  capped={parentPhaseCap.capped}
+                />
+              </div>
+            )}
+          </section>
+        )}
+
         <div style={styles.summaryGrid}>
           <div style={styles.summaryCard}>
             <span>Total Load </span>
@@ -1158,11 +1218,17 @@ function moveAssignedItemToSocapexSocket(
           </div>
         )}
 
-        <PhaseCapacityGrid
-          loads={phaseLoads}
-          rating={phaseCap.rating}
-          capped={phaseCap.capped}
-        />
+        <div style={styles.stickyPhaseDraws}>
+          <div style={styles.stickyPhaseHeading}>
+            <strong>Current distro phase draw</strong>
+            <span>{displayDistroName(activeDistro)}</span>
+          </div>
+          <PhaseCapacityGrid
+            loads={phaseLoads}
+            rating={phaseCap.rating}
+            capped={phaseCap.capped}
+          />
+        </div>
 
         <div style={styles.controlsGrid}>
           <label style={styles.label}>
@@ -1263,6 +1329,10 @@ function moveAssignedItemToSocapexSocket(
                             equipmentOptions={equipmentOptions}
                             compatibleDownstreamDistros={compatibleDownstreamDistros(output)}
                             currentFedDistroId={currentFedDistroId(output)}
+                            calculatedWatts={calculatedOutputWatts(output, plannerState, activeDistro)}
+                            calculatedPhaseLoads={calculatedOutputPhaseLoads(output, plannerState, activeDistro)}
+                            allowDownstreamFeed={supportsDownstreamDistroFeed(output)}
+                            onOpenDownstream={changeActiveDistro}
                             onFeedDistro={(childDistroId) =>
                               childDistroId
                                 ? feedDistroFromOutput(output, childDistroId)
@@ -1560,6 +1630,10 @@ function moveAssignedItemToSocapexSocket(
                     threePhase
                     compatibleDownstreamDistros={compatibleDownstreamDistros(output)}
                     currentFedDistroId={currentFedDistroId(output)}
+                    calculatedWatts={calculatedOutputWatts(output, plannerState, activeDistro)}
+                    calculatedPhaseLoads={calculatedOutputPhaseLoads(output, plannerState, activeDistro)}
+                    allowDownstreamFeed={supportsDownstreamDistroFeed(output)}
+                    onOpenDownstream={changeActiveDistro}
                     onFeedDistro={(childDistroId) =>
                       childDistroId
                         ? feedDistroFromOutput(output, childDistroId)
@@ -1664,9 +1738,13 @@ type OutputCardProps = {
   equipmentOptions: EquipmentItem[];
   compatibleDownstreamDistros: ProjectDistro[];
   currentFedDistroId: string;
+  calculatedWatts?: number;
+  calculatedPhaseLoads?: PhaseLoads;
+  allowDownstreamFeed?: boolean;
   threePhase?: boolean;
   capacityOverride?: OutputCapacityOverride;
   onFeedDistro: (distroId: string) => void;
+  onOpenDownstream?: (distroId: string) => void;
   onDrop: (event: DragEvent) => void;
   addEquipment: (equipmentId: string) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
@@ -1683,9 +1761,13 @@ function OutputCard({
   equipmentOptions,
   compatibleDownstreamDistros,
   currentFedDistroId,
+  calculatedWatts,
+  calculatedPhaseLoads,
+  allowDownstreamFeed = false,
   threePhase = false,
   capacityOverride,
   onFeedDistro,
+  onOpenDownstream,
   onDrop,
   addEquipment,
   updateQuantity,
@@ -1695,15 +1777,26 @@ function OutputCard({
   removeItem,
   updateNotes,
 }: OutputCardProps) {
-  const watts = outputWatts(output);
-  const amps = outputAmps(output);
-  const phaseAmps = threePhaseAmps(output);
-  const ownUsagePercent = outputUsagePercent(output, threePhase);
+  const watts = calculatedWatts ?? outputWatts(output);
+  const amps = watts / 230;
+  const phaseAmps = threePhase
+    ? Math.max(
+        calculatedPhaseLoads?.L1 ?? amps / 3,
+        calculatedPhaseLoads?.L2 ?? amps / 3,
+        calculatedPhaseLoads?.L3 ?? amps / 3
+      )
+    : amps;
+  const ownUsagePercent = output.rating
+    ? Math.round(((threePhase ? phaseAmps : amps) / output.rating) * 100)
+    : 0;
   const capacityPercent = capacityOverride?.percent ?? ownUsagePercent;
   const capacityAmps = capacityOverride?.amps ?? (threePhase ? phaseAmps : amps);
   const capacityRating = capacityOverride?.rating ?? output.rating;
   const overloaded = capacityPercent > 100;
   const nearLimit = capacityPercent >= 95;
+  const fedDistro = compatibleDownstreamDistros.find(
+    (distro) => distro.id === currentFedDistroId
+  );
 
   return (
     <div
@@ -1731,6 +1824,11 @@ function OutputCard({
           ? ` · Shared ${formatAmps(capacityAmps)} / ${capacityRating}A`
           : ` / ${output.rating}A`}
       </p>
+      {fedDistro && (
+        <p style={styles.downstreamLoadNote}>
+          Includes the draw from {displayDistroName(fedDistro)}.
+        </p>
+      )}
 
       <div style={styles.capacityBlock}>
         <div style={styles.capacityHeader}>
@@ -1777,15 +1875,16 @@ function OutputCard({
 
       {threePhase && (
         <div style={styles.threePhaseGrid}>
-          <div style={styles.phaseMini}>L1: {formatAmps(phaseAmps)}</div>
-          <div style={styles.phaseMini}>L2: {formatAmps(phaseAmps)}</div>
-          <div style={styles.phaseMini}>L3: {formatAmps(phaseAmps)}</div>
+          <div style={styles.phaseMini}>L1: {formatAmps(calculatedPhaseLoads?.L1 ?? phaseAmps)}</div>
+          <div style={styles.phaseMini}>L2: {formatAmps(calculatedPhaseLoads?.L2 ?? phaseAmps)}</div>
+          <div style={styles.phaseMini}>L3: {formatAmps(calculatedPhaseLoads?.L3 ?? phaseAmps)}</div>
         </div>
       )}
 
-      {compatibleDownstreamDistros.length > 0 && (
-        <label style={styles.feedLabel}>
-          Feed Distro From This Output
+      {allowDownstreamFeed && (
+        <div style={styles.feedContainer}>
+          <label style={styles.feedLabel}>
+            Feed Distro From This Output
           <select
             style={styles.input}
             value={currentFedDistroId}
@@ -1798,7 +1897,20 @@ function OutputCard({
               </option>
             ))}
           </select>
-        </label>
+          </label>
+          {currentFedDistroId && onOpenDownstream && (
+            <button
+              type="button"
+              style={styles.secondaryButton}
+              onClick={() => onOpenDownstream(currentFedDistroId)}
+            >
+              Open downstream distro
+            </button>
+          )}
+          {compatibleDownstreamDistros.length === 0 && !currentFedDistroId && (
+            <small style={styles.feedHelp}>No compatible unassigned downstream distros are available.</small>
+          )}
+        </div>
       )}
 
       <div style={styles.addEquipmentRow}>
@@ -1961,6 +2073,54 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "12px",
     marginBottom: "12px",
   },
+  parentDrawSection: {
+    marginBottom: "14px",
+    overflow: "hidden",
+    border: "1px solid #DCE5EC",
+    borderRadius: "18px",
+    padding: "16px",
+    background: "#FFFFFF",
+  },
+  parentDrawHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "12px",
+  },
+  parentDrawIdentity: {
+    display: "grid",
+    gap: "6px",
+    color: "#111827",
+    lineHeight: 1.35,
+  },
+  parentDrawActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  parentDrawBody: {
+    paddingTop: "14px",
+  },
+  parentPhaseCard: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "10px",
+    padding: "10px 12px",
+    border: "1px solid #DCE5EC",
+    borderRadius: "10px",
+    background: "white",
+  },
+  expandButton: {
+    padding: "6px 9px",
+    border: 0,
+    background: "transparent",
+    color: "#667085",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
   summaryCard: {
     border: "1px solid #DCE5EC",
     borderRadius: "14px",
@@ -1993,6 +2153,26 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "10px",
     marginBottom: "18px",
   },
+  stickyPhaseDraws: {
+    position: "sticky",
+    top: "10px",
+    zIndex: 20,
+    marginBottom: "18px",
+    padding: "10px 10px 0",
+    border: "1px solid #C7D2DE",
+    borderRadius: "14px",
+    background: "rgba(255, 255, 255, 0.97)",
+    boxShadow: "0 8px 22px rgba(15, 23, 42, 0.10)",
+    backdropFilter: "blur(8px)",
+  },
+  stickyPhaseHeading: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    marginBottom: "8px",
+    color: "#526071",
+    fontSize: "12px",
+  },
   phaseCapacityCard: {
     border: "1px solid #DCE5EC",
     borderRadius: "14px",
@@ -2016,14 +2196,22 @@ const styles: Record<string, React.CSSProperties> = {
   },
   feedLabel: {
     display: "block",
-    marginTop: "10px",
     color: "#111827",
     fontWeight: 500,
     fontSize: "12px",
+  },
+  feedContainer: {
+    display: "grid",
+    gap: "8px",
+    marginTop: "10px",
+    padding: "10px",
     border: "1px dashed #0BE3FF",
     borderRadius: "12px",
-    padding: "10px",
     background: "#E6FBFF",
+  },
+  feedHelp: {
+    color: "#526071",
+    lineHeight: 1.4,
   },
   smallLabel: {
     display: "block",
@@ -2169,6 +2357,12 @@ const styles: Record<string, React.CSSProperties> = {
     margin: "0 0 5px",
     color: "#667085",
     fontSize: "11px",
+  },
+  downstreamLoadNote: {
+    margin: "-6px 0 8px",
+    color: "#2457A6",
+    fontSize: "12px",
+    fontWeight: 500,
   },
   capacityMeter: {
     height: "9px",

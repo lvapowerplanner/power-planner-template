@@ -556,6 +556,12 @@ export function DistroOverviewTab({
                     </span>
                   </div>
                   <div style={styles.row}>
+                    <button
+                      style={styles.secondaryButton}
+                      onClick={() => openDistroEditor(distro.id)}
+                    >
+                      Open
+                    </button>
                     {allVisibleDistrosCollapsed && (
                       <>
                         <button
