@@ -103,7 +103,7 @@ export default function LandingPage() {
 
       <section className="border-y border-gray-200 bg-gray-50 px-6 py-16">
         <div className="mx-auto max-w-6xl">
-          <div className="mb-10 max-w-3xl">
+          <div className="mx-auto mb-12 max-w-3xl text-center">
             <p className="text-sm font-bold uppercase tracking-widest text-gray-500">
               One connected project model
             </p>
@@ -119,7 +119,7 @@ export default function LandingPage() {
 
           <div className="grid gap-3 md:grid-cols-4">
             {workflow.map((step, index) => (
-              <div key={step} className="rounded-2xl border border-gray-200 bg-white p-5">
+              <div key={step} className="rounded-2xl border border-gray-200 bg-white p-5 text-center">
                 <span className="text-sm font-bold text-gray-400">0{index + 1}</span>
                 <p className="mt-3 font-semibold leading-6">{step}</p>
               </div>
