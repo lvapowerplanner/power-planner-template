@@ -71,7 +71,7 @@ export default function PrivacyPolicyPage() {
             </p>
             <p className="mt-3">
               To exercise these rights, contact us at{" "}
-              <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4">
+              <a href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Privacy%20Request" className="font-semibold underline underline-offset-4">
                 hello@lvapowerplanner.com
               </a>.
             </p>
@@ -88,7 +88,7 @@ export default function PrivacyPolicyPage() {
             <h2 className="text-2xl font-bold text-black">Contact</h2>
             <p className="mt-3">
               For privacy questions or requests, contact{" "}
-              <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4">
+              <a href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Privacy%20Enquiry" className="font-semibold underline underline-offset-4">
                 hello@lvapowerplanner.com
               </a>.
             </p>

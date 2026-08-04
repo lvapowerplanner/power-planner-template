@@ -106,7 +106,7 @@ export default function TermsOfServicePage() {
             <h2 className="text-2xl font-bold text-black">Contact</h2>
             <p className="mt-3">
               For questions about these terms, contact{" "}
-              <a href="mailto:hello@lvapowerplanner.com" className="font-semibold underline underline-offset-4">
+              <a href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Terms%20Enquiry" className="font-semibold underline underline-offset-4">
                 hello@lvapowerplanner.com
               </a>.
             </p>

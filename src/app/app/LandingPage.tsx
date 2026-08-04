@@ -61,7 +61,7 @@ export default function LandingPage() {
             Documentation
           </Link>
           <a
-            href="mailto:hello@lvapowerplanner.com"
+            href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Demonstration"
             className="rounded-full bg-black px-5 py-3 text-white transition-colors hover:bg-gray-800"
           >
             Arrange a demo
@@ -87,7 +87,7 @@ export default function LandingPage() {
 
         <div className="mt-9 flex flex-wrap justify-center gap-4">
           <a
-            href="mailto:hello@lvapowerplanner.com"
+            href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Demonstration"
             className="rounded-xl bg-black px-6 py-3.5 font-semibold text-white transition-colors hover:bg-gray-800"
           >
             Arrange a personalised demonstration
@@ -194,7 +194,7 @@ export default function LandingPage() {
         </p>
 
         <a
-          href="mailto:hello@lvapowerplanner.com"
+          href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Enquiry"
           className="mt-8 inline-flex rounded-xl bg-white px-6 py-3.5 font-semibold text-black transition-colors hover:bg-gray-200"
         >
           Contact hello@lvapowerplanner.com

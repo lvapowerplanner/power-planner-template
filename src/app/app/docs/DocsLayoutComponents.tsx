@@ -51,7 +51,7 @@ export function DocsTopBar() {
       <span style={styles.shortcutHint}>Press Ctrl/⌘ + K to search</span>
       <Link href="/" style={styles.topBarLink}>← Main website</Link>
       <Link href="/docs" style={styles.topBarLink}>Docs home</Link>
-      <a href="mailto:hello@lvapowerplanner.com" style={styles.topBarLink}>Support</a>
+      <a href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Support" style={styles.topBarLink}>Support</a>
     </div>
   );
 }

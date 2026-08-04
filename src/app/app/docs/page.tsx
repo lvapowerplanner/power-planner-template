@@ -86,7 +86,7 @@ export default function DocsHomePage() {
                 Contact support for onboarding, documentation requests or product demonstrations.
               </p>
             </div>
-            <a href="mailto:hello@lvapowerplanner.com" style={styles.ctaButton}>Contact support</a>
+            <a href="mailto:hello@lvapowerplanner.com?subject=LVA%20Power%20Planner%20Support" style={styles.ctaButton}>Contact support</a>
           </section>
         </section>
       </section>
