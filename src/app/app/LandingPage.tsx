@@ -103,7 +103,7 @@ export default function LandingPage() {
 
       <section className="border-y border-gray-200 bg-gray-50 px-6 py-16">
         <div className="mx-auto max-w-6xl">
-          <div className="mx-auto mb-12 max-w-3xl text-center">
+          <div className="mx-auto mb-12 w-full max-w-3xl text-center">
             <p className="text-sm font-bold uppercase tracking-widest text-gray-500">
               One connected project model
             </p>
