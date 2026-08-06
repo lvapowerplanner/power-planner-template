@@ -95,6 +95,7 @@ export function ProjectDashboard({
   const [selectedShareUsers, setSelectedShareUsers] = useState<string[]>([]);
   const [settingsSaving, setSettingsSaving] = useState(false);
   const [shareDropdownOpen, setShareDropdownOpen] = useState(false);
+  const [deletePrompt, setDeletePrompt] = useState<Project | null>(null);
   const companyName = workspaceBranding?.company_name?.trim() || "Event Power Planner";
 
   const sharesByProject = useMemo(() => {
@@ -204,14 +205,12 @@ export function ProjectDashboard({
     }
   }
 
-  function confirmDeleteProject(project: Project) {
-    const confirmed = confirm(
-      `Delete “${project.name}”? This cannot be undone.`,
-    );
+  function confirmDeleteProject() {
+    if (!deletePrompt) return;
 
-    if (!confirmed) return;
-
-    deleteProject(project.id);
+    deleteProject(deletePrompt.id);
+    setDeletePrompt(null);
+    closeSettings();
   }
 
   function renderSettingsPanel(project: Project) {
@@ -334,7 +333,7 @@ export function ProjectDashboard({
 
           <button
             style={styles.dangerButton}
-            onClick={() => confirmDeleteProject(project)}
+            onClick={() => setDeletePrompt(project)}
             disabled={settingsSaving}
           >
             Delete Project
@@ -506,6 +505,47 @@ export function ProjectDashboard({
           </div>
         )}
       </section>
+
+      {deletePrompt && (
+        <div
+          style={styles.modalBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDeletePrompt(null);
+          }}
+        >
+          <section
+            style={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-project-title"
+          >
+            <h3 id="delete-project-title" style={styles.modalTitle}>
+              Delete project?
+            </h3>
+            <p style={styles.modalText}>
+              <strong>{deletePrompt.name}</strong> will be permanently deleted.
+              This cannot be undone.
+            </p>
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                style={styles.modalDangerButton}
+                onClick={confirmDeleteProject}
+              >
+                Delete Project
+              </button>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={() => setDeletePrompt(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
+        </div>
+      )}
     </main>
   );
 }
@@ -845,5 +885,46 @@ const styles: Record<string, React.CSSProperties> = {
     gap: "8px",
     alignItems: "center",
     flexWrap: "wrap",
+  },
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000,
+    display: "grid",
+    placeItems: "center",
+    padding: "20px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  modal: {
+    width: "min(520px, 100%)",
+    display: "grid",
+    gap: "14px",
+    padding: "22px",
+    borderRadius: "14px",
+    background: "white",
+    boxShadow: "0 20px 55px rgba(0, 0, 0, 0.25)",
+  },
+  modalTitle: {
+    margin: 0,
+  },
+  modalText: {
+    margin: 0,
+    color: "#475467",
+    lineHeight: 1.5,
+  },
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  modalDangerButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #c53030",
+    background: "#c53030",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 500,
   },
 };

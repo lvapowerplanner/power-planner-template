@@ -21,6 +21,7 @@ import type {
   ValidationIssue,
 } from "@/planner/calculations";
 import type { PlannerState, ProjectInfo } from "@/planner/types";
+import { effectiveDistroSupplyCap } from "@/planner/autoSources";
 
 type SystemOverviewTabProps = {
   plannerState: PlannerState;
@@ -129,35 +130,6 @@ function normaliseConnection(value: string) {
     rating,
     phase: cleaned,
     highCurrentThreePhase: false,
-  };
-}
-
-function effectiveDistroPhaseCap(
-  distroInput: string,
-  distroInputA: number,
-  sourceConnection?: string,
-  sourceRating?: number
-) {
-  if (!sourceConnection || !sourceRating) {
-    return {
-      rating: distroInputA,
-      capped: false,
-    };
-  }
-
-  const source = normaliseConnection(sourceConnection);
-  const distro = normaliseConnection(distroInput);
-
-  const shouldCapToSource =
-    source.phase === "3" &&
-    distro.phase === "3" &&
-    source.highCurrentThreePhase &&
-    distro.highCurrentThreePhase &&
-    sourceRating < distroInputA;
-
-  return {
-    rating: shouldCapToSource ? sourceRating : distroInputA,
-    capped: shouldCapToSource,
   };
 }
 
@@ -451,8 +423,6 @@ export function SystemOverviewTab({
                             summary={distroSummary}
                             openDistroEditor={openDistroEditor}
                             depth={0}
-                            sourceConnection={source.sourceConnection}
-                            sourceRating={source.sourceRating}
                             dismissedWarnings={
                               plannerState.dismissedWarnings ?? []
                             }
@@ -500,8 +470,6 @@ function DistroTreeCard({
   openDistroEditor,
   depth,
   unassigned = false,
-  sourceConnection,
-  sourceRating,
   dismissedWarnings = [],
   advancedView = false,
   plannerState,
@@ -510,8 +478,6 @@ function DistroTreeCard({
   openDistroEditor: (distroId: string) => void;
   depth: number;
   unassigned?: boolean;
-  sourceConnection?: string;
-  sourceRating?: number;
   dismissedWarnings?: PlannerState["dismissedWarnings"];
   advancedView?: boolean;
   plannerState: PlannerState;
@@ -523,12 +489,7 @@ function DistroTreeCard({
     connectionType === "threePhase"
       ? styles.threePhaseBadge
       : styles.singlePhaseBadge;
-  const phaseCap = effectiveDistroPhaseCap(
-    summary.distro.input,
-    summary.distro.inputA,
-    sourceConnection,
-    sourceRating
-  );
+  const phaseCap = effectiveDistroSupplyCap(plannerState, summary.distro);
   const activeDistroIssues = activeIssuesForScope(
     "planner-warnings",
     summary.issues,

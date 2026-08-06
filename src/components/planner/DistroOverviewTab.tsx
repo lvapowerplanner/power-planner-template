@@ -1,5 +1,8 @@
 import { useState } from "react";
-import { autoSourcesForDistro } from "@/planner/autoSources";
+import {
+  autoSourcesForDistro,
+  effectiveDistroSupplyCap,
+} from "@/planner/autoSources";
 import { WarningPanel, activeIssuesForScope } from "@/components/planner/WarningPanel";
 import {
   distroLoadSummary,
@@ -162,7 +165,9 @@ export function DistroOverviewTab({
 
   const allAvailableSources = [
     ...plannerState.sources.filter((source) => !source.auto),
-    ...plannerState.distros.flatMap((distro) => autoSourcesForDistro(distro)),
+    ...plannerState.distros.flatMap((distro) =>
+      autoSourcesForDistro(distro, plannerState),
+    ),
   ];
 
   const distroSummaries = plannerState.distros.map((distro) =>
@@ -278,7 +283,7 @@ export function DistroOverviewTab({
     if (!targetDistro) return;
 
     const removedAutoSourceIds = new Set(
-      autoSourcesForDistro(targetDistro).map((source) => source.id),
+      autoSourcesForDistro(targetDistro, plannerState).map((source) => source.id),
     );
     const remainingDistros = plannerState.distros
       .filter((distro) => distro.id !== distroId)
@@ -640,7 +645,10 @@ export function DistroOverviewTab({
                 </div>
 
                 {distroSummary && (
-                  <DistroPhaseSummary summary={distroSummary} />
+                  <DistroPhaseSummary
+                    summary={distroSummary}
+                    plannerState={plannerState}
+                  />
                 )}
 
                 <div style={styles.formGrid}>
@@ -916,8 +924,15 @@ export function DistroOverviewTab({
   );
 }
 
-function DistroPhaseSummary({ summary }: { summary: DistroLoadSummary }) {
+function DistroPhaseSummary({
+  summary,
+  plannerState,
+}: {
+  summary: DistroLoadSummary;
+  plannerState: PlannerState;
+}) {
   const singlePhase = normaliseConnection(summary.distro.input).phase !== "3";
+  const phaseCap = effectiveDistroSupplyCap(plannerState, summary.distro);
 
   return (
     <section style={styles.phaseSummaryBox}>
@@ -932,12 +947,12 @@ function DistroPhaseSummary({ summary }: { summary: DistroLoadSummary }) {
         }
       >
         {singlePhase ? (
-          <PhaseCard phase="Line" amps={summary.phaseLoads.L1} rating={summary.distro.inputA} />
+          <PhaseCard phase="Line" amps={summary.phaseLoads.L1} rating={phaseCap.rating} />
         ) : (
           <>
-            <PhaseCard phase="L1" amps={summary.phaseLoads.L1} rating={summary.distro.inputA} />
-            <PhaseCard phase="L2" amps={summary.phaseLoads.L2} rating={summary.distro.inputA} />
-            <PhaseCard phase="L3" amps={summary.phaseLoads.L3} rating={summary.distro.inputA} />
+            <PhaseCard phase="L1" amps={summary.phaseLoads.L1} rating={phaseCap.rating} />
+            <PhaseCard phase="L2" amps={summary.phaseLoads.L2} rating={phaseCap.rating} />
+            <PhaseCard phase="L3" amps={summary.phaseLoads.L3} rating={phaseCap.rating} />
           </>
         )}
       </div>

@@ -36,6 +36,7 @@ export function CustomEquipmentTab({
   const [name, setName] = useState("");
   const [category, setCategory] = useState(categories[0]);
   const [watts, setWatts] = useState("");
+  const [deletePrompt, setDeletePrompt] = useState<EquipmentItem | null>(null);
 
   function addCustomEquipment() {
     const cleanName = name.trim();
@@ -67,15 +68,16 @@ export function CustomEquipmentTab({
     setWatts("");
   }
 
-  function deleteCustomEquipment(id: string) {
-    if (!confirm("Delete this custom equipment item?")) return;
+  function confirmDeleteCustomEquipment() {
+    if (!deletePrompt) return;
 
     setPlannerState({
       ...plannerState,
       customEquipment: plannerState.customEquipment.filter(
-        (item) => item.id !== id
+        (item) => item.id !== deletePrompt.id
       ),
     });
+    setDeletePrompt(null);
   }
 
   function updateCustomEquipment(id: string, updatedItem: EquipmentItem) {
@@ -200,12 +202,53 @@ export function CustomEquipmentTab({
 
               <button
                 style={styles.dangerButton}
-                onClick={() => deleteCustomEquipment(item.id)}
+                onClick={() => setDeletePrompt(item)}
               >
                 Delete
               </button>
             </div>
           ))}
+        </div>
+      )}
+
+      {deletePrompt && (
+        <div
+          style={styles.modalBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDeletePrompt(null);
+          }}
+        >
+          <section
+            style={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-equipment-title"
+          >
+            <h3 id="delete-equipment-title" style={styles.modalTitle}>
+              Delete custom equipment?
+            </h3>
+            <p style={styles.modalText}>
+              <strong>{deletePrompt.name}</strong> will be permanently removed
+              from this project. This cannot be undone.
+            </p>
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                style={styles.modalDangerButton}
+                onClick={confirmDeleteCustomEquipment}
+              >
+                Delete Equipment
+              </button>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={() => setDeletePrompt(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </section>
@@ -279,5 +322,49 @@ const styles: Record<string, React.CSSProperties> = {
     borderRadius: "14px",
     padding: "14px",
     background: "#F5F7FA",
+  },
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000,
+    display: "grid",
+    placeItems: "center",
+    padding: "20px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  modal: {
+    width: "min(520px, 100%)",
+    display: "grid",
+    gap: "14px",
+    padding: "22px",
+    borderRadius: "14px",
+    background: "white",
+    boxShadow: "0 20px 55px rgba(0, 0, 0, 0.25)",
+  },
+  modalTitle: { margin: 0 },
+  modalText: { margin: 0, color: "#475467", lineHeight: 1.5 },
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  modalDangerButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #C53030",
+    background: "#C53030",
+    color: "white",
+    cursor: "pointer",
+    fontWeight: 500,
+  },
+  secondaryButton: {
+    padding: "10px 14px",
+    borderRadius: "10px",
+    border: "1px solid #DCE5EC",
+    background: "white",
+    color: "#172033",
+    cursor: "pointer",
+    fontWeight: 500,
   },
 };

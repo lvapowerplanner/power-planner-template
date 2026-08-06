@@ -1,6 +1,10 @@
 import { useMemo, useState } from "react";
 import type { DragEvent } from "react";
-import { autoSourcesForDistro, autoSourceId } from "@/planner/autoSources";
+import {
+  autoSourcesForDistro,
+  autoSourceId,
+  effectiveDistroSupplyCap,
+} from "@/planner/autoSources";
 import {
   distroPhaseLoads as calculatedDistroPhaseLoads,
   distroWatts as calculatedDistroWatts,
@@ -275,37 +279,6 @@ function connectionsAreCompatible(sourceConnection: string, distroInput: string)
   return source.phase === distro.phase && source.rating === distro.rating;
 }
 
-function effectiveDistroPhaseCap(
-  distro: ProjectDistro,
-  source: PowerSource | undefined
-) {
-  if (!source) {
-    return {
-      rating: distro.inputA,
-      capped: false,
-      sourceName: "",
-    };
-  }
-
-  const sourceConnection = normaliseConnection(source.conn);
-  const distroConnection = normaliseConnection(distro.input);
-
-  const shouldCapToSource =
-    sourceConnection.phase === "3" &&
-    distroConnection.phase === "3" &&
-    sourceConnection.highCurrentThreePhase &&
-    distroConnection.highCurrentThreePhase &&
-    sourceConnection.rating > 0 &&
-    distroConnection.rating > 0 &&
-    sourceConnection.rating < distroConnection.rating;
-
-  return {
-    rating: shouldCapToSource ? source.rating : distro.inputA,
-    capped: shouldCapToSource,
-    sourceName: source.name,
-  };
-}
-
 function sourceIsUsedByOtherDistro(
   plannerState: PlannerState,
   sourceId: string,
@@ -455,7 +428,9 @@ export function DistroEditorTab({
 
   const allDerivedSources = [
     ...plannerState.sources.filter((source) => !source.auto),
-    ...plannerState.distros.flatMap((distro) => autoSourcesForDistro(distro)),
+    ...plannerState.distros.flatMap((distro) =>
+      autoSourcesForDistro(distro, plannerState),
+    ),
   ];
 
   function updateDistro(updatedDistro: ProjectDistro) {
@@ -1008,7 +983,7 @@ function moveAssignedItemToSocapexSocket(
   const selectedSource = allDerivedSources.find(
     (source) => source.id === activeDistro.sourceId
   );
-  const phaseCap = effectiveDistroPhaseCap(activeDistro, selectedSource);
+  const phaseCap = effectiveDistroSupplyCap(plannerState, activeDistro);
 
   const singlePhaseOutputs = activeDistro.outputs.filter(
     (output) => output.phase !== "3Φ" && output.phase !== "Socapex"
@@ -1043,11 +1018,8 @@ function moveAssignedItemToSocapexSocket(
   const parentPhaseLoads = parentDistro
     ? calculatedDistroPhaseLoads(parentDistro, plannerState)
     : undefined;
-  const parentSelectedSource = parentDistro
-    ? allDerivedSources.find((source) => source.id === parentDistro.sourceId)
-    : undefined;
   const parentPhaseCap = parentDistro
-    ? effectiveDistroPhaseCap(parentDistro, parentSelectedSource)
+    ? effectiveDistroSupplyCap(plannerState, parentDistro)
     : undefined;
 
   return (

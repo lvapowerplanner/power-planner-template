@@ -224,7 +224,7 @@ export function PowerSourcesTab({
   const manualSources = plannerState.sources.filter((source) => !source.auto);
 
   const autoSources = plannerState.distros.flatMap((distro) =>
-    autoSourcesForDistro(distro),
+    autoSourcesForDistro(distro, plannerState),
   );
 
   const manualSourceSummaries = useMemo<SourceCardSummary[]>(() => {

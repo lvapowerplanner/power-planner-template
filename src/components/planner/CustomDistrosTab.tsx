@@ -13,6 +13,7 @@ export function CustomDistrosTab({
 }: CustomDistrosTabProps) {
   const [builderKey, setBuilderKey] = useState(0);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
+  const [deletePromptIndex, setDeletePromptIndex] = useState<number | null>(null);
 
   function saveCustomDistro(definition: DistroDefinition) {
     const savedDefinition = {
@@ -51,21 +52,23 @@ export function CustomDistrosTab({
     setBuilderKey((value) => value + 1);
   }
 
-  function deleteCustomDistro(index: number) {
-    if (!confirm("Delete this custom distro?")) return;
+  function confirmDeleteCustomDistro() {
+    if (deletePromptIndex == null) return;
 
     setPlannerState({
       ...plannerState,
       customDistros: plannerState.customDistros.filter(
-        (_distro, distroIndex) => distroIndex !== index,
+        (_distro, distroIndex) => distroIndex !== deletePromptIndex,
       ),
     });
 
-    if (editingIndex === index) {
+    if (editingIndex === deletePromptIndex) {
       cancelEdit();
-    } else if (editingIndex != null && editingIndex > index) {
+    } else if (editingIndex != null && editingIndex > deletePromptIndex) {
       setEditingIndex(editingIndex - 1);
     }
+
+    setDeletePromptIndex(null);
   }
 
   return (
@@ -129,13 +132,58 @@ export function CustomDistrosTab({
                 </button>
                 <button
                   style={styles.dangerButton}
-                  onClick={() => deleteCustomDistro(index)}
+                  onClick={() => setDeletePromptIndex(index)}
                 >
                   Delete
                 </button>
               </div>
             </div>
           ))}
+        </div>
+      )}
+
+      {deletePromptIndex != null && (
+        <div
+          style={styles.modalBackdrop}
+          role="presentation"
+          onMouseDown={(event) => {
+            if (event.target === event.currentTarget) setDeletePromptIndex(null);
+          }}
+        >
+          <section
+            style={styles.modal}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-distro-title"
+          >
+            <h3 id="delete-distro-title" style={styles.modalTitle}>
+              Delete custom distro?
+            </h3>
+            <p style={styles.modalText}>
+              <strong>
+                {plannerState.customDistros[deletePromptIndex]?.name ??
+                  "This custom distro"}
+              </strong>{" "}
+              will be permanently removed from this project. This cannot be
+              undone.
+            </p>
+            <div style={styles.modalActions}>
+              <button
+                type="button"
+                style={styles.modalDangerButton}
+                onClick={confirmDeleteCustomDistro}
+              >
+                Delete Distro
+              </button>
+              <button
+                type="button"
+                style={styles.editButton}
+                onClick={() => setDeletePromptIndex(null)}
+              >
+                Cancel
+              </button>
+            </div>
+          </section>
         </div>
       )}
     </section>
@@ -206,6 +254,43 @@ const styles: Record<string, React.CSSProperties> = {
     border: "1px solid #E5484D",
     background: "#FFF1F1",
     color: "#E5484D",
+    cursor: "pointer",
+    font: "inherit",
+    fontWeight: 500,
+  },
+  modalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000,
+    display: "grid",
+    placeItems: "center",
+    padding: "20px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  modal: {
+    width: "min(520px, 100%)",
+    display: "grid",
+    gap: "14px",
+    padding: "22px",
+    borderRadius: "14px",
+    background: "white",
+    boxShadow: "0 20px 55px rgba(0, 0, 0, 0.25)",
+  },
+  modalTitle: { margin: 0 },
+  modalText: { margin: 0, color: "#475467", lineHeight: 1.5 },
+  modalActions: {
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "8px",
+    flexWrap: "wrap",
+  },
+  modalDangerButton: {
+    minHeight: "40px",
+    padding: "0 12px",
+    borderRadius: "10px",
+    border: "1px solid #C53030",
+    background: "#C53030",
+    color: "white",
     cursor: "pointer",
     font: "inherit",
     fontWeight: 500,
