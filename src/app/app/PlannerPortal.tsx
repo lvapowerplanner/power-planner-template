@@ -892,13 +892,14 @@ export default function PlannerPortal() {
   }
 
   async function loadProjects(currentUser: User) {
-    const currentWorkspaceId = currentHostUsesIndividualProjects()
+    const resolvedWorkspaceId = workspaceId ?? (await resolveWorkspaceId());
+    const projectWorkspaceId = currentHostUsesIndividualProjects()
       ? null
-      : (workspaceId ?? (await resolveWorkspaceId()));
+      : resolvedWorkspaceId;
 
     let effectiveProjectSharingMode = projectSharingMode;
 
-    if (currentWorkspaceId && !currentHostUsesIndividualProjects()) {
+    if (projectWorkspaceId && !currentHostUsesIndividualProjects()) {
       const { data: settings, error: settingsError } = await supabase
         .from("workspace_settings")
         .select("project_sharing_mode, license_count")
@@ -924,9 +925,9 @@ export default function PlannerPortal() {
 
     let query = supabase.from("projects").select("*");
 
-    if (currentWorkspaceId) {
+    if (projectWorkspaceId) {
       query = query.or(
-        `user_id.eq.${currentUser.id},workspace_id.eq.${currentWorkspaceId}`,
+        `user_id.eq.${currentUser.id},workspace_id.eq.${projectWorkspaceId}`,
       );
     } else {
       query = query.eq("user_id", currentUser.id);
@@ -944,10 +945,13 @@ export default function PlannerPortal() {
     const loadedProjects = data ?? [];
     setProjects(loadedProjects);
 
-    if (currentWorkspaceId) {
-      await loadWorkspaceUsers(currentWorkspaceId);
+    if (resolvedWorkspaceId) {
+      await loadWorkspaceUsers(resolvedWorkspaceId);
 
-      if (effectiveProjectSharingMode === "selected_users") {
+      if (
+        projectWorkspaceId &&
+        effectiveProjectSharingMode === "selected_users"
+      ) {
         await loadProjectShares(loadedProjects);
       } else {
         setProjectShares([]);
