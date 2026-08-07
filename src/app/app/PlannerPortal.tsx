@@ -483,14 +483,14 @@ export default function PlannerPortal() {
     }
 
     if (profileStatus === "invited") {
-      const { error: activateError } = await supabase.rpc(
+      const { data: activated, error: activateError } = await supabase.rpc(
         "activate_current_invited_user",
       );
 
-      if (activateError) {
+      if (activateError || activated !== true) {
         console.error(
           "Could not activate invited user profile:",
-          activateError,
+          activateError ?? "Activation function returned false.",
         );
         await supabase.auth.signOut();
         clearSessionState(
