@@ -1519,7 +1519,7 @@ export const docArticles: DocArticle[] = [
       {
         heading: "Availability and purpose",
         body: [
-          "System Sign-Off is available where Advanced Features are enabled for both the workspace and the user. It appears as a separate main planner tab after Reports and is used for recording inspection, test and completion information after the system has been installed.",
+          "System Sign-Off is available where Advanced Features are enabled for the workspace and System Sign-Off access is enabled for the user. It has its own user permission, separate from Advanced Calculations, and appears as a main planner tab after Reports.",
           "The module contains Information, G1 - Completion Certificate, G2 - Schedule of Test Results, G3 - Confirmation of Electrical Completion and Include Circuits (G2) subtabs. Planning calculations remain in Advanced Calculations; measured results and formal declarations belong in System Sign-Off.",
         ],
         callout: {
@@ -1689,7 +1689,7 @@ export const docArticles: DocArticle[] = [
       { heading: "Why can I not assign a source?", body: ["The source may be incompatible, already assigned to another distro or belong to the distro's own output. Check connector type and existing assignments."], },
       { heading: "What is an Auto Source?", body: ["An Auto Source is a virtual source created from an eligible distro output. It allows downstream distros to be connected while still calculating load through the parent distro."], },
       { heading: "Why did my dismissed warning come back?", body: ["Dismissed warnings return when the underlying load changes significantly. This prevents an old dismissal from hiding a newly changed condition."], },
-      { heading: "Why can I not see Advanced Calculations or System Sign-Off?", body: ["Both modules require Advanced Features to be enabled for the current workspace and the signed-in user. If either toggle is off, the advanced tabs remain hidden."], },
+      { heading: "Why can I not see Advanced Calculations or System Sign-Off?", body: ["Advanced Features must first be enabled for the workspace. Workspace administrators can then independently enable Advanced Calculations and System Sign-Off for each user. One module can be available while the other remains hidden."], },
       { heading: "Why are connected load and design load the same?", body: ["They match when circuit diversity is 100%. Design load changes only when diversity below 100% is applied; connected load always retains the total assigned equipment rating."], },
       { heading: "Why is a cable result still Review?", body: ["Enter a positive cable length, check the selected cable and installation assumptions, then select Verify. Any later change to relevant inputs or design current invalidates the verification and requires a new review."], },
       { heading: "Why is a report missing a distro?", body: ["Check the Report tab toggles. Sources and distros can be hidden from the report export without being removed from the project."], },

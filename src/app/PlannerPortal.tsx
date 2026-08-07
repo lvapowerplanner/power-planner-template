@@ -111,6 +111,7 @@ export default function PlannerPortal() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [advancedFeaturesEnabled, setAdvancedFeaturesEnabled] = useState(false);
   const [userAdvancedFeaturesEnabled, setUserAdvancedFeaturesEnabled] = useState(true);
+  const [userSystemSignOffEnabled, setUserSystemSignOffEnabled] = useState(true);
   const [userRole, setUserRole] = useState<UserRole>("user");
   const [licenseCount, setLicenseCount] = useState(5);
   const [adminPortalOpen, setAdminPortalOpen] = useState(false);
@@ -434,6 +435,8 @@ export default function PlannerPortal() {
     setMfaLoading(false);
     setWorkspaceId(null);
     setUserRole("user");
+    setUserAdvancedFeaturesEnabled(true);
+    setUserSystemSignOffEnabled(true);
     setAdminPortalOpen(false);
     setAccessMessage(message);
   }
@@ -442,13 +445,16 @@ export default function PlannerPortal() {
     if (isGlobalAdmin(currentUser)) {
       setUserRole("admin");
       setUserAdvancedFeaturesEnabled(true);
+      setUserSystemSignOffEnabled(true);
       setAccessMessage("");
       return true;
     }
 
     const { data: profile, error } = await supabase
       .from("user_profiles")
-      .select("allowed_subdomain, role, status, advanced_features_enabled")
+      .select(
+        "allowed_subdomain, role, status, advanced_features_enabled, system_signoff_enabled",
+      )
       .eq("id", currentUser.id)
       .single();
 
@@ -483,22 +489,27 @@ export default function PlannerPortal() {
     }
 
     if (profileStatus === "invited") {
-      const { error: activateError } = await supabase
-        .from("user_profiles")
-        .update({ status: "active" })
-        .eq("id", currentUser.id);
+      const { data: activated, error: activateError } = await supabase.rpc(
+        "activate_current_invited_user",
+      );
 
-      if (activateError) {
+      if (activateError || activated !== true) {
         console.error(
           "Could not activate invited user profile:",
-          activateError,
+          activateError ?? "Activation function returned false.",
         );
+        await supabase.auth.signOut();
+        clearSessionState(
+          "Your account was created, but its workspace access could not be activated. Please contact your workspace administrator.",
+        );
+        return false;
       }
     }
 
     const profileRole = String(profile.role ?? "user");
     setUserRole(profileRole === "admin" ? "admin" : "user");
     setUserAdvancedFeaturesEnabled(profile.advanced_features_enabled !== false);
+    setUserSystemSignOffEnabled(profile.system_signoff_enabled !== false);
     setAccessMessage("");
     return true;
   }
@@ -888,13 +899,14 @@ export default function PlannerPortal() {
   }
 
   async function loadProjects(currentUser: User) {
-    const currentWorkspaceId = currentHostUsesIndividualProjects()
+    const resolvedWorkspaceId = workspaceId ?? (await resolveWorkspaceId());
+    const projectWorkspaceId = currentHostUsesIndividualProjects()
       ? null
-      : (workspaceId ?? (await resolveWorkspaceId()));
+      : resolvedWorkspaceId;
 
     let effectiveProjectSharingMode = projectSharingMode;
 
-    if (currentWorkspaceId && !currentHostUsesIndividualProjects()) {
+    if (projectWorkspaceId && !currentHostUsesIndividualProjects()) {
       const { data: settings, error: settingsError } = await supabase
         .from("workspace_settings")
         .select("project_sharing_mode, license_count")
@@ -920,9 +932,9 @@ export default function PlannerPortal() {
 
     let query = supabase.from("projects").select("*");
 
-    if (currentWorkspaceId) {
+    if (projectWorkspaceId) {
       query = query.or(
-        `user_id.eq.${currentUser.id},workspace_id.eq.${currentWorkspaceId}`,
+        `user_id.eq.${currentUser.id},workspace_id.eq.${projectWorkspaceId}`,
       );
     } else {
       query = query.eq("user_id", currentUser.id);
@@ -940,10 +952,13 @@ export default function PlannerPortal() {
     const loadedProjects = data ?? [];
     setProjects(loadedProjects);
 
-    if (currentWorkspaceId) {
-      await loadWorkspaceUsers(currentWorkspaceId);
+    if (resolvedWorkspaceId) {
+      await loadWorkspaceUsers(resolvedWorkspaceId);
 
-      if (effectiveProjectSharingMode === "selected_users") {
+      if (
+        projectWorkspaceId &&
+        effectiveProjectSharingMode === "selected_users"
+      ) {
         await loadProjectShares(loadedProjects);
       } else {
         setProjectShares([]);
@@ -1495,7 +1510,12 @@ export default function PlannerPortal() {
         saveStatus={saveStatus}
         renameProject={renameProject}
         workspaceBranding={workspaceBranding}
-        advancedFeaturesEnabled={advancedFeaturesEnabled && userAdvancedFeaturesEnabled}
+        advancedCalculationsEnabled={
+          advancedFeaturesEnabled && userAdvancedFeaturesEnabled
+        }
+        systemSignOffEnabled={
+          advancedFeaturesEnabled && userSystemSignOffEnabled
+        }
         workspaceId={workspaceId}
         canManageReportLink={activeProject.user_id === user?.id}
       />
@@ -1846,7 +1866,7 @@ const styles: Record<string, React.CSSProperties> = {
   },
   accessMessage: {
     position: "fixed",
-    top: "96px",
+     top: "96px",
     left: "50%",
     transform: "translateX(-50%)",
     width: "calc(100% - 40px)",

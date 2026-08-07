@@ -111,6 +111,7 @@ export default function PlannerPortal() {
   const [workspaceId, setWorkspaceId] = useState<string | null>(null);
   const [advancedFeaturesEnabled, setAdvancedFeaturesEnabled] = useState(false);
   const [userAdvancedFeaturesEnabled, setUserAdvancedFeaturesEnabled] = useState(true);
+  const [userSystemSignOffEnabled, setUserSystemSignOffEnabled] = useState(true);
   const [userRole, setUserRole] = useState<UserRole>("user");
   const [licenseCount, setLicenseCount] = useState(5);
   const [adminPortalOpen, setAdminPortalOpen] = useState(false);
@@ -434,6 +435,8 @@ export default function PlannerPortal() {
     setMfaLoading(false);
     setWorkspaceId(null);
     setUserRole("user");
+    setUserAdvancedFeaturesEnabled(true);
+    setUserSystemSignOffEnabled(true);
     setAdminPortalOpen(false);
     setAccessMessage(message);
   }
@@ -442,13 +445,16 @@ export default function PlannerPortal() {
     if (isGlobalAdmin(currentUser)) {
       setUserRole("admin");
       setUserAdvancedFeaturesEnabled(true);
+      setUserSystemSignOffEnabled(true);
       setAccessMessage("");
       return true;
     }
 
     const { data: profile, error } = await supabase
       .from("user_profiles")
-      .select("allowed_subdomain, role, status, advanced_features_enabled")
+      .select(
+        "allowed_subdomain, role, status, advanced_features_enabled, system_signoff_enabled",
+      )
       .eq("id", currentUser.id)
       .single();
 
@@ -503,6 +509,7 @@ export default function PlannerPortal() {
     const profileRole = String(profile.role ?? "user");
     setUserRole(profileRole === "admin" ? "admin" : "user");
     setUserAdvancedFeaturesEnabled(profile.advanced_features_enabled !== false);
+    setUserSystemSignOffEnabled(profile.system_signoff_enabled !== false);
     setAccessMessage("");
     return true;
   }
@@ -1503,7 +1510,12 @@ export default function PlannerPortal() {
         saveStatus={saveStatus}
         renameProject={renameProject}
         workspaceBranding={workspaceBranding}
-        advancedFeaturesEnabled={advancedFeaturesEnabled && userAdvancedFeaturesEnabled}
+        advancedCalculationsEnabled={
+          advancedFeaturesEnabled && userAdvancedFeaturesEnabled
+        }
+        systemSignOffEnabled={
+          advancedFeaturesEnabled && userSystemSignOffEnabled
+        }
         workspaceId={workspaceId}
         canManageReportLink={activeProject.user_id === user?.id}
       />

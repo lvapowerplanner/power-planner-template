@@ -27,7 +27,8 @@ type PlannerShellProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
-  advancedFeaturesEnabled?: boolean;
+  advancedCalculationsEnabled?: boolean;
+  systemSignOffEnabled?: boolean;
   workspaceId?: string | null;
   projectId?: string;
   canManageReportLink?: boolean;
@@ -149,7 +150,8 @@ export function PlannerShell({
   plannerState,
   setPlannerState,
   workspaceBranding,
-  advancedFeaturesEnabled = false,
+  advancedCalculationsEnabled = false,
+  systemSignOffEnabled = false,
   workspaceId,
   projectId,
   canManageReportLink = false,
@@ -176,14 +178,14 @@ export function PlannerShell({
   );
   const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const tabs: PlannerTab[] = advancedFeaturesEnabled
-    ? [
-        ...standardTabs.slice(0, 4),
-        "Advanced Calculations",
-        ...standardTabs.slice(4),
-        "System Sign-Off",
-      ]
-    : standardTabs;
+  const tabs: PlannerTab[] = [
+    ...standardTabs.slice(0, 4),
+    ...(advancedCalculationsEnabled
+      ? (["Advanced Calculations"] as PlannerTab[])
+      : []),
+    ...standardTabs.slice(4),
+    ...(systemSignOffEnabled ? (["System Sign-Off"] as PlannerTab[]) : []),
+  ];
 
   useEffect(() => {
     const updatedState = ensureAutoSources(plannerState);
@@ -407,7 +409,7 @@ export function PlannerShell({
         )}
 
         {activeTab === "Advanced Calculations" &&
-          advancedFeaturesEnabled && (
+          advancedCalculationsEnabled && (
             <AdvancedCalculationsTab
               plannerState={plannerState}
               setPlannerState={setPlannerState}
@@ -445,7 +447,7 @@ export function PlannerShell({
           />
         )}
 
-        {activeTab === "System Sign-Off" && advancedFeaturesEnabled && (
+        {activeTab === "System Sign-Off" && systemSignOffEnabled && (
           <SystemSignOffTab
             plannerState={plannerState}
             projectId={projectId}

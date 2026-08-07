@@ -16,7 +16,8 @@ type PowerPlannerAppProps = {
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
-  advancedFeaturesEnabled?: boolean;
+  advancedCalculationsEnabled?: boolean;
+  systemSignOffEnabled?: boolean;
   workspaceId?: string | null;
   projectId?: string;
   canManageReportLink?: boolean;
@@ -26,7 +27,8 @@ export function PowerPlannerApp({
   plannerState,
   setPlannerState,
   workspaceBranding,
-  advancedFeaturesEnabled,
+  advancedCalculationsEnabled,
+  systemSignOffEnabled,
   workspaceId,
   projectId,
   canManageReportLink,
@@ -36,7 +38,8 @@ export function PowerPlannerApp({
       plannerState={plannerState}
       setPlannerState={setPlannerState}
       workspaceBranding={workspaceBranding}
-      advancedFeaturesEnabled={advancedFeaturesEnabled}
+      advancedCalculationsEnabled={advancedCalculationsEnabled}
+      systemSignOffEnabled={systemSignOffEnabled}
       workspaceId={workspaceId}
       projectId={projectId}
       canManageReportLink={canManageReportLink}

@@ -22,7 +22,8 @@ type ProjectWorkspaceProps = {
   saveStatus: string;
   renameProject: (projectId: string, nextName: string) => Promise<boolean>;
   workspaceBranding?: WorkspaceBranding;
-  advancedFeaturesEnabled?: boolean;
+  advancedCalculationsEnabled?: boolean;
+  systemSignOffEnabled?: boolean;
   workspaceId?: string | null;
   canManageReportLink?: boolean;
 };
@@ -65,7 +66,8 @@ export function ProjectWorkspace({
   saveStatus,
   renameProject,
   workspaceBranding,
-  advancedFeaturesEnabled,
+  advancedCalculationsEnabled,
+  systemSignOffEnabled,
   workspaceId,
   canManageReportLink = false,
 }: ProjectWorkspaceProps) {
@@ -156,7 +158,8 @@ export function ProjectWorkspace({
             })
           }
           workspaceBranding={workspaceBranding}
-          advancedFeaturesEnabled={advancedFeaturesEnabled}
+          advancedCalculationsEnabled={advancedCalculationsEnabled}
+          systemSignOffEnabled={systemSignOffEnabled}
           workspaceId={workspaceId}
           projectId={activeProject.id}
           canManageReportLink={canManageReportLink}

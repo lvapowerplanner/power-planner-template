@@ -325,17 +325,40 @@ export function AdminPortal({
       return;
     }
 
-    const { data, error } = await supabase.rpc("workspace_admin_users", {
-      target_workspace_id: workspaceId,
-    });
+    const [usersResult, signOffResult] = await Promise.all([
+      supabase.rpc("workspace_admin_users", {
+        target_workspace_id: workspaceId,
+      }),
+      supabase.rpc("workspace_user_signoff_access", {
+        target_workspace_id: workspaceId,
+      }),
+    ]);
 
-    if (error) {
-      console.error("Could not load admin workspace users:", error);
-      showToast(`Could not load workspace users: ${error.message}`);
+    if (usersResult.error) {
+      console.error("Could not load admin workspace users:", usersResult.error);
+      showToast(`Could not load workspace users: ${usersResult.error.message}`);
       return;
     }
 
-    setManagedWorkspaceUsers((data ?? []) as WorkspaceUser[]);
+    if (signOffResult.error) {
+      console.error("Could not load Sign-Off permissions:", signOffResult.error);
+      showToast(`Could not load Sign-Off permissions: ${signOffResult.error.message}`);
+    }
+
+    const signOffByUserId = new Map(
+      ((signOffResult.data ?? []) as Array<{
+        id: string;
+        system_signoff_enabled: boolean;
+      }>).map((entry) => [entry.id, entry.system_signoff_enabled]),
+    );
+
+    setManagedWorkspaceUsers(
+      ((usersResult.data ?? []) as WorkspaceUser[]).map((workspaceUser) => ({
+        ...workspaceUser,
+        system_signoff_enabled:
+          signOffByUserId.get(workspaceUser.id) ?? true,
+      })),
+    );
   }
 
   async function loadStock() {
@@ -379,12 +402,6 @@ export function AdminPortal({
     loadAudit();
     loadAdminWorkspaceUsers();
   }, [workspaceId]);
-
-  useEffect(() => {
-    if (workspaceUsers.length > 0) {
-      setManagedWorkspaceUsers(workspaceUsers);
-    }
-  }, [workspaceUsers]);
 
   async function runWorkspaceAdminAction(
     action: string,
@@ -607,8 +624,35 @@ export function AdminPortal({
     await loadAdminWorkspaceUsers();
     showToast(
       workspaceUser.advanced_features_enabled === false
-        ? "Advanced access enabled."
-        : "Advanced access disabled.",
+        ? "Advanced Calculations enabled."
+        : "Advanced Calculations disabled.",
+    );
+  }
+
+  async function toggleSystemSignOffAccess(workspaceUser: WorkspaceUser) {
+    if (!workspaceId) return;
+    setUserSaving(true);
+    const { error } = await supabase.rpc(
+      "set_workspace_user_signoff_features",
+      {
+        target_workspace_id: workspaceId,
+        target_user_id: workspaceUser.id,
+        enabled: workspaceUser.system_signoff_enabled === false,
+      },
+    );
+    setUserSaving(false);
+
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+
+    await reloadWorkspaceUsers();
+    await loadAdminWorkspaceUsers();
+    showToast(
+      workspaceUser.system_signoff_enabled === false
+        ? "System Sign-Off enabled."
+        : "System Sign-Off disabled.",
     );
   }
 
@@ -1041,7 +1085,16 @@ export function AdminPortal({
                           ? "Admin"
                           : "User"}
                         {advancedFeaturesEnabled && (
-                          <>{" · "}{workspaceUser.advanced_features_enabled === false ? "Standard access" : "Advanced access"}</>
+                          <>
+                            {" · "}
+                            {workspaceUser.advanced_features_enabled === false
+                              ? "Calculations off"
+                              : "Calculations on"}
+                            {" · "}
+                            {workspaceUser.system_signoff_enabled === false
+                              ? "Sign-Off off"
+                              : "Sign-Off on"}
+                          </>
                         )}
                       </p>
                     </div>
@@ -1054,8 +1107,21 @@ export function AdminPortal({
                         disabled={userSaving}
                       >
                         {workspaceUser.advanced_features_enabled === false
-                          ? "Enable Advanced"
-                          : "Disable Advanced"}
+                          ? "Enable Calculations"
+                          : "Disable Calculations"}
+                      </button>
+                    )}
+                    {advancedFeaturesEnabled && (
+                      <button
+                        style={styles.secondaryButton}
+                        onClick={() =>
+                          toggleSystemSignOffAccess(workspaceUser)
+                        }
+                        disabled={userSaving}
+                      >
+                        {workspaceUser.system_signoff_enabled === false
+                          ? "Enable Sign-Off"
+                          : "Disable Sign-Off"}
                       </button>
                     )}
                     <button

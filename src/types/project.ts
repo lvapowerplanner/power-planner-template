@@ -27,6 +27,7 @@ export type WorkspaceUser = {
   role?: UserRole;
   status?: WorkspaceUserStatus;
   advanced_features_enabled?: boolean;
+  system_signoff_enabled?: boolean;
 };
 
 export type ProjectData = {
