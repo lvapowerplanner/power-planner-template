@@ -381,7 +381,8 @@ export function DistroEditorTab({
 }: DistroEditorTabProps) {
   const [equipmentSearch, setEquipmentSearch] = useState("");
   const [equipmentCategory, setEquipmentCategory] = useState("");
-  const [parentDrawExpanded, setParentDrawExpanded] = useState(false);
+  const [stickyUpstreamExpanded, setStickyUpstreamExpanded] = useState(false);
+  const [stickyDownstreamExpanded, setStickyDownstreamExpanded] = useState(false);
   const [draggingEquipmentId, setDraggingEquipmentId] = useState<string | null>(
     null
   );
@@ -943,7 +944,6 @@ function moveAssignedItemToSocapexSocket(
   function changeActiveDistro(distroId: string) {
     setDraggingEquipmentId(null);
     setDraggingAssignedItem(null);
-    setParentDrawExpanded(false);
 
     setPlannerState({
       ...plannerState,
@@ -980,9 +980,6 @@ function moveAssignedItemToSocapexSocket(
     return true;
   });
 
-  const selectedSource = allDerivedSources.find(
-    (source) => source.id === activeDistro.sourceId
-  );
   const phaseCap = effectiveDistroSupplyCap(plannerState, activeDistro);
 
   const singlePhaseOutputs = activeDistro.outputs.filter(
@@ -1009,18 +1006,80 @@ function moveAssignedItemToSocapexSocket(
 
   const totalWatts = calculatedDistroWatts(activeDistro, plannerState);
   const phaseLoads = calculatedDistroPhaseLoads(activeDistro, plannerState);
-  const parentDistro = selectedSource?.auto && selectedSource.parentDistroId
-    ? plannerState.distros.find((distro) => distro.id === selectedSource.parentDistroId)
-    : undefined;
-  const parentOutput = parentDistro && selectedSource?.parentOutputId
-    ? parentDistro.outputs.find((output) => output.id === selectedSource.parentOutputId)
-    : undefined;
-  const parentPhaseLoads = parentDistro
-    ? calculatedDistroPhaseLoads(parentDistro, plannerState)
-    : undefined;
-  const parentPhaseCap = parentDistro
-    ? effectiveDistroSupplyCap(plannerState, parentDistro)
-    : undefined;
+  const upstreamDistros = (() => {
+    const upstream: Array<{
+      distro: ProjectDistro;
+      loads: PhaseLoads;
+      rating: number;
+      capped: boolean;
+    }> = [];
+    const visited = new Set<string>([activeDistro.id]);
+    let currentDistro: ProjectDistro | undefined = activeDistro;
+
+    while (currentDistro) {
+      const source = allDerivedSources.find(
+        (candidate) => candidate.id === currentDistro?.sourceId,
+      );
+      if (!source?.auto || !source.parentDistroId) break;
+
+      const upstreamDistro = plannerState.distros.find(
+        (candidate) => candidate.id === source.parentDistroId,
+      );
+      if (!upstreamDistro || visited.has(upstreamDistro.id)) break;
+
+      visited.add(upstreamDistro.id);
+      const cap = effectiveDistroSupplyCap(plannerState, upstreamDistro);
+      upstream.push({
+        distro: upstreamDistro,
+        loads: calculatedDistroPhaseLoads(upstreamDistro, plannerState),
+        rating: cap.rating,
+        capped: cap.capped,
+      });
+      currentDistro = upstreamDistro;
+    }
+
+    return upstream;
+  })();
+  const downstreamDistros = (() => {
+    const downstream: Array<{
+      distro: ProjectDistro;
+      loads: PhaseLoads;
+      rating: number;
+      capped: boolean;
+    }> = [];
+    const visited = new Set<string>([activeDistro.id]);
+
+    function appendChildren(parentDistroId: string) {
+      const childSourceIds = new Set(
+        allDerivedSources
+          .filter(
+            (source) =>
+              source.auto && source.parentDistroId === parentDistroId,
+          )
+          .map((source) => source.id),
+      );
+
+      plannerState.distros
+        .filter(
+          (candidate) =>
+            childSourceIds.has(candidate.sourceId) && !visited.has(candidate.id),
+        )
+        .forEach((childDistro) => {
+          visited.add(childDistro.id);
+          const cap = effectiveDistroSupplyCap(plannerState, childDistro);
+          downstream.push({
+            distro: childDistro,
+            loads: calculatedDistroPhaseLoads(childDistro, plannerState),
+            rating: cap.rating,
+            capped: cap.capped,
+          });
+          appendChildren(childDistro.id);
+        });
+    }
+
+    appendChildren(activeDistro.id);
+    return downstream;
+  })();
 
   return (
     <section style={styles.editorLayout}>
@@ -1114,46 +1173,6 @@ function moveAssignedItemToSocapexSocket(
 
         <hr style={styles.divider} />
 
-        {parentDistro && parentPhaseLoads && parentPhaseCap && (
-          <section style={styles.parentDrawSection}>
-            <div style={styles.parentDrawHeader}>
-              <div style={styles.parentDrawIdentity}>
-                <strong>Parent distro phase draw</strong>
-                <small>
-                  Fed from {displayDistroName(parentDistro)}
-                  {parentOutput ? ` · ${outputTitle(parentOutput, parentDistro.outputs.findIndex((output) => output.id === parentOutput.id))}` : ""}
-                </small>
-              </div>
-              <div style={styles.parentDrawActions}>
-                <button
-                  type="button"
-                  style={styles.secondaryButton}
-                  onClick={() => changeActiveDistro(parentDistro.id)}
-                >
-                  Open parent distro
-                </button>
-                <button
-                  type="button"
-                  style={styles.expandButton}
-                  onClick={() => setParentDrawExpanded((expanded) => !expanded)}
-                  aria-expanded={parentDrawExpanded}
-                >
-                  {parentDrawExpanded ? "Collapse ▴" : "Expand ▾"}
-                </button>
-              </div>
-            </div>
-            {parentDrawExpanded && (
-              <div style={styles.parentDrawBody}>
-                <PhaseCapacityGrid
-                  loads={parentPhaseLoads}
-                  rating={parentPhaseCap.rating}
-                  capped={parentPhaseCap.capped}
-                />
-              </div>
-            )}
-          </section>
-        )}
-
         <div style={styles.summaryGrid}>
           <div style={styles.summaryCard}>
             <span>Total Load </span>
@@ -1170,18 +1189,13 @@ function moveAssignedItemToSocapexSocket(
             <strong>{activeDistro.outputs.length}</strong>
           </div>
 
-          <div
-            style={{
-              ...styles.summaryCard,
-              ...(phaseCap.capped ? styles.summaryCardCapped : {}),
-            }}
-          >
-            <span>Phase Cap </span>
-            <strong>{formatAmps(phaseCap.rating)}</strong>
-            {phaseCap.capped && (
+          {phaseCap.capped && (
+            <div style={{ ...styles.summaryCard, ...styles.summaryCardCapped }}>
+              <span>Phase Cap </span>
+              <strong>{formatAmps(phaseCap.rating)}</strong>
               <small style={styles.capNotice}>Capped by {phaseCap.sourceName}</small>
-            )}
-          </div>
+            </div>
+          )}
         </div>
 
         {phaseCap.capped && (
@@ -1192,14 +1206,92 @@ function moveAssignedItemToSocapexSocket(
 
         <div style={styles.stickyPhaseDraws}>
           <div style={styles.stickyPhaseHeading}>
-            <strong>Current distro phase draw</strong>
-            <span>{displayDistroName(activeDistro)}</span>
+            <strong>Phase draw</strong>
+            <div style={styles.stickyPhaseHeadingActions}>
+              {upstreamDistros.length > 0 && (
+                <button
+                  type="button"
+                  style={styles.stickyUpstreamButton}
+                  onClick={() =>
+                    setStickyUpstreamExpanded((expanded) => !expanded)
+                  }
+                  aria-expanded={stickyUpstreamExpanded}
+                >
+                  {stickyUpstreamExpanded
+                    ? "Hide upstream distros ▴"
+                    : "Show upstream distros ▾"}
+                </button>
+              )}
+              {downstreamDistros.length > 0 && (
+                <button
+                  type="button"
+                  style={styles.stickyUpstreamButton}
+                  onClick={() =>
+                    setStickyDownstreamExpanded((expanded) => !expanded)
+                  }
+                  aria-expanded={stickyDownstreamExpanded}
+                >
+                  {stickyDownstreamExpanded
+                    ? "Hide downstream distros ▴"
+                    : "Show downstream distros ▾"}
+                </button>
+              )}
+            </div>
+          </div>
+          {stickyUpstreamExpanded && upstreamDistros.length > 0 && (
+            <div style={styles.stickyUpstreamList}>
+              {[...upstreamDistros].reverse().map((upstream) => (
+                <div key={upstream.distro.id} style={styles.stickyUpstreamRow}>
+                  <button
+                    type="button"
+                    style={styles.stickyDistroLink}
+                    onClick={() => changeActiveDistro(upstream.distro.id)}
+                  >
+                    {displayDistroName(upstream.distro)}
+                  </button>
+                  <CompactPhaseCapacity
+                    loads={upstream.loads}
+                    rating={upstream.rating}
+                    capped={upstream.capped}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={styles.currentPhaseHeading}>
+            <button
+              type="button"
+              style={styles.stickyDistroLink}
+              onClick={() => changeActiveDistro(activeDistro.id)}
+            >
+              {displayDistroName(activeDistro)}
+            </button>
           </div>
           <PhaseCapacityGrid
             loads={phaseLoads}
             rating={phaseCap.rating}
             capped={phaseCap.capped}
           />
+          {stickyDownstreamExpanded && downstreamDistros.length > 0 && (
+            <div style={styles.stickyDownstreamList}>
+              {downstreamDistros.map((downstream) => (
+                <div key={downstream.distro.id} style={styles.stickyUpstreamRow}>
+                  <button
+                    type="button"
+                    style={styles.stickyDistroLink}
+                    onClick={() => changeActiveDistro(downstream.distro.id)}
+                  >
+                    {displayDistroName(downstream.distro)}
+                  </button>
+                  <CompactPhaseCapacity
+                    loads={downstream.loads}
+                    rating={downstream.rating}
+                    capped={downstream.capped}
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div style={styles.controlsGrid}>
@@ -1656,6 +1748,48 @@ function PhaseCapacityGrid({
   );
 }
 
+function phaseCapacityBarColour(percent: number) {
+  if (percent > 100) return "#E5484D";
+  if (percent > 80) return "#B7791F";
+  return "#0A8F5D";
+}
+
+function CompactPhaseCapacity({
+  loads,
+  rating,
+  capped = false,
+}: {
+  loads: PhaseLoads;
+  rating: number;
+  capped?: boolean;
+}) {
+  return (
+    <div style={styles.compactPhaseGrid}>
+      {(["L1", "L2", "L3"] as const).map((phase) => {
+        const amps = loads[phase];
+        const percent = rating ? Math.round((amps / rating) * 100) : 0;
+
+        return (
+          <div key={phase} style={styles.compactPhaseItem}>
+            <span style={styles.compactPhaseText}>
+              <strong>{phase}</strong> {formatAmps(amps)} · {percent}%
+            </span>
+            <span style={styles.compactPhaseMeter}>
+              <span
+                style={{
+                  ...styles.compactPhaseFill,
+                  width: `${Math.min(percent, 100)}%`,
+                  background: phaseCapacityBarColour(percent),
+                }}
+              />
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function PhaseCapacityCard({
   phase,
   amps,
@@ -1669,7 +1803,7 @@ function PhaseCapacityCard({
 }) {
   const percent = rating ? Math.round((amps / rating) * 100) : 0;
   const overloaded = percent > 100;
-  const nearLimit = percent >= 95;
+  const nearLimit = percent > 80;
 
   return (
     <div
@@ -1692,11 +1826,7 @@ function PhaseCapacityCard({
           style={{
             ...styles.capacityFill,
             width: `${Math.min(percent, 100)}%`,
-            background: overloaded
-              ? "#E5484D"
-              : nearLimit
-                ? "#B7791F"
-                : "#0A8F5D",
+            background: phaseCapacityBarColour(percent),
           }}
         />
       </div>
@@ -1765,7 +1895,7 @@ function OutputCard({
   const capacityAmps = capacityOverride?.amps ?? (threePhase ? phaseAmps : amps);
   const capacityRating = capacityOverride?.rating ?? output.rating;
   const overloaded = capacityPercent > 100;
-  const nearLimit = capacityPercent >= 95;
+  const nearLimit = capacityPercent > 80;
   const fedDistro = compatibleDownstreamDistros.find(
     (distro) => distro.id === currentFedDistroId
   );
@@ -2041,39 +2171,9 @@ const styles: Record<string, React.CSSProperties> = {
   },
   summaryGrid: {
     display: "grid",
-    gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
+    gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))",
     gap: "12px",
     marginBottom: "12px",
-  },
-  parentDrawSection: {
-    marginBottom: "14px",
-    overflow: "hidden",
-    border: "1px solid #DCE5EC",
-    borderRadius: "18px",
-    padding: "16px",
-    background: "#FFFFFF",
-  },
-  parentDrawHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: "12px",
-  },
-  parentDrawIdentity: {
-    display: "grid",
-    gap: "6px",
-    color: "#111827",
-    lineHeight: 1.35,
-  },
-  parentDrawActions: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "flex-end",
-    gap: "8px",
-    flexWrap: "wrap",
-  },
-  parentDrawBody: {
-    paddingTop: "14px",
   },
   parentPhaseCard: {
     display: "flex",
@@ -2144,6 +2244,107 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: "8px",
     color: "#526071",
     fontSize: "12px",
+  },
+  stickyPhaseHeadingActions: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    gap: "10px",
+    flexWrap: "wrap",
+  },
+  currentPhaseHeading: {
+    display: "flex",
+    justifyContent: "space-between",
+    gap: "12px",
+    marginBottom: "8px",
+    color: "#526071",
+    fontSize: "12px",
+  },
+  stickyUpstreamButton: {
+    padding: 0,
+    border: 0,
+    background: "transparent",
+    color: "#667085",
+    cursor: "pointer",
+    font: "inherit",
+    fontWeight: 500,
+  },
+  stickyUpstreamList: {
+    display: "grid",
+    gap: "8px",
+    margin: "0 0 9px",
+    paddingTop: "7px",
+    borderTop: "1px solid #E4E9EF",
+  },
+  stickyDownstreamList: {
+    display: "grid",
+    gap: "8px",
+    margin: "-8px 0 10px",
+    paddingTop: "7px",
+    borderTop: "1px solid #E4E9EF",
+  },
+  stickyUpstreamRow: {
+    display: "block",
+  },
+  stickyUpstreamName: {
+    display: "block",
+    minWidth: 0,
+    marginBottom: "3px",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "#344054",
+    fontSize: "12px",
+  },
+  stickyDistroLink: {
+    display: "block",
+    maxWidth: "100%",
+    margin: 0,
+    padding: 0,
+    overflow: "hidden",
+    border: 0,
+    background: "transparent",
+    color: "#344054",
+    cursor: "pointer",
+    font: "inherit",
+    fontSize: "12px",
+    fontWeight: 600,
+    textAlign: "left",
+    textDecoration: "underline",
+    textDecorationColor: "#C7D2DE",
+    textUnderlineOffset: "3px",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  compactPhaseGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+    gap: "10px",
+  },
+  compactPhaseItem: {
+    minWidth: 0,
+    padding: "0 12px",
+  },
+  compactPhaseText: {
+    display: "block",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+    color: "#526071",
+    fontSize: "11px",
+  },
+  compactPhaseMeter: {
+    display: "block",
+    height: "3px",
+    marginTop: "3px",
+    overflow: "hidden",
+    borderRadius: "999px",
+    background: "#E4E9EF",
+  },
+  compactPhaseFill: {
+    display: "block",
+    height: "100%",
+    borderRadius: "999px",
   },
   phaseCapacityCard: {
     border: "1px solid #DCE5EC",

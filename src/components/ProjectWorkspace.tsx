@@ -150,6 +150,7 @@ export function ProjectWorkspace({
         <hr style={styles.divider} />
 
         <PowerPlannerApp
+          projectName={activeProject.name}
           plannerState={projectData.plannerState}
           setPlannerState={(plannerState) =>
             setProjectData({

@@ -13,6 +13,7 @@ type WorkspaceBranding = {
 };
 
 type PowerPlannerAppProps = {
+  projectName: string;
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
@@ -24,6 +25,7 @@ type PowerPlannerAppProps = {
 };
 
 export function PowerPlannerApp({
+  projectName,
   plannerState,
   setPlannerState,
   workspaceBranding,
@@ -35,6 +37,7 @@ export function PowerPlannerApp({
 }: PowerPlannerAppProps) {
   return (
     <PlannerShell
+      projectName={projectName}
       plannerState={plannerState}
       setPlannerState={setPlannerState}
       workspaceBranding={workspaceBranding}

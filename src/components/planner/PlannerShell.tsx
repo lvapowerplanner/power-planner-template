@@ -10,7 +10,6 @@ import { ReportTab } from "@/components/planner/ReportTab";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import { SystemSignOffTab } from "@/components/planner/SystemSignOffTab";
 import { ensureAutoSources } from "@/planner/autoSources";
-import { appConfirm } from "@/lib/appDialogs";
 import type { PlannerState } from "@/planner/types";
 
 type WorkspaceBranding = {
@@ -25,6 +24,7 @@ type WorkspaceBranding = {
 };
 
 type PlannerShellProps = {
+  projectName: string;
   plannerState: PlannerState;
   setPlannerState: (state: PlannerState) => void;
   workspaceBranding?: WorkspaceBranding;
@@ -96,9 +96,9 @@ const standardTabs: PlannerTab[] = [
 function safeFileName(value: string) {
   const cleaned = value
     .trim()
-    .replace(/[^a-z0-9-_]+/gi, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+    .replace(/[<>:"/\\|?*\u0000-\u001f]/g, "-")
+    .replace(/\s+/g, " ")
+    .replace(/[. ]+$/g, "");
 
   return cleaned || "power-planner-project";
 }
@@ -148,6 +148,7 @@ function normaliseImportedPlannerState(value: PlannerState): PlannerState {
 }
 
 export function PlannerShell({
+  projectName,
   plannerState,
   setPlannerState,
   workspaceBranding,
@@ -158,6 +159,7 @@ export function PlannerShell({
   canManageReportLink = false,
 }: PlannerShellProps) {
   const [activeTab, setActiveTab] = useState<PlannerTab>("System Overview");
+  const [showImportWarning, setShowImportWarning] = useState(false);
   const [systemOverviewExpandedSourceIds, setSystemOverviewExpandedSourceIds] =
     useState<string[]>(() =>
       plannerState.sources
@@ -177,7 +179,6 @@ export function PlannerShell({
         .map((source) => source.id),
     ),
   );
-  const companyName = workspaceBranding?.company_name?.trim() || "Power Planner";
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const tabs: PlannerTab[] = [
     ...standardTabs.slice(0, 4),
@@ -234,12 +235,7 @@ export function PlannerShell({
     const stamp = new Date().toISOString().slice(0, 10);
 
     link.href = url;
-    const exportName =
-      exportState.projectInfo?.projectName ||
-      exportState.systemName ||
-      "power-planner-project";
-
-    link.download = `${safeFileName(exportName)}-${stamp}.json`;
+    link.download = `${safeFileName(projectName)} - ${stamp}.lvapower`;
     document.body.appendChild(link);
     link.click();
     link.remove();
@@ -247,6 +243,11 @@ export function PlannerShell({
   }
 
   function requestImportPlannerJson() {
+    setShowImportWarning(true);
+  }
+
+  function chooseProjectImportFile() {
+    setShowImportWarning(false);
     fileInputRef.current?.click();
   }
 
@@ -264,12 +265,6 @@ export function PlannerShell({
         alert("This does not look like a valid Event Power Planner export.");
         return;
       }
-
-      const confirmed = await appConfirm(
-        "Importing this file will replace the current planner data for this project. Continue?"
-      );
-
-      if (!confirmed) return;
 
       const importedState = normaliseImportedPlannerState(parsed);
       setPlannerState(importedState);
@@ -323,42 +318,53 @@ export function PlannerShell({
           opacity: 0.58;
         }
       `}</style>
-      <section data-power-planner-ui style={{ ...styles.shell, ...plannerThemeStyle(workspaceBranding) }}>
-        <div style={styles.utilityBar}>
-          <div style={styles.brandBlock}>
-            {workspaceBranding?.logo_url && (
-              <img
-                src={workspaceBranding.logo_url}
-                alt={`${companyName} logo`}
-                style={styles.logo}
-              />
-            )}
+      {showImportWarning && (
+        <div style={styles.dialogBackdrop} role="presentation">
+          <section
+            style={styles.dialog}
+            role="alertdialog"
+            aria-modal="true"
+            aria-labelledby="import-project-warning-title"
+            aria-describedby="import-project-warning-message"
+          >
+            <div style={styles.dialogIcon} aria-hidden="true">
+              !
+            </div>
             <div>
-              <h2 style={styles.utilityTitle}>{companyName}</h2>
-              <p style={styles.poweredBy}>Powered by LVA Power Planner</p>
-              <p style={styles.utilityText}>
-                Export a backup before major edits, or import a planner file to restore or share a system.
+              <h2 id="import-project-warning-title" style={styles.dialogTitle}>
+                Import project
+              </h2>
+              <p id="import-project-warning-message" style={styles.dialogMessage}>
+                Importing a project file will overwrite all current project settings and planner data.
               </p>
             </div>
-          </div>
-
-          <div style={styles.utilityActions}>
-            <button style={styles.secondaryButton} onClick={requestImportPlannerJson}>
-              Import Project
-            </button>
-            <button style={styles.primaryButton} onClick={exportPlannerJson}>
-              Export Project
-            </button>
-          </div>
-
-          <input
-            ref={fileInputRef}
-            style={{ display: "none" }}
-            type="file"
-            accept="application/json,.json"
-            onChange={importPlannerJson}
-          />
+            <div style={styles.dialogActions}>
+              <button
+                type="button"
+                style={styles.secondaryButton}
+                onClick={() => setShowImportWarning(false)}
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={styles.primaryButton}
+                onClick={chooseProjectImportFile}
+              >
+                Choose Project File
+              </button>
+            </div>
+          </section>
         </div>
+      )}
+      <section data-power-planner-ui style={{ ...styles.shell, ...plannerThemeStyle(workspaceBranding) }}>
+        <input
+          ref={fileInputRef}
+          style={{ display: "none" }}
+          type="file"
+          accept=".lvapower,.json,application/json"
+          onChange={importPlannerJson}
+        />
 
         <div style={styles.tabs}>
           {tabs.map((tab) => (
@@ -373,6 +379,14 @@ export function PlannerShell({
               {tab}
             </button>
           ))}
+          <div style={styles.tabActions}>
+            <button style={styles.secondaryButton} onClick={requestImportPlannerJson}>
+              Import Project
+            </button>
+            <button style={styles.primaryButton} onClick={exportPlannerJson}>
+              Export Project
+            </button>
+          </div>
         </div>
 
         {activeTab === "System Overview" && (
@@ -462,54 +476,62 @@ export function PlannerShell({
 }
 
 const styles: Record<string, React.CSSProperties> = {
+  dialogBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000000,
+    display: "grid",
+    placeItems: "center",
+    padding: "20px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  dialog: {
+    width: "min(560px, 100%)",
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
+    gap: "14px",
+    padding: "22px",
+    borderRadius: "14px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    boxShadow: "0 20px 55px rgba(0, 0, 0, 0.25)",
+    color: "#172033",
+  },
+  dialogIcon: {
+    width: "34px",
+    height: "34px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "999px",
+    background: "#fff4d6",
+    color: "#8a5b00",
+    fontWeight: 700,
+  },
+  dialogTitle: {
+    margin: 0,
+    fontSize: "20px",
+  },
+  dialogMessage: {
+    margin: "8px 0 0",
+    color: "#475467",
+    lineHeight: 1.5,
+  },
+  dialogActions: {
+    gridColumn: "1 / -1",
+    display: "flex",
+    justifyContent: "flex-end",
+    gap: "10px",
+  },
   shell: {
     marginTop: "20px",
     color: "#111827",
   },
-  utilityBar: {
-    display: "flex",
-    justifyContent: "space-between",
-    gap: "18px",
-    alignItems: "center",
-    marginBottom: "16px",
-    padding: "16px",
-    background: "#FFFFFF",
-    border: "1px solid #DCE5EC",
-    borderRadius: "20px",
-    boxShadow: "0 2px 8px rgba(17, 24, 39, 0.04)",
-  },
-  brandBlock: {
-    display: "flex",
-    gap: "12px",
-    alignItems: "center",
-    minWidth: 0,
-  },
-  logo: {
-    maxWidth: "120px",
-    maxHeight: "50px",
-    objectFit: "contain",
-  },
-  utilityTitle: {
-    margin: 0,
-    fontSize: "20px",
-    letterSpacing: "-0.02em",
-  },
-  poweredBy: {
-    margin: "2px 0 0",
-    color: "#637083",
-    fontSize: "12px",
-    fontWeight: 500,
-  },
-  utilityText: {
-    margin: "4px 0 0",
-    color: "#000000",
-    fontSize: "13px",
-  },
-  utilityActions: {
+  tabActions: {
     display: "flex",
     gap: "8px",
     flexWrap: "wrap",
-    justifyContent: "flex-end",
+    alignItems: "center",
+    marginLeft: "auto",
   },
   primaryButton: {
     padding: "11px 14px",
