@@ -248,6 +248,8 @@ export function AdminPortal({
     null,
   );
   const [toastMessage, setToastMessage] = useState("");
+  const [managedWorkspaceUsers, setManagedWorkspaceUsers] =
+    useState<WorkspaceUser[]>(workspaceUsers);
   const [editingUser, setEditingUser] = useState<WorkspaceUser | null>(null);
   const [editingRole, setEditingRole] = useState<UserRole>("user");
   const [editingStatus, setEditingStatus] =
@@ -255,7 +257,7 @@ export function AdminPortal({
 
   const companyName =
     workspaceBranding?.company_name?.trim() || "LVA Power Planner";
-  const seatsUsed = workspaceUsers.length;
+  const seatsUsed = managedWorkspaceUsers.length;
   const safeLicenseCount = Math.max(Number(licenseCount) || 5, 1);
   const seatsRemaining = Math.max(safeLicenseCount - seatsUsed, 0);
   const canInvite = seatsRemaining > 0;
@@ -266,10 +268,10 @@ export function AdminPortal({
 
   const sortedUsers = useMemo(
     () =>
-      [...workspaceUsers].sort((a, b) =>
+      [...managedWorkspaceUsers].sort((a, b) =>
         userLabel(a).localeCompare(userLabel(b)),
       ),
-    [workspaceUsers],
+    [managedWorkspaceUsers],
   );
 
   const filteredEquipmentRows = useMemo(() => {
@@ -317,6 +319,25 @@ export function AdminPortal({
     setLoadingAudit(false);
   }
 
+  async function loadAdminWorkspaceUsers() {
+    if (!workspaceId) {
+      setManagedWorkspaceUsers([]);
+      return;
+    }
+
+    const { data, error } = await supabase.rpc("workspace_admin_users", {
+      target_workspace_id: workspaceId,
+    });
+
+    if (error) {
+      console.error("Could not load admin workspace users:", error);
+      showToast(`Could not load workspace users: ${error.message}`);
+      return;
+    }
+
+    setManagedWorkspaceUsers((data ?? []) as WorkspaceUser[]);
+  }
+
   async function loadStock() {
     setLoadingStock(true);
 
@@ -356,7 +377,14 @@ export function AdminPortal({
   useEffect(() => {
     loadStock();
     loadAudit();
+    loadAdminWorkspaceUsers();
   }, [workspaceId]);
+
+  useEffect(() => {
+    if (workspaceUsers.length > 0) {
+      setManagedWorkspaceUsers(workspaceUsers);
+    }
+  }, [workspaceUsers]);
 
   async function runWorkspaceAdminAction(
     action: string,
@@ -432,6 +460,7 @@ export function AdminPortal({
       }
 
       await reloadWorkspaceUsers();
+      await loadAdminWorkspaceUsers();
       await loadAudit();
       return true;
     } catch (error) {
@@ -556,6 +585,31 @@ export function AdminPortal({
       user_id: userId,
       role,
     });
+  }
+
+  async function toggleAdvancedAccess(workspaceUser: WorkspaceUser) {
+    if (!workspaceId) return;
+    setUserSaving(true);
+    const { error } = await supabase.rpc(
+      "set_workspace_user_advanced_features",
+      {
+        target_workspace_id: workspaceId,
+        target_user_id: workspaceUser.id,
+        enabled: workspaceUser.advanced_features_enabled === false,
+      },
+    );
+    setUserSaving(false);
+    if (error) {
+      showToast(error.message);
+      return;
+    }
+    await reloadWorkspaceUsers();
+    await loadAdminWorkspaceUsers();
+    showToast(
+      workspaceUser.advanced_features_enabled === false
+        ? "Advanced access enabled."
+        : "Advanced access disabled.",
+    );
   }
 
   async function toggleUserDisabled(user: WorkspaceUser) {
@@ -986,10 +1040,24 @@ export function AdminPortal({
                         {normaliseRole(workspaceUser.role) === "admin"
                           ? "Admin"
                           : "User"}
+                        {advancedFeaturesEnabled && (
+                          <>{" · "}{workspaceUser.advanced_features_enabled === false ? "Standard access" : "Advanced access"}</>
+                        )}
                       </p>
                     </div>
                   </div>
                   <div style={styles.userActions}>
+                    {advancedFeaturesEnabled && (
+                      <button
+                        style={styles.secondaryButton}
+                        onClick={() => toggleAdvancedAccess(workspaceUser)}
+                        disabled={userSaving}
+                      >
+                        {workspaceUser.advanced_features_enabled === false
+                          ? "Enable Advanced"
+                          : "Disable Advanced"}
+                      </button>
+                    )}
                     <button
                       style={styles.secondaryButton}
                       onClick={() => openEditUser(workspaceUser)}
