@@ -25,6 +25,7 @@ type AdminPayload = {
   user_id?: string;
   workspace_id?: string;
   subdomain?: string;
+  redirect_to?: string;
 };
 
 function jsonResponse(body: Record<string, unknown>, status = 200) {
@@ -71,6 +72,51 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
     value,
   );
+}
+
+function resolveInviteRedirect(
+  requestedRedirect: unknown,
+  workspaceHostValue: unknown,
+  subdomain: string,
+) {
+  const requested = String(requestedRedirect ?? "").trim();
+
+  if (requested) {
+    try {
+      const url = new URL(requested);
+      const requestedSubdomain = cleanSubdomain(url.hostname);
+
+      if (
+        (url.protocol === "https:" || url.protocol === "http:") &&
+        requestedSubdomain === subdomain
+      ) {
+        return url.origin;
+      }
+    } catch {
+      // Fall through to the canonical workspace host.
+    }
+  }
+
+  const rawHost = String(workspaceHostValue ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, "")
+    .split("/")[0];
+
+  if (rawHost === "localhost" || rawHost.startsWith("localhost:") ||
+      rawHost === "127.0.0.1" || rawHost.startsWith("127.0.0.1:")) {
+    return `http://${rawHost}`;
+  }
+
+  if (rawHost.includes(".")) {
+    return `https://${rawHost}`;
+  }
+
+  const baseDomain =
+    Deno.env.get("APP_BASE_DOMAIN")?.trim().toLowerCase() ||
+    "lvapowerplanner.com";
+
+  return `https://${subdomain}.${baseDomain}`;
 }
 
 
@@ -467,10 +513,11 @@ Deno.serve(async (req) => {
       }
     }
 
-    const workspaceHost = String((workspace as any).host ?? "").trim().toLowerCase();
-    const siteUrl = workspaceHost.startsWith("http://") || workspaceHost.startsWith("https://")
-      ? workspaceHost
-      : `https://${workspaceHost}`;
+    const siteUrl = resolveInviteRedirect(
+      payload.redirect_to,
+      (workspace as any).host,
+      subdomain,
+    );
     let targetUser = existingProfile
       ? { id: (existingProfile as any).id }
       : null;
@@ -573,10 +620,11 @@ Deno.serve(async (req) => {
   const targetEmail = cleanEmail((targetProfile as any).email);
 
   if (action === "resend_invitation") {
-    const workspaceHost = String((workspace as any).host ?? "").trim().toLowerCase();
-    const siteUrl = workspaceHost.startsWith("http://") || workspaceHost.startsWith("https://")
-      ? workspaceHost
-      : `https://${workspaceHost}`;
+    const siteUrl = resolveInviteRedirect(
+      payload.redirect_to,
+      (workspace as any).host,
+      subdomain,
+    );
 
     if (!targetEmail || !targetEmail.includes("@")) {
       return jsonResponse(
@@ -622,7 +670,7 @@ Deno.serve(async (req) => {
       target_email: targetEmail,
       action: "resend_invitation",
       role: (targetProfile as any).role,
-      metadata: { subdomain },
+      metadata: { subdomain, redirect_to: siteUrl },
     });
 
     return jsonResponse({ ok: true });
@@ -762,3 +810,5 @@ Deno.serve(async (req) => {
     );
   }
 });
+
+
