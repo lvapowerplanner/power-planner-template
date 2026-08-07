@@ -131,7 +131,6 @@ export function ProjectWorkspace({
                 }}
               />
             </label>
-            <p style={styles.muted}>Power Planner</p>
             <p style={styles.saveStatus}>
               {renaming ? "Renaming project..." : saveStatus}
             </p>
