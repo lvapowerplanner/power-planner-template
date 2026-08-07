@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { appConfirm } from "@/lib/appDialogs";
 import { applyWorkspaceCableOverrides } from "@/planner/cableLibrary";
 import type {
   GlobalCableLibraryRecord,
@@ -330,12 +331,12 @@ export function CableLibraryTab({
     setFormError("");
   }
 
-  function removeProjectCable(id: string) {
+  async function removeProjectCable(id: string) {
     const used = usedCableIds.has(id);
     const message = used
       ? "This cable is used by an existing circuit. Removing it will hide it from new selections, but the circuit's saved snapshot will remain. Remove it?"
       : "Remove this project cable from the library?";
-    if (!confirm(message)) return;
+    if (!(await appConfirm(message))) return;
 
     setPlannerState({
       ...plannerState,

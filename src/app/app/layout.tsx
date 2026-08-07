@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Lato } from "next/font/google";
+import { AppAlertProvider } from "@/components/AppAlertProvider";
 import "./globals.css";
 
 const lato = Lato({
@@ -96,7 +97,7 @@ export default function RootLayout({
             }
           }
         `}</style>
-        {children}
+        <AppAlertProvider>{children}</AppAlertProvider>
       </body>
     </html>
   );

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { appConfirm } from "@/lib/appDialogs";
 import type {
   GlobalCableLibraryRecord,
   WorkspaceCableOverride,
@@ -245,7 +246,7 @@ export function AdminCableDataTab({ workspaceId }: AdminCableDataTabProps) {
     if (!workspaceId) return;
     if (
       confirmReset &&
-      !confirm("Reset this cable to the standard library values?")
+      !(await appConfirm("Reset this cable to the standard library values?"))
     ) {
       return;
     }

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
+import { appConfirm } from "@/lib/appDialogs";
 import { AdminCableDataTab } from "@/components/AdminCableDataTab";
 import {
   cloneDistroDefinition,
@@ -546,7 +547,7 @@ export function AdminPortal({
   }
 
   async function resendInvitation(user: WorkspaceUser) {
-    if (!confirm(`Resend invitation to ${userLabel(user)}?`)) return;
+    if (!(await appConfirm(`Resend invitation to ${userLabel(user)}?`))) return;
 
     const saved = await runWorkspaceAdminAction("resend_invitation", {
       user_id: user.id,
@@ -557,9 +558,9 @@ export function AdminPortal({
 
   async function resetUserMfa(user: WorkspaceUser) {
     if (
-      !confirm(
+      !(await appConfirm(
         `Reset MFA for ${userLabel(user)}? They will need to set up MFA again at next sign-in.`,
-      )
+      ))
     )
       return;
 
@@ -661,7 +662,7 @@ export function AdminPortal({
     const action = disabled ? "enable_user" : "disable_user";
     const promptLabel = disabled ? "Re-enable" : "Disable";
 
-    if (!confirm(`${promptLabel} ${userLabel(user)}?`)) {
+    if (!(await appConfirm(`${promptLabel} ${userLabel(user)}?`))) {
       return;
     }
 
@@ -672,9 +673,9 @@ export function AdminPortal({
 
   async function removeWorkspaceAccess(user: WorkspaceUser) {
     if (
-      !confirm(
+      !(await appConfirm(
         `Remove workspace access for ${userLabel(user)}? This does not delete their Supabase Auth account.`,
-      )
+      ))
     ) {
       return;
     }
@@ -765,7 +766,7 @@ export function AdminPortal({
   }
 
   async function deleteEquipment(row: StockEquipmentRow) {
-    if (!confirm(`Archive ${row.name}? This removes it from the live library.`))
+    if (!(await appConfirm(`Archive ${row.name}? This removes it from the live library.`)))
       return;
 
     const { error } = await supabase
@@ -848,7 +849,7 @@ export function AdminPortal({
   }
 
   async function deleteDistro(row: StockDistroRow) {
-    if (!confirm(`Archive ${row.name}? This removes it from the live library.`))
+    if (!(await appConfirm(`Archive ${row.name}? This removes it from the live library.`)))
       return;
 
     const { error } = await supabase

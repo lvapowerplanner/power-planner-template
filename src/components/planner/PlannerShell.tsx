@@ -10,6 +10,7 @@ import { ReportTab } from "@/components/planner/ReportTab";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import { SystemSignOffTab } from "@/components/planner/SystemSignOffTab";
 import { ensureAutoSources } from "@/planner/autoSources";
+import { appConfirm } from "@/lib/appDialogs";
 import type { PlannerState } from "@/planner/types";
 
 type WorkspaceBranding = {
@@ -264,7 +265,7 @@ export function PlannerShell({
         return;
       }
 
-      const confirmed = confirm(
+      const confirmed = await appConfirm(
         "Importing this file will replace the current planner data for this project. Continue?"
       );
 

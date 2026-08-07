@@ -9,6 +9,7 @@ import { LoginForm } from "@/components/LoginForm";
 import { ProjectDashboard } from "@/components/ProjectDashboard";
 import { ProjectWorkspace } from "@/components/ProjectWorkspace";
 import { supabase } from "@/lib/supabaseClient";
+import { appConfirm } from "@/lib/appDialogs";
 import {
   emptyProjectData,
   type Project,
@@ -129,6 +130,13 @@ export default function PlannerPortal() {
   const [isInvitePasswordSetup, setIsInvitePasswordSetup] = useState(false);
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [passwordNotice, setPasswordNotice] = useState<{
+    title: string;
+    message: string;
+    tone: "success" | "error" | "information";
+  } | null>(null);
+  const [passwordCompletionUser, setPasswordCompletionUser] =
+    useState<User | null>(null);
   const [workspaceBranding, setWorkspaceBranding] = useState<WorkspaceBranding>(
     defaultWorkspaceBranding,
   );
@@ -427,6 +435,8 @@ export default function PlannerPortal() {
     setIsInvitePasswordSetup(false);
     setNewPassword("");
     setConfirmPassword("");
+    setPasswordNotice(null);
+    setPasswordCompletionUser(null);
     setMfaMode("none");
     setMfaCode("");
     setMfaFactorId("");
@@ -730,11 +740,19 @@ export default function PlannerPortal() {
     const { error } = await supabase.auth.signUp({ email, password });
 
     if (error) {
-      alert(error.message);
+      setPasswordNotice({
+        title: "Account could not be created",
+        message: error.message,
+        tone: "error",
+      });
       return;
     }
 
-    alert("Account created. Please check your email.");
+    setPasswordNotice({
+      title: "Check your email",
+      message: "Your account has been created. Please check your inbox to continue.",
+      tone: "success",
+    });
   }
 
   async function signIn() {
@@ -778,7 +796,11 @@ export default function PlannerPortal() {
     const cleanEmail = email.trim();
 
     if (!cleanEmail) {
-      alert("Please enter your email address first.");
+      setPasswordNotice({
+        title: "Email address required",
+        message: "Please enter your email address before requesting a password reset.",
+        tone: "error",
+      });
       return;
     }
 
@@ -790,23 +812,39 @@ export default function PlannerPortal() {
     });
 
     if (error) {
-      alert(error.message);
+      setPasswordNotice({
+        title: "Password reset could not be requested",
+        message: error.message,
+        tone: "error",
+      });
       return;
     }
 
-    alert("Password reset email sent. Please check your inbox.");
+    setPasswordNotice({
+      title: "Password reset email sent",
+      message: "Please check your inbox and follow the link to choose a new password.",
+      tone: "success",
+    });
   }
 
   async function completePasswordReset() {
     const cleanPassword = newPassword.trim();
 
     if (cleanPassword.length < 8) {
-      alert("Please enter a password with at least 8 characters.");
+      setPasswordNotice({
+        title: "Password is too short",
+        message: "Please enter a password with at least 8 characters.",
+        tone: "error",
+      });
       return;
     }
 
     if (cleanPassword !== confirmPassword.trim()) {
-      alert("The passwords do not match.");
+      setPasswordNotice({
+        title: "Passwords do not match",
+        message: "Enter the same password in both fields and try again.",
+        tone: "error",
+      });
       return;
     }
 
@@ -815,23 +853,85 @@ export default function PlannerPortal() {
     });
 
     if (error) {
-      alert(error.message);
+      setPasswordNotice({
+        title: "Password could not be updated",
+        message: error.message,
+        tone: "error",
+      });
       return;
     }
 
-    setIsPasswordRecovery(false);
-    setIsInvitePasswordSetup(false);
     setNewPassword("");
     setConfirmPassword("");
     setAccessMessage("");
 
     const currentUser = data.user ?? user;
+    setPasswordCompletionUser(currentUser);
+    setPasswordNotice({
+      title: isInvitePasswordSetup
+        ? "Password created"
+        : "Password updated",
+      message: isInvitePasswordSetup
+        ? "Your password has been created successfully. You can now continue to your workspace."
+        : "Your password has been updated successfully.",
+      tone: "success",
+    });
+  }
 
-    if (currentUser) {
-      await approveAndLoadUser(currentUser);
-    }
+  async function closePasswordNotice() {
+    const completedUser = passwordCompletionUser;
+    setPasswordNotice(null);
 
-    alert("Password updated successfully.");
+    if (!completedUser) return;
+
+    setPasswordCompletionUser(null);
+    setIsPasswordRecovery(false);
+    setIsInvitePasswordSetup(false);
+    await approveAndLoadUser(completedUser);
+  }
+
+  function renderPasswordNotice() {
+    if (!passwordNotice) return null;
+
+    return (
+      <div style={styles.passwordModalBackdrop} role="presentation">
+        <section
+          style={styles.passwordModal}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="password-notice-title"
+        >
+          <div
+            style={{
+              ...styles.passwordNoticeIcon,
+              ...(passwordNotice.tone === "success"
+                ? styles.passwordNoticeSuccess
+                : passwordNotice.tone === "error"
+                  ? styles.passwordNoticeError
+                  : styles.passwordNoticeInformation),
+            }}
+            aria-hidden="true"
+          >
+            {passwordNotice.tone === "success"
+              ? "✓"
+              : passwordNotice.tone === "error"
+                ? "!"
+                : "i"}
+          </div>
+          <div>
+            <h2 id="password-notice-title" style={styles.passwordModalTitle}>
+              {passwordNotice.title}
+            </h2>
+            <p style={styles.passwordModalText}>{passwordNotice.message}</p>
+          </div>
+          <div style={styles.passwordModalActions}>
+            <button style={styles.passwordButton} onClick={closePasswordNotice}>
+              {passwordCompletionUser ? "Continue" : "Close"}
+            </button>
+          </div>
+        </section>
+      </div>
+    );
   }
 
   async function verifyMfaCode() {
@@ -1220,7 +1320,7 @@ export default function PlannerPortal() {
   }
 
   async function deleteProject(projectId: string) {
-    if (!confirm("Delete this project?")) return;
+    if (!(await appConfirm("Delete this project?"))) return;
 
     await supabase.from("project_data").delete().eq("project_id", projectId);
 
@@ -1409,6 +1509,7 @@ export default function PlannerPortal() {
           requestPasswordReset={requestPasswordReset}
           workspaceBranding={workspaceBranding}
         />
+        {renderPasswordNotice()}
       </>
     );
   }
@@ -1476,6 +1577,7 @@ export default function PlannerPortal() {
             {isInvitePasswordSetup ? "Create Password" : "Update Password"}
           </button>
         </section>
+        {renderPasswordNotice()}
       </main>
     );
   }
@@ -1863,6 +1965,48 @@ const styles: Record<string, React.CSSProperties> = {
     background: "#172033",
     color: "white",
     cursor: "pointer",
+  },
+  passwordModalBackdrop: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 1000000,
+    display: "grid",
+    placeItems: "center",
+    padding: "20px",
+    background: "rgba(15, 23, 42, 0.55)",
+  },
+  passwordModal: {
+    width: "min(520px, 100%)",
+    display: "grid",
+    gridTemplateColumns: "auto minmax(0, 1fr)",
+    gap: "14px",
+    padding: "22px",
+    borderRadius: "14px",
+    border: "1px solid #d9e0ea",
+    background: "white",
+    boxShadow: "0 20px 55px rgba(0, 0, 0, 0.25)",
+  },
+  passwordNoticeIcon: {
+    width: "34px",
+    height: "34px",
+    display: "grid",
+    placeItems: "center",
+    borderRadius: "999px",
+    fontWeight: 700,
+  },
+  passwordNoticeSuccess: { background: "#dcfce7", color: "#166534" },
+  passwordNoticeError: { background: "#fee2e2", color: "#b42318" },
+  passwordNoticeInformation: { background: "#e8eef5", color: "#344054" },
+  passwordModalTitle: { margin: 0, fontSize: "20px" },
+  passwordModalText: {
+    margin: "8px 0 0",
+    color: "#475467",
+    lineHeight: 1.5,
+  },
+  passwordModalActions: {
+    gridColumn: "1 / -1",
+    display: "flex",
+    justifyContent: "flex-end",
   },
   accessMessage: {
     position: "fixed",

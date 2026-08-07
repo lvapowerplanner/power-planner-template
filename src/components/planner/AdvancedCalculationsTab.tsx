@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { appConfirm } from "@/lib/appDialogs";
 import { SystemOverviewTab } from "@/components/planner/SystemOverviewTab";
 import { CableProtectionTab } from "@/components/planner/CableProtectionTab";
 import { CableLibraryTab } from "@/components/planner/CableLibraryTab";
@@ -446,11 +447,11 @@ export function AdvancedCalculationsTab({
     };
   }
 
-  function resetAllDiversity() {
+  async function resetAllDiversity() {
     if (
-      !confirm(
+      !(await appConfirm(
         "Reset diversity to 100% and remove diversity reasons from every circuit?",
-      )
+      ))
     ) {
       return;
     }
@@ -473,7 +474,7 @@ export function AdvancedCalculationsTab({
     });
   }
 
-  function refreshDistroModel() {
+  async function refreshDistroModel() {
     const distro = plannerState.distros.find(
       (candidate) => candidate.id === refreshDistroId,
     );
@@ -529,9 +530,9 @@ export function AdvancedCalculationsTab({
     }
 
     if (
-      !confirm(
+      !(await appConfirm(
         `Refresh ${displayDistroName(distro)} from ${referencedModel.name}? Output assignments and project calculation settings will be retained. Model structure and built-in protection will be updated.`,
-      )
+      ))
     ) {
       return;
     }

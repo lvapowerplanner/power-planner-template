@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { appConfirm } from "@/lib/appDialogs";
 import type {
   DistroDefinition,
   PlannerOutput,
@@ -793,10 +794,10 @@ export function DistroDefinitionBuilder({
     });
   }
 
-  function removeOutput(output: PlannerOutput) {
+  async function removeOutput(output: PlannerOutput) {
     if (
       output.breakerPair &&
-      !confirm("Remove both Socapex outputs in this shared-breaker twin?")
+      !(await appConfirm("Remove both Socapex outputs in this shared-breaker twin?"))
     ) {
       return;
     }
